@@ -27,12 +27,26 @@ import {
   RefreshCw,
   Maximize2,
   X,
+  UserCheck,
+  Tag,
 } from "lucide-react";
 
 interface ParticipantTableProps {
   registrations: any[];
   tournaments?: any[];
   onRefresh: () => void;
+}
+
+interface SwimmerGroup {
+  group_key: string;
+  registration_code: string;
+  participant: any;
+  payment_method: string;
+  sender_bank_owner: string;
+  payment_proof_url: string;
+  status: string;
+  total_fee: number;
+  items: any[];
 }
 
 export default function ParticipantTable({
@@ -44,57 +58,134 @@ export default function ParticipantTable({
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterTournamentID, setFilterTournamentID] = useState("ALL");
 
-  // Selected Detail Registration for Modal View
-  const [selectedReg, setSelectedReg] = useState<any | null>(null);
+  // Selected Group Registration for Modal View
+  const [selectedGroup, setSelectedGroup] = useState<SwimmerGroup | null>(null);
 
   // Fullscreen Image Preview
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [previewImageTitle, setPreviewImageTitle] = useState<string>("");
-  const [verifyingId, setVerifyingId] = useState<number | null>(null);
+  const [verifyingGroupKey, setVerifyingGroupKey] = useState<string | null>(null);
 
-  // Count Statistics
-  const countPending = registrations.filter((r) => r.payment_status === "pending").length;
-  const countVerified = registrations.filter((r) => r.payment_status === "verified").length;
-  const countRejected = registrations.filter((r) => r.payment_status === "rejected").length;
+  // =========================================================================
+  // 1. GROUP REGISTRATIONS BY SWIMMER / REGISTRATION CODE
+  // =========================================================================
+  const groupMap: { [key: string]: SwimmerGroup } = {};
 
-  // Filter Logic
-  const filtered = registrations.filter((r) => {
+  registrations.forEach((r) => {
+    const code = r.registration_code || `REG-P-${r.participant_id || r.id}`;
+    const pName = r.participant?.name || "Perenang";
+    const groupKey = `${code}_${pName}`;
+
+    if (!groupMap[groupKey]) {
+      groupMap[groupKey] = {
+        group_key: groupKey,
+        registration_code: r.registration_code || code,
+        participant: r.participant || {},
+        payment_method: r.payment_method || "BCA",
+        sender_bank_owner: r.sender_bank_owner || "-",
+        payment_proof_url: r.payment_proof_url || "",
+        status: r.payment_status || "pending",
+        total_fee: 0,
+        items: [],
+      };
+    }
+
+    const grp = groupMap[groupKey];
+    grp.items.push(r);
+
+    // Keep payment proof if any item has it
+    if (!grp.payment_proof_url && r.payment_proof_url) {
+      grp.payment_proof_url = r.payment_proof_url;
+    }
+    if (r.payment_method && grp.payment_method === "BCA") {
+      grp.payment_method = r.payment_method;
+    }
+    if (r.sender_bank_owner && grp.sender_bank_owner === "-") {
+      grp.sender_bank_owner = r.sender_bank_owner;
+    }
+
+    const fee = r.swimming_event?.fee ? Number(r.swimming_event.fee) : 150000;
+    grp.total_fee += fee;
+  });
+
+  // Calculate unified group status
+  const swimmerGroups: SwimmerGroup[] = Object.values(groupMap).map((grp) => {
+    const statuses = grp.items.map((i) => i.payment_status);
+    let unifiedStatus = "pending";
+    if (statuses.every((s) => s === "verified")) {
+      unifiedStatus = "verified";
+    } else if (statuses.every((s) => s === "rejected")) {
+      unifiedStatus = "rejected";
+    } else if (statuses.some((s) => s === "verified")) {
+      unifiedStatus = "verified";
+    } else if (statuses.some((s) => s === "rejected")) {
+      unifiedStatus = "rejected";
+    }
+    return {
+      ...grp,
+      status: unifiedStatus,
+    };
+  });
+
+  // Count Statistics (Grouped per Swimmer)
+  const countPending = swimmerGroups.filter((g) => g.status === "pending").length;
+  const countVerified = swimmerGroups.filter((g) => g.status === "verified").length;
+  const countRejected = swimmerGroups.filter((g) => g.status === "rejected").length;
+
+  // Filter Logic on Swimmer Groups
+  const filteredGroups = swimmerGroups.filter((g) => {
     // 1. Status Filter
-    const matchStatus = filterStatus === "ALL" || r.payment_status === filterStatus;
+    const matchStatus = filterStatus === "ALL" || g.status === filterStatus;
 
-    // 2. Tournament Filter
-    const eventTourneyID =
-      r.swimming_event?.tournament_id || r.swimming_event?.tournament?.id;
+    // 2. Tournament Filter (Matches if any item belongs to selected tournament)
     const matchTourney =
       filterTournamentID === "ALL" ||
-      String(eventTourneyID) === String(filterTournamentID);
+      g.items.some((item) => {
+        const tourneyID =
+          item.swimming_event?.tournament_id || item.swimming_event?.tournament?.id;
+        return String(tourneyID) === String(filterTournamentID);
+      });
 
     // 3. Search Query
     const q = search.toLowerCase();
     const matchQuery =
       !q ||
-      r.registration_code?.toLowerCase().includes(q) ||
-      r.participant?.name?.toLowerCase().includes(q) ||
-      r.participant?.club?.toLowerCase().includes(q) ||
-      r.participant?.pic?.toLowerCase().includes(q) ||
-      r.swimming_event?.event_name?.toLowerCase().includes(q) ||
-      String(r.swimming_event?.event_code).includes(q);
+      g.registration_code?.toLowerCase().includes(q) ||
+      g.participant?.name?.toLowerCase().includes(q) ||
+      g.participant?.club?.toLowerCase().includes(q) ||
+      g.participant?.pic?.toLowerCase().includes(q) ||
+      g.items.some(
+        (item) =>
+          item.swimming_event?.event_name?.toLowerCase().includes(q) ||
+          String(item.swimming_event?.event_code).includes(q)
+      );
 
     return matchStatus && matchTourney && matchQuery;
   });
 
-  const handleVerifyStatus = async (id: number, status: string) => {
-    setVerifyingId(id);
-    const res = await verifyPayment(id, status);
-    setVerifyingId(null);
-    if (res.success) {
-      // Update local modal state if active
-      if (selectedReg && selectedReg.id === id) {
-        setSelectedReg((prev: any) => ({ ...prev, payment_status: status }));
+  // Group Verify Handler (Approves / Rejects all sub-events of a swimmer)
+  const handleVerifyGroupStatus = async (group: SwimmerGroup, status: string) => {
+    setVerifyingGroupKey(group.group_key);
+    try {
+      await Promise.all(group.items.map((item) => verifyPayment(item.id, status)));
+      setVerifyingGroupKey(null);
+
+      // Update active modal if open
+      if (selectedGroup && selectedGroup.group_key === group.group_key) {
+        const updatedItems = selectedGroup.items.map((i) => ({
+          ...i,
+          payment_status: status,
+        }));
+        setSelectedGroup({
+          ...selectedGroup,
+          status,
+          items: updatedItems,
+        });
       }
       onRefresh();
-    } else {
-      alert(res.message || "Gagal mengubah status pendaftaran");
+    } catch (err) {
+      setVerifyingGroupKey(null);
+      alert("Terjadi kesalahan saat memverifikasi pendaftaran perenang ini.");
     }
   };
 
@@ -108,7 +199,6 @@ export default function ParticipantTable({
       {/* HEADER CONTROLS & FILTER BAR */}
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          
           {/* SEARCH INPUT & TOURNAMENT DROPDOWN */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
             {/* Search Input */}
@@ -144,15 +234,15 @@ export default function ParticipantTable({
 
           {/* COUNTER BADGE */}
           <div className="text-xs font-bold text-slate-500 self-start lg:self-center">
-            Menampilkan <span className="text-sky-700 font-black">{filtered.length}</span> dari{" "}
-            <span className="font-black text-slate-800">{registrations.length}</span> Pendaftaran
+            Menampilkan <span className="text-sky-700 font-black">{filteredGroups.length}</span> Perenang (Total{" "}
+            <span className="font-black text-slate-800">{swimmerGroups.length}</span> Pendaftaran Group)
           </div>
         </div>
 
         {/* STATUS TAB BUTTONS */}
         <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
           {[
-            { id: "ALL", label: "Semua Status", count: registrations.length, color: "sky" },
+            { id: "ALL", label: "Semua Perenang", count: swimmerGroups.length, color: "sky" },
             { id: "pending", label: "PENDING VERIFIKASI", count: countPending, color: "amber" },
             { id: "verified", label: "TERVERIFIKASI (VERIFIED)", count: countVerified, color: "emerald" },
             { id: "rejected", label: "DITOLAK (REJECTED)", count: countRejected, color: "red" },
@@ -190,7 +280,7 @@ export default function ParticipantTable({
         </div>
       </div>
 
-      {/* REGISTRATIONS TABLE */}
+      {/* GROUPED REGISTRATIONS TABLE */}
       <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-xs">
           <thead>
@@ -198,36 +288,38 @@ export default function ParticipantTable({
               <th className="p-4">KODE REGISTRASI</th>
               <th className="p-4">PERENANG / ATLET</th>
               <th className="p-4">KLUB / KONTINGEN</th>
-              <th className="p-4">NOMOR LOMBA</th>
-              <th className="p-4 text-center">TIME SEED</th>
+              <th className="p-4">SUB NOMOR LOMBA TERDAFTAR</th>
+              <th className="p-4 text-center">TOTAL BIAYA</th>
               <th className="p-4 text-center">BERKAS & BAYAR</th>
               <th className="p-4 text-center">STATUS</th>
               <th className="p-4 text-right">AKSI VERIFIKASI</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-slate-800">
-            {filtered.length === 0 ? (
+            {filteredGroups.length === 0 ? (
               <tr>
                 <td colSpan={8} className="p-12 text-center text-slate-500 font-medium space-y-2">
                   <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                  <p className="font-bold text-sm text-slate-700">Tidak ada pendaftaran yang sesuai dengan filter.</p>
+                  <p className="font-bold text-sm text-slate-700">Tidak ada data pendaftaran yang sesuai dengan filter.</p>
                   <p className="text-xs text-slate-400">Coba ubah status tab atau kata kunci pencarian di atas.</p>
                 </td>
               </tr>
             ) : (
-              filtered.map((r) => {
-                const p = r.participant || {};
-                const evt = r.swimming_event || {};
+              filteredGroups.map((g) => {
+                const p = g.participant || {};
                 const hasDoc = !!p.verification_doc_url;
-                const hasProof = !!r.payment_proof_url;
+                const hasProof = !!g.payment_proof_url;
 
                 return (
-                  <tr key={r.id} className="hover:bg-sky-50/40 transition-colors group">
+                  <tr key={g.group_key} className="hover:bg-sky-50/40 transition-colors group">
                     {/* Kode Registrasi */}
                     <td className="p-4 font-mono font-bold text-sky-700">
-                      <div className="flex items-center gap-1.5">
-                        <span className="px-2.5 py-1 bg-sky-50 rounded-xl text-sky-800 border border-sky-200 text-xs font-black">
-                          {r.registration_code || `REG-${r.id}`}
+                      <div className="space-y-1">
+                        <span className="px-2.5 py-1 bg-sky-50 rounded-xl text-sky-800 border border-sky-200 text-xs font-black inline-block">
+                          {g.registration_code}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold block">
+                          {g.items.length} Nomor Lomba
                         </span>
                       </div>
                     </td>
@@ -267,21 +359,34 @@ export default function ParticipantTable({
                       </div>
                     </td>
 
-                    {/* Nomor Lomba */}
+                    {/* Sub Nomor Lomba (Pills List) */}
                     <td className="p-4">
-                      <div className="space-y-0.5 max-w-xs">
-                        <span className="font-extrabold text-indigo-700 block text-xs truncate">
-                          #{evt.event_code} - {evt.event_name}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium block">
-                          {evt.distance} | {evt.stroke}
-                        </span>
+                      <div className="flex flex-wrap gap-1.5 max-w-sm">
+                        {g.items.map((item) => (
+                          <span
+                            key={item.id}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-xl text-[11px] font-bold border border-slate-200 flex items-center gap-1"
+                          >
+                            <span className="text-sky-700 font-black">#{item.swimming_event?.event_code}</span>
+                            <span className="truncate max-w-[140px]">{item.swimming_event?.event_name}</span>
+                            <span className="text-[10px] font-mono text-amber-700 font-black">
+                              ({item.time_seed || "NT"})
+                            </span>
+                          </span>
+                        ))}
                       </div>
                     </td>
 
-                    {/* Time Seed */}
-                    <td className="p-4 text-center font-mono font-black text-amber-800">
-                      {r.time_seed || "NT"}
+                    {/* Total Biaya */}
+                    <td className="p-4 text-center">
+                      <div className="space-y-0.5">
+                        <span className="font-black text-emerald-700 text-xs block">
+                          Rp {g.total_fee.toLocaleString("id-ID")}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold block">
+                          ({g.items.length} Nomor)
+                        </span>
+                      </div>
                     </td>
 
                     {/* Berkas & Bayar Indicators */}
@@ -321,60 +426,60 @@ export default function ParticipantTable({
                       </div>
                     </td>
 
-                    {/* Status Badge */}
+                    {/* Unified Status Badge */}
                     <td className="p-4 text-center">
                       <span
                         className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide inline-flex items-center gap-1 ${
-                          r.payment_status === "verified"
+                          g.status === "verified"
                             ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                            : r.payment_status === "rejected"
+                            : g.status === "rejected"
                             ? "bg-red-100 text-red-800 border border-red-300"
                             : "bg-amber-100 text-amber-800 border border-amber-300"
                         }`}
                       >
                         <span
                           className={`w-1.5 h-1.5 rounded-full ${
-                            r.payment_status === "verified"
+                            g.status === "verified"
                               ? "bg-emerald-600"
-                              : r.payment_status === "rejected"
+                              : g.status === "rejected"
                               ? "bg-red-600"
                               : "bg-amber-600"
                           }`}
                         />
-                        {r.payment_status || "pending"}
+                        {g.status}
                       </span>
                     </td>
 
-                    {/* Action Buttons */}
+                    {/* Group Action Buttons */}
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-1.5">
                         {/* Detail Modal Trigger */}
                         <button
-                          onClick={() => setSelectedReg(r)}
+                          onClick={() => setSelectedGroup(g)}
                           className="px-3 py-1.5 bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white rounded-xl text-xs font-extrabold transition-all border border-sky-200 flex items-center gap-1 cursor-pointer shadow-2xs"
                         >
                           <Eye className="w-3.5 h-3.5" />
-                          <span>Detail</span>
+                          <span>Detail ({g.items.length})</span>
                         </button>
 
-                        {/* Quick Approve */}
-                        {r.payment_status !== "verified" && (
+                        {/* Group Quick Approve */}
+                        {g.status !== "verified" && (
                           <button
-                            onClick={() => handleVerifyStatus(r.id, "verified")}
-                            disabled={verifyingId === r.id}
-                            title="Setujui Pendaftaran"
+                            onClick={() => handleVerifyGroupStatus(g, "verified")}
+                            disabled={verifyingGroupKey === g.group_key}
+                            title="Setujui Semua Nomor Lomba Perenang Ini"
                             className="p-1.5 bg-emerald-100 hover:bg-emerald-600 text-emerald-800 hover:text-white rounded-xl text-xs transition-all border border-emerald-200 cursor-pointer"
                           >
                             <CheckCircle className="w-4 h-4" />
                           </button>
                         )}
 
-                        {/* Quick Reject */}
-                        {r.payment_status !== "rejected" && (
+                        {/* Group Quick Reject */}
+                        {g.status !== "rejected" && (
                           <button
-                            onClick={() => handleVerifyStatus(r.id, "rejected")}
-                            disabled={verifyingId === r.id}
-                            title="Tolak Pendaftaran"
+                            onClick={() => handleVerifyGroupStatus(g, "rejected")}
+                            disabled={verifyingGroupKey === g.group_key}
+                            title="Tolak Pendaftaran Perenang Ini"
                             className="p-1.5 bg-red-100 hover:bg-red-600 text-red-800 hover:text-white rounded-xl text-xs transition-all border border-red-200 cursor-pointer"
                           >
                             <XCircle className="w-4 h-4" />
@@ -391,16 +496,15 @@ export default function ParticipantTable({
       </div>
 
       {/* =================================================================== */}
-      {/* DETAILED VERIFICATION & REGISTRATION MODAL */}
+      {/* GROUPED VERIFICATION & REGISTRATION DETAIL MODAL */}
       {/* =================================================================== */}
-      {selectedReg && (
+      {selectedGroup && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto font-sans">
           <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
-            
             {/* MODAL HEADER */}
             <div className="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 text-white p-5 sm:p-6 relative flex-shrink-0">
               <button
-                onClick={() => setSelectedReg(null)}
+                onClick={() => setSelectedGroup(null)}
                 className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -409,18 +513,18 @@ export default function ParticipantTable({
               <div className="space-y-1.5 pr-8">
                 <div className="flex items-center gap-2">
                   <span className="px-3 py-0.5 bg-sky-400/20 text-sky-100 rounded-full text-[10px] font-black tracking-wider uppercase border border-sky-300/30">
-                    VERIFIKASI PENDAFTARAN LOMBA
+                    VERIFIKASI GROUP PENDAFTARAN PERENANG
                   </span>
                   <span className="font-mono text-xs text-sky-200 font-black">
-                    {selectedReg.registration_code || `REG-${selectedReg.id}`}
+                    {selectedGroup.registration_code}
                   </span>
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase">
-                  {selectedReg.participant?.name || "Nama Perenang"}
+                  {selectedGroup.participant?.name || "Nama Perenang"}
                 </h2>
                 <p className="text-xs text-sky-100 font-medium">
-                  {selectedReg.participant?.club || "-"} • {selectedReg.participant?.gender || "PUTRA"} • KU:{" "}
-                  {selectedReg.participant?.age_group || "-"}
+                  {selectedGroup.participant?.club || "-"} • {selectedGroup.participant?.gender || "PUTRA"} • KU:{" "}
+                  {selectedGroup.participant?.age_group || "-"} • {selectedGroup.items.length} Nomor Lomba Terdaftar
                 </p>
               </div>
             </div>
@@ -428,7 +532,6 @@ export default function ParticipantTable({
             {/* MODAL BODY (3-COLUMN DETAILED VIEW) */}
             <div className="p-6 overflow-y-auto flex-1 space-y-6 text-xs text-slate-800">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                
                 {/* COLUMN 1: IDENTITAS ATLET & PIC */}
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-200 text-sky-700">
@@ -442,7 +545,7 @@ export default function ParticipantTable({
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block">NAMA LENGKAP:</span>
                       <span className="font-black text-slate-900 uppercase block">
-                        {selectedReg.participant?.name || "-"}
+                        {selectedGroup.participant?.name || "-"}
                       </span>
                     </div>
 
@@ -450,13 +553,13 @@ export default function ParticipantTable({
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold block">GENDER:</span>
                         <span className="font-black text-slate-900">
-                          {selectedReg.participant?.gender || "-"}
+                          {selectedGroup.participant?.gender || "-"}
                         </span>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 font-bold block">KELOMPOK UMUR:</span>
                         <span className="font-black text-sky-700">
-                          {selectedReg.participant?.age_group || "-"}
+                          {selectedGroup.participant?.age_group || "-"}
                         </span>
                       </div>
                     </div>
@@ -464,21 +567,21 @@ export default function ParticipantTable({
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block">TANGGAL LAHIR:</span>
                       <span className="font-bold text-slate-800">
-                        {selectedReg.participant?.birth_date || "-"}
+                        {selectedGroup.participant?.birth_date || "-"}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block">KLUB / KONTINGEN:</span>
                       <span className="font-black text-slate-900">
-                        {selectedReg.participant?.club || "-"}
+                        {selectedGroup.participant?.club || "-"}
                       </span>
                     </div>
 
                     <div>
                       <span className="text-[10px] text-slate-400 font-bold block">ORANG TUA / PIC:</span>
                       <span className="font-bold text-slate-800">
-                        {selectedReg.participant?.pic || "-"}
+                        {selectedGroup.participant?.pic || "-"}
                       </span>
                     </div>
 
@@ -486,11 +589,11 @@ export default function ParticipantTable({
                       <span className="text-[10px] text-slate-400 font-bold block">WHATSAPP CONTACT:</span>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="font-mono font-bold text-slate-900">
-                          {selectedReg.participant?.contact || "-"}
+                          {selectedGroup.participant?.contact || "-"}
                         </span>
-                        {selectedReg.participant?.contact && (
+                        {selectedGroup.participant?.contact && (
                           <a
-                            href={`https://wa.me/${selectedReg.participant.contact.replace(/\D/g, "")}`}
+                            href={`https://wa.me/${selectedGroup.participant.contact.replace(/\D/g, "")}`}
                             target="_blank"
                             rel="noreferrer"
                             className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-black hover:bg-emerald-200 transition-colors flex items-center gap-1"
@@ -503,74 +606,56 @@ export default function ParticipantTable({
                   </div>
                 </div>
 
-                {/* COLUMN 2: DETAIL LOMBA & BAYAR */}
+                {/* COLUMN 2: SUB NOMOR LOMBA & PEMBAYARAN */}
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-200 text-indigo-700">
                     <Trophy className="w-4 h-4" />
                     <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
-                      Nomor Lomba & Pembayaran
+                      Rincian Nomor Lomba ({selectedGroup.items.length})
                     </h3>
                   </div>
 
-                  <div className="space-y-2.5">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">KEJUARAAN INDUK:</span>
-                      <span className="font-black text-slate-900 block">
-                        {selectedReg.swimming_event?.tournament?.name || "Kejuaraan Time Trial 2026"}
-                      </span>
-                    </div>
+                  {/* LIST OF ALL SUB-EVENTS FOR THIS SWIMMER */}
+                  <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
+                    {selectedGroup.items.map((item, idx) => (
+                      <div key={item.id} className="p-3 bg-white rounded-xl border border-slate-200 space-y-1">
+                        <div className="flex justify-between items-center">
+                          <span className="font-black text-indigo-700 text-xs">
+                            #{item.swimming_event?.event_code} - {item.swimming_event?.event_name}
+                          </span>
+                          <span className="font-mono text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            Seed: {item.time_seed || "NT"}
+                          </span>
+                        </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">NOMOR CABANG LOMBA:</span>
-                      <span className="font-black text-indigo-700 block text-xs">
-                        #{selectedReg.swimming_event?.event_code} - {selectedReg.swimming_event?.event_name}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block">JARAK:</span>
-                        <span className="font-bold text-slate-800">
-                          {selectedReg.swimming_event?.distance || "-"}
-                        </span>
+                        <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
+                          <span>
+                            {item.swimming_event?.distance} | {item.swimming_event?.stroke}
+                          </span>
+                          <span className="font-black text-emerald-700">
+                            Rp {item.swimming_event?.fee ? Number(item.swimming_event.fee).toLocaleString("id-ID") : "150.000"}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block">GAYA:</span>
-                        <span className="font-bold text-slate-800">
-                          {selectedReg.swimming_event?.stroke || "-"}
-                        </span>
-                      </div>
-                    </div>
+                    ))}
+                  </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">TIME SEED (WAKTU ENTRI):</span>
-                      <span className="font-mono font-black text-amber-700 text-xs">
-                        {selectedReg.time_seed || "NT"}
+                  <div className="pt-3 border-t border-slate-200 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">TOTAL PEMBAYARAN:</span>
+                      <span className="font-black text-emerald-700 text-sm">
+                        Rp {selectedGroup.total_fee.toLocaleString("id-ID")}
                       </span>
                     </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">BIAYA NOMOR LOMBA:</span>
-                      <span className="font-black text-emerald-700 text-xs">
-                        Rp{" "}
-                        {selectedReg.swimming_event?.fee
-                          ? Number(selectedReg.swimming_event.fee).toLocaleString("id-ID")
-                          : "150.000"}
-                      </span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">METODE BAYAR:</span>
+                      <span className="font-bold text-slate-900">{selectedGroup.payment_method}</span>
                     </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">METODE PEMBAYARAN:</span>
-                      <span className="font-bold text-slate-900">
-                        {selectedReg.payment_method || "BCA"}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">ATAS NAMA PENGIRIM:</span>
-                      <span className="font-black text-slate-900">
-                        {selectedReg.sender_bank_owner || "-"}
-                      </span>
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] text-slate-500 font-bold uppercase">ATAS NAMA PENGIRIM:</span>
+                      <span className="font-black text-slate-900">{selectedGroup.sender_bank_owner}</span>
                     </div>
                   </div>
                 </div>
@@ -587,21 +672,21 @@ export default function ParticipantTable({
                   {/* 1. Berkas Verifikasi (Akte/KK) */}
                   <div className="space-y-1.5">
                     <span className="text-[10px] text-slate-500 font-black block uppercase">
-                      1. BERKAS IDENTITAS ({selectedReg.participant?.verification_doc_type || "Akte Kelahiran"})
+                      1. BERKAS IDENTITAS ({selectedGroup.participant?.verification_doc_type || "Akte Kelahiran"})
                     </span>
 
-                    {selectedReg.participant?.verification_doc_url ? (
+                    {selectedGroup.participant?.verification_doc_url ? (
                       <div className="bg-white p-2 rounded-xl border border-slate-200 relative group overflow-hidden">
                         <img
-                          src={selectedReg.participant.verification_doc_url}
+                          src={selectedGroup.participant.verification_doc_url}
                           alt="Berkas Identitas"
                           className="w-full h-28 object-cover rounded-lg"
                         />
                         <button
                           onClick={() =>
                             openDocPreview(
-                              selectedReg.participant.verification_doc_url,
-                              `Berkas Identitas: ${selectedReg.participant?.name}`
+                              selectedGroup.participant.verification_doc_url,
+                              `Berkas Identitas: ${selectedGroup.participant?.name}`
                             )
                           }
                           className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1 cursor-pointer"
@@ -622,18 +707,18 @@ export default function ParticipantTable({
                       2. BUKTI TRANSFER PEMBAYARAN
                     </span>
 
-                    {selectedReg.payment_proof_url ? (
+                    {selectedGroup.payment_proof_url ? (
                       <div className="bg-white p-2 rounded-xl border border-slate-200 relative group overflow-hidden">
                         <img
-                          src={selectedReg.payment_proof_url}
+                          src={selectedGroup.payment_proof_url}
                           alt="Bukti Transfer"
                           className="w-full h-28 object-cover rounded-lg"
                         />
                         <button
                           onClick={() =>
                             openDocPreview(
-                              selectedReg.payment_proof_url,
-                              `Bukti Transfer: ${selectedReg.registration_code}`
+                              selectedGroup.payment_proof_url,
+                              `Bukti Transfer: ${selectedGroup.registration_code}`
                             )
                           }
                           className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1 cursor-pointer"
@@ -648,7 +733,6 @@ export default function ParticipantTable({
                     )}
                   </div>
                 </div>
-
               </div>
             </div>
 
@@ -658,14 +742,14 @@ export default function ParticipantTable({
                 <span className="text-xs font-bold text-slate-500">Status Saat Ini:</span>
                 <span
                   className={`px-3 py-1 rounded-full text-xs font-black uppercase ${
-                    selectedReg.payment_status === "verified"
+                    selectedGroup.status === "verified"
                       ? "bg-emerald-100 text-emerald-800 border border-emerald-300"
-                      : selectedReg.payment_status === "rejected"
+                      : selectedGroup.status === "rejected"
                       ? "bg-red-100 text-red-800 border border-red-300"
                       : "bg-amber-100 text-amber-800 border border-amber-300"
                   }`}
                 >
-                  {selectedReg.payment_status || "pending"}
+                  {selectedGroup.status || "pending"}
                 </span>
               </div>
 
@@ -673,28 +757,28 @@ export default function ParticipantTable({
               <div className="flex flex-wrap items-center gap-2">
                 {/* Approve Button */}
                 <button
-                  onClick={() => handleVerifyStatus(selectedReg.id, "verified")}
-                  disabled={verifyingId === selectedReg.id || selectedReg.payment_status === "verified"}
+                  onClick={() => handleVerifyGroupStatus(selectedGroup, "verified")}
+                  disabled={verifyingGroupKey === selectedGroup.group_key || selectedGroup.status === "verified"}
                   className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  <span>Setujui (Verified)</span>
+                  <span>Setujui Semua (Verified)</span>
                 </button>
 
                 {/* Reject Button */}
                 <button
-                  onClick={() => handleVerifyStatus(selectedReg.id, "rejected")}
-                  disabled={verifyingId === selectedReg.id || selectedReg.payment_status === "rejected"}
+                  onClick={() => handleVerifyGroupStatus(selectedGroup, "rejected")}
+                  disabled={verifyingGroupKey === selectedGroup.group_key || selectedGroup.status === "rejected"}
                   className="px-4 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
                 >
                   <XCircle className="w-4 h-4" />
-                  <span>Tolak (Rejected)</span>
+                  <span>Tolak Semua (Rejected)</span>
                 </button>
 
                 {/* Reset to Pending */}
                 <button
-                  onClick={() => handleVerifyStatus(selectedReg.id, "pending")}
-                  disabled={verifyingId === selectedReg.id || selectedReg.payment_status === "pending"}
+                  onClick={() => handleVerifyGroupStatus(selectedGroup, "pending")}
+                  disabled={verifyingGroupKey === selectedGroup.group_key || selectedGroup.status === "pending"}
                   className="px-3.5 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Set Pending
@@ -702,14 +786,13 @@ export default function ParticipantTable({
 
                 {/* Close Button */}
                 <button
-                  onClick={() => setSelectedReg(null)}
+                  onClick={() => setSelectedGroup(null)}
                   className="px-4 py-2.5 bg-white border border-slate-300 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer"
                 >
                   Tutup
                 </button>
               </div>
             </div>
-
           </div>
         </div>
       )}
