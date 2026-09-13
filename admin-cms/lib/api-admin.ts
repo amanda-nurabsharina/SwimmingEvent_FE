@@ -40,7 +40,18 @@ export async function uploadAdminImage(token: string, file: File) {
       headers: { Authorization: `Bearer ${token}` },
       body: formData,
     });
-    return await res.json();
+    const json = await res.json();
+    if (json.success && (json.data?.url || json.url)) {
+      const rawUrl = json.data?.url || json.url || "";
+      const baseUrl = API_BASE_URL.replace(/\/api\/v1\/?$/, "");
+      const fullUrl = rawUrl.startsWith("http") ? rawUrl : `${baseUrl}${rawUrl}`;
+      return {
+        success: true,
+        url: fullUrl,
+        data: { ...json.data, url: fullUrl },
+      };
+    }
+    return json;
   } catch (error) {
     return { success: false, message: "Network error" };
   }

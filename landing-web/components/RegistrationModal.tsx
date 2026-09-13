@@ -167,10 +167,11 @@ export default function RegistrationModal({
     setUploadingDoc(true);
     const res = await uploadImage(file);
     setUploadingDoc(false);
-    if (res.success && res.url) {
-      setDocFileUrl(res.url);
+    const uploadedUrl = res.url || res.data?.url;
+    if (res.success && uploadedUrl) {
+      setDocFileUrl(uploadedUrl);
     } else {
-      alert("Gagal mengunggah foto berkas");
+      alert("Gagal mengunggah foto berkas: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
     }
   };
 
@@ -180,10 +181,11 @@ export default function RegistrationModal({
     setUploadingProof(true);
     const res = await uploadImage(file);
     setUploadingProof(false);
-    if (res.success && res.url) {
-      setProofFileUrl(res.url);
+    const uploadedUrl = res.url || res.data?.url;
+    if (res.success && uploadedUrl) {
+      setProofFileUrl(uploadedUrl);
     } else {
-      alert("Gagal mengunggah bukti transfer");
+      alert("Gagal mengunggah bukti transfer: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
     }
   };
 
