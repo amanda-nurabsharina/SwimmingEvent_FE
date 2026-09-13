@@ -135,6 +135,31 @@ export default function RegistrationModal({
     else setDetectedKU("Senior");
   }, [birthDate]);
 
+  // Reset all states when modal is closed
+  useEffect(() => {
+    if (!isOpen) {
+      setStep(1);
+      setName("");
+      setGender("PUTRA");
+      setBirthDate("2012-05-14");
+      setDetectedKU("KU 2");
+      setClub("");
+      setDocType("Akte Kelahiran");
+      setPic("");
+      setContact("");
+      setDocFileUrl("");
+      setUploadingDoc(false);
+      setSelectedEvents({});
+      setPaymentMethod("BCA");
+      setSenderBankOwner("");
+      setProofFileUrl("");
+      setUploadingProof(false);
+      setSubmitting(false);
+      setCopiedBank(false);
+      setReceiptData(null);
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   const appWa = siteConfig?.wa_number || "6281234567890";
@@ -328,14 +353,44 @@ export default function RegistrationModal({
     return `https://wa.me/${appWa}?text=${encodeURIComponent(text)}`;
   };
 
+  const handleCloseAndReset = () => {
+    setStep(1);
+    setName("");
+    setGender("PUTRA");
+    setBirthDate("2012-05-14");
+    setDetectedKU("KU 2");
+    setClub("");
+    setDocType("Akte Kelahiran");
+    setPic("");
+    setContact("");
+    setDocFileUrl("");
+    setUploadingDoc(false);
+    setSelectedEvents({});
+    setPaymentMethod("BCA");
+    setSenderBankOwner("");
+    setProofFileUrl("");
+    setUploadingProof(false);
+    setSubmitting(false);
+    setCopiedBank(false);
+    setReceiptData(null);
+    onClose();
+  };
+
   return (
-    <div ref={modalOuterRef} className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div
+      ref={modalOuterRef}
+      onClick={(e) => {
+        if (e.target === modalOuterRef.current) handleCloseAndReset();
+      }}
+      className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+    >
       <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
         {/* MODAL HEADER BANNER (STEPS 1-4) */}
         <div className="bg-gradient-to-r from-sky-600 via-blue-600 to-blue-800 text-white p-5 sm:p-6 relative flex-shrink-0">
           <button
-            onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all"
+            onClick={handleCloseAndReset}
+            className="absolute top-4 right-4 p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all cursor-pointer"
+            title="Tutup Formulir"
           >
             <X className="w-5 h-5" />
           </button>
@@ -1250,13 +1305,14 @@ export default function RegistrationModal({
                   <Printer className="w-4 h-4" />
                   <span>Cetak Resi (A4 / PDF)</span>
                 </button>
-                <a
-                  href="/buku-acara"
-                  className="w-full sm:w-auto px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 transition-all"
+                <button
+                  type="button"
+                  onClick={handleCloseAndReset}
+                  className="w-full sm:w-auto px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-md shadow-blue-600/20 transition-all cursor-pointer"
                 >
-                  <Eye className="w-4 h-4" />
-                  <span>Lihat Bagan (Heat Sheet)</span>
-                </a>
+                  <X className="w-4 h-4" />
+                  <span>Tutup & Selesai</span>
+                </button>
               </div>
             </div>
           )}
