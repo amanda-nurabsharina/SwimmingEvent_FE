@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  landing-web:
+    build:
+      context: ./landing-web
+      dockerfile: Dockerfile
+    container_name: swimming_landing_web
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1/public
+
+  admin-cms:
+    build:
+      context: ./admin-cms
+      dockerfile: Dockerfile
+    container_name: swimming_admin_cms
+    restart: always
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
