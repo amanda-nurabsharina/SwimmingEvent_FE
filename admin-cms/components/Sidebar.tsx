@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -16,6 +17,8 @@ import {
   MessageSquareQuote,
   ListOrdered,
   Award,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -27,6 +30,16 @@ export default function Sidebar({
   setActiveTab: (tab: string) => void;
 }) {
   const router = useRouter();
+
+  // Collapsible state per group title (false = expanded, true = collapsed)
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  const toggleGroup = (title: string) => {
+    setCollapsedGroups((prev) => ({
+      ...prev,
+      [title]: !prev[title],
+    }));
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("swimming_admin_token");
@@ -83,35 +96,60 @@ export default function Sidebar({
           </div>
         </div>
 
-        {/* SCROLLABLE GROUPED NAV */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-5 custom-scrollbar">
-          {menuGroups.map((group, groupIdx) => (
-            <div key={groupIdx} className="space-y-1.5">
-              <p className="px-3 text-[10px] font-black uppercase tracking-widest text-slate-400">
-                {group.title}
-              </p>
-              <div className="space-y-1">
-                {group.items.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = activeTab === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
-                        isActive
-                          ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-500/20"
-                          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4 shrink-0" />
-                      <span className="truncate">{item.label}</span>
-                    </button>
-                  );
-                })}
+        {/* SCROLLABLE GROUPED NAV WITH COLLAPSIBLE ACCORDION */}
+        <div className="flex-1 overflow-y-auto pr-1 space-y-4 custom-scrollbar">
+          {menuGroups.map((group, groupIdx) => {
+            const isCollapsed = !!collapsedGroups[group.title];
+
+            return (
+              <div key={groupIdx} className="space-y-1.5">
+                {/* COLLAPSIBLE SECTION HEADER BUTTON */}
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-slate-50 text-slate-400 hover:text-slate-700 transition-all group cursor-pointer"
+                >
+                  <span className="text-[10px] font-black uppercase tracking-widest group-hover:text-slate-900">
+                    {group.title}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] font-bold px-1.5 py-0.2 bg-slate-100 text-slate-500 rounded-full">
+                      {group.items.length}
+                    </span>
+                    {isCollapsed ? (
+                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
+                    ) : (
+                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
+                    )}
+                  </div>
+                </button>
+
+                {/* GROUP ITEMS LIST */}
+                {!isCollapsed && (
+                  <div className="space-y-1 pl-1 transition-all">
+                    {group.items.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = activeTab === item.id;
+                      return (
+                        <button
+                          key={item.id}
+                          onClick={() => setActiveTab(item.id)}
+                          className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-black transition-all ${
+                            isActive
+                              ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white shadow-md shadow-sky-500/20"
+                              : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4 shrink-0" />
+                          <span className="truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
