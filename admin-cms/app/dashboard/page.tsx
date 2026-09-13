@@ -15,7 +15,7 @@ import FacilityManager from "../../components/FacilityManager";
 import AchievementManager from "../../components/AchievementManager";
 import TestimonialManager from "../../components/TestimonialManager";
 import SettingsManager from "../../components/SettingsManager";
-import { getRegistrations, getBanners } from "../../lib/api-admin";
+import { getRegistrations, getBanners, fetchAdminTournaments } from "../../lib/api-admin";
 import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings } from "lucide-react";
 
 export default function DashboardPage() {
@@ -23,20 +23,28 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
+  const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
     setLoading(true);
-    const regRes = await getRegistrations();
+    const [regRes, bannerRes, tourneyRes] = await Promise.all([
+      getRegistrations(),
+      getBanners(),
+      fetchAdminTournaments(),
+    ]);
     if (regRes.success) {
       setRegistrations(regRes.data || []);
     } else if (regRes.message === "Invalid or expired JWT token") {
       router.push("/login");
     }
 
-    const bannerRes = await getBanners();
     if (bannerRes.success) {
       setBanners(bannerRes.data || []);
+    }
+
+    if (tourneyRes.success) {
+      setTournaments(tourneyRes.data || []);
     }
     setLoading(false);
   };
@@ -225,7 +233,7 @@ export default function DashboardPage() {
                 <p className="text-xs font-bold text-sky-600">Verifikasi status pembayaran dan data peserta perenang</p>
               </div>
             </div>
-            <ParticipantTable registrations={registrations} onRefresh={loadData} />
+            <ParticipantTable registrations={registrations} tournaments={tournaments} onRefresh={loadData} />
           </div>
         )}
 
@@ -238,7 +246,7 @@ export default function DashboardPage() {
               </div>
             </div>
             <BukuAcaraGenerator onGenerated={loadData} />
-            <ParticipantTable registrations={registrations} onRefresh={loadData} />
+            <ParticipantTable registrations={registrations} tournaments={tournaments} onRefresh={loadData} />
           </div>
         )}
 
