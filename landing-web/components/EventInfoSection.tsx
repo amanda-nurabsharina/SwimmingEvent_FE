@@ -1,7 +1,21 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Filter, Trophy, Calendar, MapPin, Clock, Layers, Sparkles, AlertCircle } from "lucide-react";
+import {
+  Filter,
+  Trophy,
+  Calendar,
+  MapPin,
+  Clock,
+  Layers,
+  Sparkles,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  UserCheck,
+  Tag,
+  ArrowRight,
+} from "lucide-react";
 
 interface SwimmingEvent {
   id: number;
@@ -16,19 +30,27 @@ interface SwimmingEvent {
   schedule_time?: string;
 }
 
+interface EventInfoSectionProps {
+  events?: SwimmingEvent[];
+  tournaments?: any[];
+  onOpenRegisterModal?: () => void;
+}
+
 export default function EventInfoSection({
   events = [],
   tournaments = [],
-}: {
-  events?: SwimmingEvent[];
-  tournaments?: any[];
-}) {
+  onOpenRegisterModal,
+}: EventInfoSectionProps) {
   const [selectedTournamentID, setSelectedTournamentID] = useState<string>(
     tournaments?.[0]?.id ? String(tournaments[0].id) : ""
   );
   const [selectedGender, setSelectedGender] = useState<string>("ALL");
   const [selectedStroke, setSelectedStroke] = useState<string>("ALL");
   const [selectedKU, setSelectedKU] = useState<string>("ALL");
+
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 6;
 
   // Keep selectedTournamentID in sync when tournaments prop loads async
   useEffect(() => {
@@ -38,6 +60,11 @@ export default function EventInfoSection({
       }
     }
   }, [tournaments]);
+
+  // Reset pagination when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedTournamentID, selectedGender, selectedStroke, selectedKU]);
 
   const currentTourney =
     (tournaments || []).find((t) => String(t.id) === String(selectedTournamentID)) ||
@@ -94,10 +121,19 @@ export default function EventInfoSection({
 
   // Apply secondary filters (Gender, Stroke, KU)
   const filteredEvents = tourneyEvents.filter((e) => {
-    return isGenderMatch(e.gender, selectedGender) &&
-           isStrokeMatch(e.stroke, selectedStroke) &&
-           isKUMatch(e.age_group, selectedKU);
+    return (
+      isGenderMatch(e.gender, selectedGender) &&
+      isStrokeMatch(e.stroke, selectedStroke) &&
+      isKUMatch(e.age_group, selectedKU)
+    );
   });
+
+  // Calculate Pagination
+  const totalItems = filteredEvents.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+  const paginatedEvents = filteredEvents.slice(startIndex, endIndex);
 
   return (
     <section id="events" className="py-20 bg-gradient-to-b from-slate-50 via-sky-50/20 to-slate-50 relative font-sans">
@@ -113,7 +149,7 @@ export default function EventInfoSection({
             Daftar Nomor Lomba per Turnamen
           </h2>
           <p className="text-slate-600 text-sm font-medium">
-            Pilih turnamen / kejuaraan dari dropdown di bawah untuk melihat rincian cabang nomor lomba, jadwal, dan batas waktu pendaftaran.
+            Pilih turnamen induk di bawah untuk melihat cabang nomor lomba, kelompok umur, dan batas waktu pendaftaran.
           </p>
         </div>
 
@@ -277,9 +313,23 @@ export default function EventInfoSection({
           </div>
         </div>
 
-        {/* EVENT CARDS GRID (FILTERED PER TOURNAMENT) */}
+        {/* RESULTS COUNTER & SUMMARY BAR */}
+        {totalItems > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-2 text-xs font-bold text-slate-500">
+            <div>
+              Menampilkan <span className="font-black text-slate-900">{startIndex + 1}</span> -{" "}
+              <span className="font-black text-slate-900">{endIndex}</span> dari{" "}
+              <span className="font-black text-sky-700">{totalItems}</span> nomor lomba terdaftar
+            </div>
+            <div className="text-[11px] text-slate-400 font-medium">
+              Halaman {currentPage} dari {totalPages}
+            </div>
+          </div>
+        )}
+
+        {/* EVENT CARDS GRID */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredEvents.length === 0 ? (
+          {totalItems === 0 ? (
             <div className="col-span-full py-16 text-center bg-white rounded-3xl border border-slate-200 shadow-sm space-y-2">
               <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
               <p className="text-slate-700 font-black text-sm">
@@ -290,7 +340,7 @@ export default function EventInfoSection({
               </p>
             </div>
           ) : (
-            filteredEvents.map((ev) => (
+            paginatedEvents.map((ev) => (
               <div
                 key={ev.id}
                 className="p-6 rounded-3xl bg-white border border-slate-200 hover:border-sky-400 transition-all duration-300 transform hover:-translate-y-1 shadow-sm hover:shadow-xl hover:shadow-sky-500/10 flex flex-col justify-between"
@@ -338,12 +388,20 @@ export default function EventInfoSection({
                         Ditutup
                       </span>
                     ) : (
-                      <a
-                        href="#register"
-                        className="px-3.5 py-1.5 bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white text-xs font-bold rounded-xl transition-all shadow-2xs"
+                      <button
+                        onClick={() => {
+                          if (onOpenRegisterModal) {
+                            onOpenRegisterModal();
+                          } else {
+                            const modalBtn = document.querySelector<HTMLButtonElement>("button[data-open-modal]");
+                            if (modalBtn) modalBtn.click();
+                          }
+                        }}
+                        className="px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-sky-600/20 flex items-center gap-1 cursor-pointer"
                       >
-                        Daftar
-                      </a>
+                        <span>Daftar</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
                     )}
                   </div>
                 </div>
@@ -351,6 +409,47 @@ export default function EventInfoSection({
             ))
           )}
         </div>
+
+        {/* PAGINATION CONTROLS */}
+        {totalPages > 1 && (
+          <div className="flex justify-center items-center gap-2 pt-4">
+            {/* PREVIOUS BUTTON */}
+            <button
+              onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-sky-50 hover:border-sky-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+              title="Halaman Sebelumnya"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            {/* PAGE NUMBERS */}
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+              <button
+                key={pageNum}
+                onClick={() => setCurrentPage(pageNum)}
+                className={`w-9 h-9 rounded-xl text-xs font-black transition-all ${
+                  currentPage === pageNum
+                    ? "bg-sky-600 text-white shadow-md shadow-sky-600/20 scale-105"
+                    : "bg-white border border-slate-200 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                {pageNum}
+              </button>
+            ))}
+
+            {/* NEXT BUTTON */}
+            <button
+              onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="p-2.5 rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-sky-50 hover:border-sky-300 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-xs"
+              title="Halaman Selanjutnya"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
       </div>
     </section>
   );

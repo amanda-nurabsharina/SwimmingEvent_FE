@@ -9,7 +9,6 @@ import FacilitySection from "../components/FacilitySection";
 import AchievementSection from "../components/AchievementSection";
 import TestimonialSection from "../components/TestimonialSection";
 import EventInfoSection from "../components/EventInfoSection";
-import RegistrationFormSection from "../components/RegistrationFormSection";
 import StatusCheckerSection from "../components/StatusCheckerSection";
 import Footer from "../components/Footer";
 import RegistrationModal from "../components/RegistrationModal";
@@ -76,10 +75,8 @@ export default function HomePage() {
         <ProgramSection programs={programs} sectionConfig={programConfig} siteConfig={siteConfig} />
         <CoachSection coaches={coaches} sectionConfig={coachConfig} />
         <FacilitySection facilities={facilities} facilityConfig={facilityConfig} />
-        <AchievementSection achievements={achievements} sectionConfig={achievementConfig} />
         <TestimonialSection testimonials={testimonials} sectionConfig={testimonialConfig} />
-        <EventInfoSection events={events} tournaments={tournaments} />
-        <RegistrationFormSection events={events} onOpenRegisterModal={openRegisterModal} />
+        <EventInfoSection events={events} tournaments={tournaments} onOpenRegisterModal={openRegisterModal} />
         <StatusCheckerSection />
       </main>
       <Footer siteConfig={siteConfig} programs={programs} />
