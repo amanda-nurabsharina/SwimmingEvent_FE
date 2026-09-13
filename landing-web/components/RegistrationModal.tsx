@@ -22,6 +22,7 @@ import {
   Sparkles,
   FileText,
   ExternalLink,
+  Trophy,
 } from "lucide-react";
 import { registerParticipant, uploadImage } from "../lib/api";
 
@@ -790,9 +791,49 @@ export default function RegistrationModal({
                     Rp {totalFee.toLocaleString("id-ID")}
                   </p>
                 </div>
-                <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-black rounded-full border border-amber-200">
-                  Menunggu Pembayaran
-                </span>
+                <div className="text-right">
+                  <span className="px-3 py-1 bg-amber-100 text-amber-800 text-xs font-black rounded-full border border-amber-200 inline-block mb-1">
+                    {totalSelectedCount} Nomor Lomba
+                  </span>
+                  <p className="text-[10px] text-slate-500 font-semibold">Menunggu Pembayaran</p>
+                </div>
+              </div>
+
+              {/* Selected Events Breakdown Review */}
+              <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                  <span className="flex items-center gap-1.5 font-black text-slate-900">
+                    <Trophy className="w-3.5 h-3.5 text-sky-600" />
+                    Rincian {totalSelectedCount} Nomor Lomba yang Didaftarkan:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    className="text-sky-600 hover:text-sky-800 text-[11px] font-black underline cursor-pointer"
+                  >
+                    Ubah Pilihan
+                  </button>
+                </div>
+                <div className="divide-y divide-slate-200 max-h-36 overflow-y-auto">
+                  {checkedEventEntries.map(([idStr, val]) => {
+                    const foundEv = events.find((e) => Number(e.id) === Number(idStr));
+                    return (
+                      <div key={idStr} className="py-1.5 flex items-center justify-between text-xs">
+                        <div className="space-y-0.5">
+                          <span className="font-bold text-slate-800 block">
+                            #{foundEv?.event_code} - {foundEv?.event_name}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-medium">
+                            Seed: <strong className="font-mono text-amber-700">{val.isNT ? "NT" : val.timeSeed}</strong> • {foundEv?.distance}
+                          </span>
+                        </div>
+                        <span className="font-black text-emerald-700 text-xs">
+                          Rp {Number(foundEv?.fee || 150000).toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Payment Methods Selector Tabs */}

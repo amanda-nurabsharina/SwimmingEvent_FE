@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { verifyPayment } from "../lib/api-admin";
 import {
   Search,
@@ -349,7 +349,7 @@ export default function ParticipantTable({
 
       {/* COLLAPSIBLE GROUPED REGISTRATIONS TABLE (1 ROW PER PERSON) */}
       <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <table className="w-full text-left text-xs">
+        <table className="w-full text-left text-xs border-collapse">
           <thead>
             <tr className="bg-slate-100/80 text-slate-700 font-black border-b border-slate-200 uppercase tracking-wider">
               <th className="p-4 w-12 text-center">RINCIAN</th>
@@ -379,10 +379,10 @@ export default function ParticipantTable({
                 const completeness = checkDocCompleteness(g);
 
                 return (
-                  <tbody key={g.group_key} className="divide-y divide-slate-100 border-b border-slate-100">
+                  <Fragment key={g.group_key}>
                     {/* SUMMARY ROW FOR THIS SWIMMER PERSON */}
                     <tr
-                      className={`hover:bg-sky-50/50 transition-colors cursor-pointer ${
+                      className={`hover:bg-sky-50/50 transition-colors cursor-pointer border-b border-slate-100 ${
                         isExpanded ? "bg-sky-50/80 font-semibold" : ""
                       }`}
                       onClick={() => toggleExpand(g.group_key)}
@@ -636,7 +636,7 @@ export default function ParticipantTable({
                         </td>
                       </tr>
                     )}
-                  </tbody>
+                  </Fragment>
                 );
               })
             )}
