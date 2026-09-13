@@ -18,18 +18,10 @@ import {
   Image as ImageIcon,
   Upload,
   Check,
-  Eye,
   RefreshCw,
   FileText,
   BarChart2,
-  Sliders,
   Layers,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  CheckCircle2,
-  ShieldCheck,
-  Lightbulb,
   X,
 } from "lucide-react";
 
@@ -71,6 +63,9 @@ export default function BannerManager({
 
   const [savingKotak1, setSavingKotak1] = useState(false);
 
+  // -------------------------------------------------------------------------
+  // KOTAK 2 STATE: Slider Single & Multiple Upload
+  // -------------------------------------------------------------------------
   const [editingBanner, setEditingBanner] = useState<any | null>(null);
   const [slideTitle, setSlideTitle] = useState("");
   const [slideImageUrl, setSlideImageUrl] = useState("/banner.jpg");
@@ -109,9 +104,6 @@ export default function BannerManager({
     { value: "28+", label: "Kompetisi Terselenggara" },
   ]);
   const [savingKotak3, setSavingKotak3] = useState(false);
-
-  // Preview Slider State
-  const [previewIndex, setPreviewIndex] = useState(0);
 
   // Quick preset HD images for Kotak 2
   const quickImages = [
@@ -292,7 +284,7 @@ export default function BannerManager({
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 font-sans">
       
       {/* 1. TOP SUB-NAV TABS BAR */}
       <div className="bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex flex-wrap gap-2">
@@ -334,514 +326,408 @@ export default function BannerManager({
       </div>
 
       {/* 2. SUB-TAB CONTENT PANELS */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* LEFT COLUMN: EDIT FORM (7 COLS) */}
-        <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
-          
-          {/* TAB 1: KOTAK 1 FORM */}
-          {activeSubTab === "kotak1" && (
-            <form onSubmit={handleSaveKotak1} className="space-y-5">
-              <div className="pb-3 border-b border-slate-100">
-                <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <FileText className="w-5 h-5 text-sky-600" />
-                  Edit Konten Kotak 1 (Hero Left Side)
-                </h2>
-                <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                  Atur Judul, Subjudul, 4 Poin Fitur, 3 Tombol Aksi, dan Teks Pengenalan
-                </p>
-              </div>
+      
+      {/* TAB 1: KOTAK 1 FORM (FULL WIDTH CLEAN PANEL) */}
+      {activeSubTab === "kotak1" && (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-5xl">
+          <form onSubmit={handleSaveKotak1} className="space-y-5">
+            <div className="pb-3 border-b border-slate-100">
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <FileText className="w-5 h-5 text-sky-600" />
+                Edit Konten Kotak 1 (Hero Left Side)
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                Atur Judul, Subjudul, 4 Poin Fitur, 3 Tombol Aksi, dan Teks Pengenalan
+              </p>
+            </div>
 
-              {/* Badge Text */}
+            {/* Badge Text */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Badge Atas Header</label>
+              <input
+                type="text"
+                value={badgeText}
+                onChange={(e) => setBadgeText(e.target.value)}
+                placeholder="Official PRSI Certified Swim Academy & Event Partner"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+              />
+            </div>
+
+            {/* Title Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Badge Atas Header</label>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Judul Utama (Prefix)</label>
                 <input
                   type="text"
-                  value={badgeText}
-                  onChange={(e) => setBadgeText(e.target.value)}
-                  placeholder="Official PRSI Certified Swim Academy & Event Partner"
+                  value={titlePrefix}
+                  onChange={(e) => setTitlePrefix(e.target.value)}
+                  placeholder="Akademi Renang Profesional &"
                   className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                 />
               </div>
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Judul Highlight (Wavy/Blue)</label>
+                <input
+                  type="text"
+                  value={titleHighlight}
+                  onChange={(e) => setTitleHighlight(e.target.value)}
+                  placeholder="Platform Kejuaraan Terintegrasi"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sky-700 text-xs font-black shadow-sm focus:border-sky-600 focus:outline-none"
+                />
+              </div>
+            </div>
 
-              {/* Title Fields */}
+            {/* Subtitle */}
+            <div>
+              <label className="block text-xs font-bold text-slate-800 mb-1">Subjudul / Deskripsi Singkat</label>
+              <textarea
+                rows={3}
+                value={subtitle}
+                onChange={(e) => setSubtitle(e.target.value)}
+                placeholder="Kurikulum renang berstandar internasional..."
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+              />
+            </div>
+
+            {/* 4 Feature Bullet Points */}
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
+                4 Poin Fitur Utama (Centang Biru):
+              </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Judul Utama (Prefix)</label>
+                  <span className="text-[10px] font-bold text-slate-600">Fitur 1</span>
                   <input
                     type="text"
-                    value={titlePrefix}
-                    onChange={(e) => setTitlePrefix(e.target.value)}
-                    placeholder="Akademi Renang Profesional &"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                    value={feature1}
+                    onChange={(e) => setFeature1(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Judul Highlight (Wavy/Blue)</label>
+                  <span className="text-[10px] font-bold text-slate-600">Fitur 2</span>
                   <input
                     type="text"
-                    value={titleHighlight}
-                    onChange={(e) => setTitleHighlight(e.target.value)}
-                    placeholder="Platform Kejuaraan Terintegrasi"
-                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-sky-700 text-xs font-black shadow-sm focus:border-sky-600 focus:outline-none"
+                    value={feature2}
+                    onChange={(e) => setFeature2(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-600">Fitur 3</span>
+                  <input
+                    type="text"
+                    value={feature3}
+                    onChange={(e) => setFeature3(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-slate-600">Fitur 4</span>
+                  <input
+                    type="text"
+                    value={feature4}
+                    onChange={(e) => setFeature4(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 3 Action Buttons Config */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
+                3 Tombol Aksi (CTA Buttons):
+              </label>
+
+              {/* Button 1 */}
+              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-sky-50/80 border border-sky-200">
+                <div>
+                  <label className="block text-[10px] font-bold text-sky-900">Tombol 1 (Utama Blue)</label>
+                  <input
+                    type="text"
+                    value={ctaPrimaryText}
+                    onChange={(e) => setCtaPrimaryText(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-sky-900">Link Target 1</label>
+                  <input
+                    type="text"
+                    value={ctaPrimaryUrl}
+                    onChange={(e) => setCtaPrimaryUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>
               </div>
 
-              {/* Subtitle */}
+              {/* Button 2 */}
+              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-slate-100/70 border border-slate-200">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-800">Tombol 2 (Bagan/Heat Sheet)</label>
+                  <input
+                    type="text"
+                    value={ctaSecondaryText}
+                    onChange={(e) => setCtaSecondaryText(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-800">Link Target 2</label>
+                  <input
+                    type="text"
+                    value={ctaSecondaryUrl}
+                    onChange={(e) => setCtaSecondaryUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Button 3 */}
+              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-cyan-50/80 border border-cyan-200">
+                <div>
+                  <label className="block text-[10px] font-bold text-cyan-900">Tombol 3 (Login Portal Tim)</label>
+                  <input
+                    type="text"
+                    value={ctaTertiaryText}
+                    onChange={(e) => setCtaTertiaryText(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-cyan-900">Link Target 3</label>
+                  <input
+                    type="text"
+                    value={ctaTertiaryUrl}
+                    onChange={(e) => setCtaTertiaryUrl(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Note Text & Trust Indicators */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
               <div>
-                <label className="block text-xs font-bold text-slate-800 mb-1">Subjudul / Deskripsi Singkat</label>
-                <textarea
-                  rows={3}
-                  value={subtitle}
-                  onChange={(e) => setSubtitle(e.target.value)}
-                  placeholder="Kurikulum renang berstandar internasional..."
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                <label className="block text-xs font-bold text-slate-800 mb-1">Catatan Tambahan (Bawah Tombol)</label>
+                <input
+                  type="text"
+                  value={noteText}
+                  onChange={(e) => setNoteText(e.target.value)}
+                  className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                 />
               </div>
-
-              {/* 4 Feature Bullet Points */}
-              <div className="space-y-2 pt-2 border-t border-slate-100">
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
-                  4 Poin Fitur Utama (Centang Biru):
-                </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-600">Fitur 1</span>
-                    <input
-                      type="text"
-                      value={feature1}
-                      onChange={(e) => setFeature1(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-600">Fitur 2</span>
-                    <input
-                      type="text"
-                      value={feature2}
-                      onChange={(e) => setFeature2(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-600">Fitur 3</span>
-                    <input
-                      type="text"
-                      value={feature3}
-                      onChange={(e) => setFeature3(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-slate-600">Fitur 4</span>
-                    <input
-                      type="text"
-                      value={feature4}
-                      onChange={(e) => setFeature4(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* 3 Action Buttons Config */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700">
-                  3 Tombol Aksi (CTA Buttons):
-                </label>
-
-                {/* Button 1 */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-sky-50/80 border border-sky-200">
-                  <div>
-                    <label className="block text-[10px] font-bold text-sky-900">Tombol 1 (Utama Blue)</label>
-                    <input
-                      type="text"
-                      value={ctaPrimaryText}
-                      onChange={(e) => setCtaPrimaryText(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-sky-900">Link Target 1</label>
-                    <input
-                      type="text"
-                      value={ctaPrimaryUrl}
-                      onChange={(e) => setCtaPrimaryUrl(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-sky-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Button 2 */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-slate-100/70 border border-slate-200">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-800">Tombol 2 (Bagan/Heat Sheet)</label>
-                    <input
-                      type="text"
-                      value={ctaSecondaryText}
-                      onChange={(e) => setCtaSecondaryText(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-800">Link Target 2</label>
-                    <input
-                      type="text"
-                      value={ctaSecondaryUrl}
-                      onChange={(e) => setCtaSecondaryUrl(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-
-                {/* Button 3 */}
-                <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-cyan-50/80 border border-cyan-200">
-                  <div>
-                    <label className="block text-[10px] font-bold text-cyan-900">Tombol 3 (Login Portal Tim)</label>
-                    <input
-                      type="text"
-                      value={ctaTertiaryText}
-                      onChange={(e) => setCtaTertiaryText(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-cyan-900">Link Target 3</label>
-                    <input
-                      type="text"
-                      value={ctaTertiaryUrl}
-                      onChange={(e) => setCtaTertiaryUrl(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Note Text & Trust Indicators */}
-              <div className="space-y-3 pt-2 border-t border-slate-100">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Catatan Tambahan (Bawah Tombol)</label>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Badge Kepercayaan 1</label>
                   <input
                     type="text"
-                    value={noteText}
-                    onChange={(e) => setNoteText(e.target.value)}
+                    value={trustText1}
+                    onChange={(e) => setTrustText1(e.target.value)}
                     className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">Badge Kepercayaan 1</label>
-                    <input
-                      type="text"
-                      value={trustText1}
-                      onChange={(e) => setTrustText1(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">Badge Kepercayaan 2</label>
-                    <input
-                      type="text"
-                      value={trustText2}
-                      onChange={(e) => setTrustText2(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Submit Button Kotak 1 */}
-              <button
-                type="submit"
-                disabled={savingKotak1}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-700 via-sky-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-700/20 transition-all flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4" />
-                {savingKotak1 ? "Menyimpan Kotak 1..." : "Simpan Perubahan Kotak 1"}
-              </button>
-            </form>
-          )}
-
-          {/* TAB 2: KOTAK 2 FORM (SLIDER & MULTIPLE IMAGE UPLOAD) */}
-          {activeSubTab === "kotak2" && (
-            <div className="space-y-6">
-              <div className="pb-3 border-b border-slate-100 flex justify-between items-start">
                 <div>
-                  <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                    <ImageIcon className="w-5 h-5 text-sky-600" />
-                    Kelola Slider Gambar (Kotak 2)
-                  </h2>
-                  <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                    Unggah/edit gambar slider dan atur urutan tampilan banner
-                  </p>
-                </div>
-              </div>
-
-              {/* Single Slide Form / Preset selector */}
-              <form onSubmit={handleSaveSingleBanner} className="space-y-4 pt-2 border-t border-slate-100">
-                <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
-                  {editingBanner ? "Edit Slide Selected" : "Tambah Gambar Slide Manual / Single"}
-                </h3>
-
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1">Judul / Label Slide</label>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Badge Kepercayaan 2</label>
                   <input
                     type="text"
-                    value={slideTitle}
-                    onChange={(e) => setSlideTitle(e.target.value)}
-                    placeholder="Contoh: Kolam Renang Olympic 50m"
+                    value={trustText2}
+                    onChange={(e) => setTrustText2(e.target.value)}
                     className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>
-
-                {/* FILE UPLOADER FOR SINGLE SLIDE */}
-                <div>
-                  <label className="block text-xs font-bold text-slate-800 mb-1.5">
-                    Unggah File Gambar Slide *
-                  </label>
-
-                  <div className="p-4 rounded-2xl bg-sky-50/60 border-2 border-dashed border-sky-300 flex flex-col sm:flex-row items-center gap-4">
-                    {/* Thumbnail Preview with Red X Delete Button */}
-                    <div className="w-24 h-16 rounded-xl bg-slate-900 overflow-visible border border-slate-300 flex-shrink-0 flex items-center justify-center shadow-inner relative group">
-                      {slideImageUrl ? (
-                        <>
-                          <img src={slideImageUrl} alt="Pratinjau Slide" className="w-full h-full object-cover rounded-xl" />
-                          <button
-                            type="button"
-                            onClick={() => setSlideImageUrl("")}
-                            className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-10"
-                            title="Hapus / Hapus Gambar"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </>
-                      ) : (
-                        <ImageIcon className="w-6 h-6 text-slate-400" />
-                      )}
-                    </div>
-
-                    {/* Upload File Button */}
-                    <div className="flex-1 text-center sm:text-left space-y-1">
-                      <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-black text-xs rounded-xl cursor-pointer shadow-sm transition-all">
-                        <Upload className="w-4 h-4" />
-                        <span>{uploadingSingle ? "Mengunggah Berkas..." : "📁 Pilih Berkas Gambar Komputer"}</span>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleSingleFileUpload}
-                        />
-                      </label>
-                      <p className="text-[10px] text-slate-500 font-medium">Format berkas: JPG, PNG, WEBP</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Preset HD buttons */}
-                <div>
-                  <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
-                    Pilih Foto HD Renang Cepat:
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {quickImages.map((q, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setSlideImageUrl(q.url)}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
-                          slideImageUrl === q.url
-                            ? "bg-sky-600 text-white border-sky-600"
-                            : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
-                        }`}
-                      >
-                        {q.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">Urutan Slider</label>
-                    <input
-                      type="number"
-                      value={sortOrder}
-                      onChange={(e) => setSortOrder(Number(e.target.value))}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-800 mb-1">Status Slide</label>
-                    <select
-                      value={slideStatus}
-                      onChange={(e) => setSlideStatus(e.target.value)}
-                      className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                    >
-                      <option value="published">Aktif (Tayang)</option>
-                      <option value="draft">Draft (Sembunyikan)</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-2 pt-2">
-                  {editingBanner && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingBanner(null);
-                        setSlideTitle("");
-                        setSlideImageUrl("/banner.jpg");
-                      }}
-                      className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
-                    >
-                      Batal
-                    </button>
-                  )}
-                  <button
-                    type="submit"
-                    className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-md transition-all"
-                  >
-                    + {editingBanner ? "Update Slide Gambar" : "Tambah ke Slider Kotak 2"}
-                  </button>
-                </div>
-              </form>
+              </div>
             </div>
-          )}
 
-          {/* TAB 3: KOTAK 3 FORM (STATS COUNTERS) */}
-          {activeSubTab === "kotak3" && (
-            <form onSubmit={handleSaveKotak3} className="space-y-5">
-              <div className="pb-3 border-b border-slate-100">
+            {/* Submit Button Kotak 1 */}
+            <button
+              type="submit"
+              disabled={savingKotak1}
+              className="w-full py-3.5 bg-gradient-to-r from-blue-700 via-sky-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-700/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              {savingKotak1 ? "Menyimpan Kotak 1..." : "Simpan Perubahan Kotak 1"}
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* TAB 2: KOTAK 2 FORM & DAFTAR SLIDE AKTIF */}
+      {activeSubTab === "kotak2" && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* LEFT COLUMN: UPLOAD & FORM (7 COLS) */}
+          <div className="lg:col-span-7 bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6">
+            <div className="pb-3 border-b border-slate-100 flex justify-between items-start">
+              <div>
                 <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
-                  <BarChart2 className="w-5 h-5 text-sky-600" />
-                  Edit Kotak 3 (Counter Statistik)
+                  <ImageIcon className="w-5 h-5 text-sky-600" />
+                  Kelola Slider Gambar (Kotak 2)
                 </h2>
                 <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                  Atur angka pencapaian dan label pada grid bawah hero banner
+                  Unggah/edit gambar slider dan atur urutan tampilan banner
+                </p>
+              </div>
+            </div>
+
+            {/* MULTIPLE IMAGE UPLOAD DROPZONE */}
+            <div className="p-5 rounded-2xl bg-sky-50/70 border-2 border-dashed border-sky-300 text-center space-y-3">
+              <Upload className="w-8 h-8 text-sky-600 mx-auto" />
+              <div>
+                <h4 className="text-xs font-black text-slate-900 uppercase">
+                  Unggah Banyak Gambar Sekaligus (Multiple Upload)
+                </h4>
+                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                  Pilih beberapa file gambar sekaligus untuk langsung dijadikan slide banner baru
                 </p>
               </div>
 
-              <div className="space-y-3">
-                {stats.map((stat, idx) => (
-                  <div
-                    key={idx}
-                    className="p-4 rounded-2xl bg-slate-100/70 border border-slate-200 grid grid-cols-12 gap-3 items-center"
-                  >
-                    <div className="col-span-1 text-center font-black text-slate-500 text-sm">#{idx + 1}</div>
-                    <div className="col-span-5">
-                      <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Angka / Nilai</label>
-                      <input
-                        type="text"
-                        value={stat.value}
-                        onChange={(e) => {
-                          const updated = [...stats];
-                          updated[idx].value = e.target.value;
-                          setStats(updated);
-                        }}
-                        placeholder="e.g. 1,850+"
-                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-sky-700 shadow-sm focus:border-sky-600 focus:outline-none"
-                      />
-                    </div>
-                    <div className="col-span-6">
-                      <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Keterangan / Label</label>
-                      <input
-                        type="text"
-                        value={stat.label}
-                        onChange={(e) => {
-                          const updated = [...stats];
-                          updated[idx].label = e.target.value;
-                          setStats(updated);
-                        }}
-                        placeholder="e.g. Murid Aktif"
-                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 shadow-sm focus:border-sky-600 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                type="submit"
-                disabled={savingKotak3}
-                className="w-full py-3.5 bg-gradient-to-r from-blue-700 via-sky-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-700/20 transition-all flex items-center justify-center gap-2"
-              >
-                <Check className="w-4 h-4" />
-                {savingKotak3 ? "Menyimpan Kotak 3..." : "Simpan Perubahan Kotak 3"}
-              </button>
-            </form>
-          )}
-
-        </div>
-
-        {/* RIGHT COLUMN: LIVE PREVIEW & ACTIVE BANNERS GALLERY (5 COLS) */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          {/* LIVE PREVIEW CARD */}
-          <div className="bg-slate-900 p-5 rounded-3xl text-white shadow-xl space-y-4 border border-slate-800">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-              <span className="text-[11px] font-black uppercase tracking-wider text-sky-400 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" /> Pratinjau Tampilan Landing (Live)
-              </span>
-              <span className="px-2 py-0.5 bg-sky-500/20 text-sky-300 text-[10px] font-bold rounded">Web View</span>
-            </div>
-
-            {/* Kotak 1 Preview Mini */}
-            <div className="space-y-2.5">
-              <span className="px-2.5 py-1 bg-sky-900/60 border border-sky-700/50 text-sky-300 text-[9px] font-extrabold rounded-full inline-block">
-                🏆 {badgeText}
-              </span>
-              <h3 className="text-sm font-black text-white leading-snug">
-                {titlePrefix} <span className="text-sky-400 underline decoration-sky-400/50">{titleHighlight}</span>
-              </h3>
-              <p className="text-[10px] text-slate-300 line-clamp-2 leading-relaxed">{subtitle}</p>
-
-              <div className="grid grid-cols-2 gap-1 text-[9px] font-bold text-slate-300 pt-1">
-                <span className="flex items-center gap-1">✓ {feature1}</span>
-                <span className="flex items-center gap-1">✓ {feature2}</span>
-              </div>
-            </div>
-
-            {/* Kotak 2 Slider Preview Mini (NO KOTAK 4 OVERLAY!) */}
-            <div className="relative rounded-2xl overflow-hidden aspect-[16/9] border border-slate-700 bg-black">
-              {banners && banners.length > 0 ? (
-                <img
-                  src={banners[previewIndex % banners.length]?.image_url || "/banner.jpg"}
-                  alt="Slide preview"
-                  className="w-full h-full object-cover"
+              <label className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-black text-xs rounded-xl cursor-pointer shadow-md transition-all">
+                <Upload className="w-4 h-4" />
+                <span>{uploading ? "Mengunggah Banyak Berkas..." : "📁 Pilih Beberapa Gambar Sekaligus"}</span>
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleMultipleFileUpload}
                 />
-              ) : (
-                <img src={slideImageUrl || "/banner.jpg"} alt="Slide preview" className="w-full h-full object-cover" />
-              )}
-              {banners.length > 1 && (
-                <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1 z-10">
-                  {banners.map((_, idx) => (
+              </label>
+            </div>
+
+            {/* Single Slide Form */}
+            <form onSubmit={handleSaveSingleBanner} className="space-y-4 pt-4 border-t border-slate-100">
+              <h3 className="text-xs font-black text-slate-900 uppercase tracking-wider">
+                {editingBanner ? "Edit Slide Selected" : "Tambah Gambar Slide Manual / Single"}
+              </h3>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1">Judul / Label Slide</label>
+                <input
+                  type="text"
+                  value={slideTitle}
+                  onChange={(e) => setSlideTitle(e.target.value)}
+                  placeholder="Contoh: Kolam Renang Olympic 50m"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                />
+              </div>
+
+              {/* FILE UPLOADER FOR SINGLE SLIDE */}
+              <div>
+                <label className="block text-xs font-bold text-slate-800 mb-1.5">
+                  Unggah File Gambar Slide *
+                </label>
+
+                <div className="p-4 rounded-2xl bg-sky-50/60 border-2 border-dashed border-sky-300 flex flex-col sm:flex-row items-center gap-4">
+                  {/* Thumbnail Preview with Red X Delete Button */}
+                  <div className="w-24 h-16 rounded-xl bg-slate-900 overflow-visible border border-slate-300 flex-shrink-0 flex items-center justify-center shadow-inner relative group">
+                    {slideImageUrl ? (
+                      <>
+                        <img src={slideImageUrl} alt="Pratinjau Slide" className="w-full h-full object-cover rounded-xl" />
+                        <button
+                          type="button"
+                          onClick={() => setSlideImageUrl("")}
+                          className="absolute -top-2 -right-2 w-6 h-6 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-lg transition-transform hover:scale-110 z-10"
+                          title="Hapus / Hapus Gambar"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    ) : (
+                      <ImageIcon className="w-6 h-6 text-slate-400" />
+                    )}
+                  </div>
+
+                  {/* Upload File Button */}
+                  <div className="flex-1 text-center sm:text-left space-y-1">
+                    <label className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-black text-xs rounded-xl cursor-pointer shadow-sm transition-all">
+                      <Upload className="w-4 h-4" />
+                      <span>{uploadingSingle ? "Mengunggah Berkas..." : "📁 Pilih Berkas Gambar Komputer"}</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleSingleFileUpload}
+                      />
+                    </label>
+                    <p className="text-[10px] text-slate-500 font-medium">Format berkas: JPG, PNG, WEBP</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preset HD buttons */}
+              <div>
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+                  Pilih Foto HD Renang Cepat:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {quickImages.map((q, idx) => (
                     <button
                       key={idx}
-                      onClick={() => setPreviewIndex(idx)}
-                      className={`h-1.5 rounded-full transition-all ${
-                        idx === previewIndex % banners.length ? "w-4 bg-sky-400" : "w-1.5 bg-white/40"
+                      type="button"
+                      onClick={() => setSlideImageUrl(q.url)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all ${
+                        slideImageUrl === q.url
+                          ? "bg-sky-600 text-white border-sky-600"
+                          : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
                       }`}
-                    />
+                    >
+                      {q.label}
+                    </button>
                   ))}
                 </div>
-              )}
-            </div>
+              </div>
 
-            {/* Kotak 3 Stats Preview Mini */}
-            <div className="grid grid-cols-4 gap-1.5 pt-1">
-              {stats.map((s, i) => (
-                <div key={i} className="p-2 rounded-xl bg-slate-800/80 border border-slate-700 text-center">
-                  <div className="text-xs font-black text-sky-400">{s.value}</div>
-                  <div className="text-[8px] font-bold text-slate-400 truncate">{s.label}</div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Urutan Slider</label>
+                  <input
+                    type="number"
+                    value={sortOrder}
+                    onChange={(e) => setSortOrder(Number(e.target.value))}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  />
                 </div>
-              ))}
-            </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-800 mb-1">Status Slide</label>
+                  <select
+                    value={slideStatus}
+                    onChange={(e) => setSlideStatus(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
+                  >
+                    <option value="published">Aktif (Tayang)</option>
+                    <option value="draft">Draft (Sembunyikan)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                {editingBanner && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingBanner(null);
+                      setSlideTitle("");
+                      setSlideImageUrl("/banner.jpg");
+                    }}
+                    className="px-4 py-2.5 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl hover:bg-slate-200"
+                  >
+                    Batal
+                  </button>
+                )}
+                <button
+                  type="submit"
+                  className="flex-1 py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-md transition-all"
+                >
+                  + {editingBanner ? "Update Slide Gambar" : "Tambah ke Slider Kotak 2"}
+                </button>
+              </div>
+            </form>
           </div>
 
-          {/* ACTIVE BANNERS GALLERY LIST */}
-          <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+          {/* RIGHT COLUMN: ACTIVE BANNERS GALLERY LIST (5 COLS) */}
+          <div className="lg:col-span-5 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
+            <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <h3 className="text-xs font-black uppercase tracking-wider text-slate-900 flex items-center gap-2">
                 <Layers className="w-4 h-4 text-sky-600" /> Daftar Slide Aktif ({banners.length})
               </h3>
@@ -850,47 +736,119 @@ export default function BannerManager({
               </button>
             </div>
 
-            <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-              {banners.map((b, idx) => (
-                <div
-                  key={b.id}
-                  className="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3 hover:bg-white transition-all"
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-14 h-10 rounded-xl overflow-hidden relative flex-shrink-0 bg-slate-900 border border-slate-200">
-                      <img src={b.image_url || "/banner.jpg"} alt={b.title} className="w-full h-full object-cover" />
-                      <span className="absolute top-0.5 left-0.5 px-1 bg-slate-900/80 text-white text-[8px] font-black rounded">
-                        #{idx + 1}
-                      </span>
+            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+              {banners.length === 0 ? (
+                <div className="p-6 text-center text-slate-400 text-xs font-medium border border-dashed rounded-2xl">
+                  Belum ada slide banner. Unggah gambar baru menggunakan form di sebelah kiri.
+                </div>
+              ) : (
+                banners.map((b, idx) => (
+                  <div
+                    key={b.id}
+                    className="p-3 rounded-2xl border border-slate-200 bg-slate-50 flex items-center justify-between gap-3 hover:bg-white transition-all shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-16 h-12 rounded-xl overflow-hidden relative flex-shrink-0 bg-slate-900 border border-slate-200 shadow-xs">
+                        <img src={b.image_url || "/banner.jpg"} alt={b.title} className="w-full h-full object-cover" />
+                        <span className="absolute top-0.5 left-0.5 px-1.5 py-0.5 bg-slate-900/80 text-white text-[8px] font-black rounded">
+                          #{idx + 1}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-xs font-black text-slate-900 truncate">{b.title || `Slide ${idx + 1}`}</h4>
+                        <span className="text-[10px] font-bold text-emerald-600 block">Status: {b.status}</span>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <h4 className="text-xs font-black text-slate-900 truncate">{b.title || `Slide ${idx + 1}`}</h4>
-                      <span className="text-[9px] font-bold text-emerald-600 block">Status: {b.status}</span>
+
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => handleEditSelect(b)}
+                        className="p-2 text-sky-600 hover:bg-sky-50 rounded-xl border border-sky-100 transition-all"
+                        title="Edit Slide"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteBanner(b.id)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-xl border border-red-100 transition-all"
+                        title="Hapus Slide"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     </div>
                   </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => handleEditSelect(b)}
-                      className="p-1.5 text-sky-600 hover:bg-sky-50 rounded-lg border border-sky-100"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteBanner(b.id)}
-                      className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg border border-red-100"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+      {/* TAB 3: KOTAK 3 FORM (STATS COUNTERS) */}
+      {activeSubTab === "kotak3" && (
+        <div className="bg-white p-6 sm:p-8 rounded-3xl border border-slate-200 shadow-sm space-y-6 max-w-5xl">
+          <form onSubmit={handleSaveKotak3} className="space-y-5">
+            <div className="pb-3 border-b border-slate-100">
+              <h2 className="text-base font-black text-slate-900 flex items-center gap-2">
+                <BarChart2 className="w-5 h-5 text-sky-600" />
+                Edit Kotak 3 (Counter Statistik)
+              </h2>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
+                Atur angka pencapaian dan label pada grid bawah hero banner
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {stats.map((stat, idx) => (
+                <div
+                  key={idx}
+                  className="p-4 rounded-2xl bg-slate-100/70 border border-slate-200 grid grid-cols-12 gap-3 items-center"
+                >
+                  <div className="col-span-1 text-center font-black text-slate-500 text-sm">#{idx + 1}</div>
+                  <div className="col-span-5">
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Angka / Nilai</label>
+                    <input
+                      type="text"
+                      value={stat.value}
+                      onChange={(e) => {
+                        const updated = [...stats];
+                        updated[idx].value = e.target.value;
+                        setStats(updated);
+                      }}
+                      placeholder="e.g. 1,850+"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-black text-sky-700 shadow-sm focus:border-sky-600 focus:outline-none"
+                    />
+                  </div>
+                  <div className="col-span-6">
+                    <label className="block text-[10px] font-bold text-slate-700 mb-0.5">Keterangan / Label</label>
+                    <input
+                      type="text"
+                      value={stat.label}
+                      onChange={(e) => {
+                        const updated = [...stats];
+                        updated[idx].label = e.target.value;
+                        setStats(updated);
+                      }}
+                      placeholder="e.g. Murid Aktif"
+                      className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 shadow-sm focus:border-sky-600 focus:outline-none"
+                    />
                   </div>
                 </div>
               ))}
             </div>
-          </div>
 
+            <button
+              type="submit"
+              disabled={savingKotak3}
+              className="w-full py-3.5 bg-gradient-to-r from-blue-700 via-sky-700 to-indigo-700 hover:from-blue-600 hover:to-indigo-600 text-white font-black text-xs rounded-xl shadow-lg shadow-blue-700/20 transition-all flex items-center justify-center gap-2"
+            >
+              <Check className="w-4 h-4" />
+              {savingKotak3 ? "Menyimpan Kotak 3..." : "Simpan Perubahan Kotak 3"}
+            </button>
+          </form>
         </div>
+      )}
 
-      </div>
     </div>
   );
 }
