@@ -17,6 +17,7 @@ import {
   Filter,
   Clock,
   Trophy,
+  Users,
 } from "lucide-react";
 
 export default function EventManager({ onRefresh }: { onRefresh?: () => void }) {
@@ -188,25 +189,27 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
       </div>
 
       {/* FILTER & SEARCH BAR */}
-      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari kode # / gaya / nama acara..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
+      <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {/* SEARCH INPUT */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari kode # / gaya / nama acara..."
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+            />
+          </div>
 
-        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
-          <div className="flex items-center gap-2">
-            <Trophy className="w-4 h-4 text-amber-500" />
+          {/* TURNAMEN INDUK FILTER */}
+          <div className="relative">
+            <Trophy className="w-4 h-4 absolute left-3.5 top-3 text-amber-500 pointer-events-none" />
             <select
               value={filterTournamentID}
               onChange={(e) => setFilterTournamentID(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none"
+              className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all truncate"
             >
               <option value="ALL">Semua Turnamen Induk</option>
               {tournaments.map((t) => (
@@ -217,12 +220,13 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
             </select>
           </div>
 
-          <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-slate-400" />
+          {/* KELOMPOK UMUR (KU) FILTER */}
+          <div className="relative">
+            <Filter className="w-4 h-4 absolute left-3.5 top-3 text-sky-500 pointer-events-none" />
             <select
               value={filterKU}
               onChange={(e) => setFilterKU(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none"
+              className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
             >
               <option value="ALL">Semua Kelompok Umur (KU)</option>
               <option value="KU 4">KU 4 (≤ 10 Thn)</option>
@@ -234,15 +238,19 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
             </select>
           </div>
 
-          <select
-            value={filterGender}
-            onChange={(e) => setFilterGender(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none"
-          >
-            <option value="ALL">Semua Gender</option>
-            <option value="PUTRA">Putra</option>
-            <option value="PUTRI">Putri</option>
-          </select>
+          {/* GENDER FILTER */}
+          <div className="relative">
+            <Users className="w-4 h-4 absolute left-3.5 top-3 text-indigo-500 pointer-events-none" />
+            <select
+              value={filterGender}
+              onChange={(e) => setFilterGender(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
+            >
+              <option value="ALL">Semua Gender</option>
+              <option value="PUTRA">Putra (Laki-laki)</option>
+              <option value="PUTRI">Putri (Perempuan)</option>
+            </select>
+          </div>
         </div>
       </div>
 
