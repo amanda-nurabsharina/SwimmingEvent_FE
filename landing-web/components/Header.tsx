@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { Waves, Calendar, FileText, CheckCircle } from "lucide-react";
+import { Waves } from "lucide-react";
 
 export default function Header({
   siteConfig,
@@ -57,20 +57,20 @@ export default function Header({
             <Link href="/" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
               Beranda
             </Link>
+            <Link href="/#programs" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
+              Program Pelatihan
+            </Link>
+            <Link href="/#coaches" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
+              Tim Pelatih
+            </Link>
+            <Link href="/#facilities" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
+              Fasilitas
+            </Link>
+            <Link href="/#achievements" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
+              Prestasi
+            </Link>
             <Link href="/#events" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
               Nomor Lomba
-            </Link>
-            <Link href="/starting-list" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors flex items-center gap-1.5">
-              <FileText className="w-4 h-4 text-sky-500" />
-              Starting List
-            </Link>
-            <Link href="/buku-acara" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors flex items-center gap-1.5">
-              <Calendar className="w-4 h-4 text-cyan-500" />
-              Buku Acara
-            </Link>
-            <Link href="/#status-check" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors flex items-center gap-1.5">
-              <CheckCircle className="w-4 h-4 text-emerald-500" />
-              Cek Status
             </Link>
           </nav>
 
