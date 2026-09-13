@@ -26,6 +26,13 @@ export default function DashboardPage() {
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const handleTabChange = (tab: string) => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("swimming_admin_tab", tab);
+    }
+  };
+
   const loadData = async () => {
     setLoading(true);
     const [regRes, bannerRes, tourneyRes] = await Promise.all([
@@ -54,6 +61,10 @@ export default function DashboardPage() {
     if (!token) {
       router.push("/login");
     } else {
+      const savedTab = localStorage.getItem("swimming_admin_tab");
+      if (savedTab) {
+        setActiveTab(savedTab);
+      }
       loadData();
     }
   }, []);
@@ -63,7 +74,7 @@ export default function DashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
+      <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
 
       <main className="flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full">
         {/* Dedicated Dashboard Tab View */}
@@ -124,7 +135,7 @@ export default function DashboardPage() {
               </h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <button
-                  onClick={() => setActiveTab("registrations")}
+                  onClick={() => handleTabChange("registrations")}
                   className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-sky-400 hover:shadow-md transition-all text-left group"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-sky-50 text-sky-600 flex items-center justify-center mb-3 group-hover:bg-sky-600 group-hover:text-white transition-colors">
@@ -135,7 +146,7 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab("buku-acara")}
+                  onClick={() => handleTabChange("buku-acara")}
                   className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-cyan-400 hover:shadow-md transition-all text-left group"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-cyan-50 text-cyan-600 flex items-center justify-center mb-3 group-hover:bg-cyan-600 group-hover:text-white transition-colors">
@@ -146,7 +157,7 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab("programs")}
+                  onClick={() => handleTabChange("programs")}
                   className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all text-left group"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-blue-600 group-hover:text-white transition-colors">
@@ -157,7 +168,7 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  onClick={() => setActiveTab("settings")}
+                  onClick={() => handleTabChange("settings")}
                   className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all text-left group"
                 >
                   <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
@@ -179,7 +190,7 @@ export default function DashboardPage() {
                   <p className="text-xs font-medium text-slate-500">Ringkasan 5 pendaftaran perenang paling akhir</p>
                 </div>
                 <button
-                  onClick={() => setActiveTab("registrations")}
+                  onClick={() => handleTabChange("registrations")}
                   className="text-xs font-extrabold text-sky-600 hover:text-sky-700 flex items-center gap-1"
                 >
                   Lihat Semua Pendaftaran <ArrowRight className="w-3.5 h-3.5" />

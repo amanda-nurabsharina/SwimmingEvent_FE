@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   ShieldCheck,
@@ -91,9 +91,13 @@ export default function RegistrationModal({
   const [docFileUrl, setDocFileUrl] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
 
+  // REFS FOR AUTO-SCROLL TO TOP ON STEP CHANGE
+  const modalBodyRef = useRef<HTMLDivElement>(null);
+  const modalOuterRef = useRef<HTMLDivElement>(null);
+
   // STEP 2 FIELDS
   const [selectedEvents, setSelectedEvents] = useState<{
-    [eventId: number]: { checked: boolean; timeSeed: string; isNT: boolean };
+    [eventId: number]: { checked: boolean; timeSeed: string; isNoTime: boolean };
   }>({});
 
   // STEP 3 FIELDS
@@ -106,6 +110,16 @@ export default function RegistrationModal({
 
   // STEP 4 RESULT
   const [receiptData, setReceiptData] = useState<any | null>(null);
+
+  // Scroll to top of modal whenever step changes
+  useEffect(() => {
+    if (modalBodyRef.current) {
+      modalBodyRef.current.scrollTop = 0;
+    }
+    if (modalOuterRef.current) {
+      modalOuterRef.current.scrollTop = 0;
+    }
+  }, [step]);
 
   // Auto calculate KU based on birth date
   useEffect(() => {
@@ -139,7 +153,7 @@ export default function RegistrationModal({
       } else {
         return {
           ...prev,
-          [eventId]: { checked: true, timeSeed: "00:30.00", isNT: false },
+          [eventId]: { checked: true, timeSeed: "99:99.99", isNoTime: true },
         };
       }
     });
@@ -148,17 +162,21 @@ export default function RegistrationModal({
   const handleSeedChange = (eventId: number, timeSeed: string) => {
     setSelectedEvents((prev) => ({
       ...prev,
-      [eventId]: { ...prev[eventId], timeSeed, isNT: false },
+      [eventId]: {
+        ...prev[eventId],
+        timeSeed,
+        isNoTime: timeSeed === "99:99.99" || timeSeed.trim() === "",
+      },
     }));
   };
 
-  const handleNTToggle = (eventId: number, isNT: boolean) => {
+  const handleNoTimeToggle = (eventId: number, isNoTime: boolean) => {
     setSelectedEvents((prev) => ({
       ...prev,
       [eventId]: {
         ...prev[eventId],
-        isNT,
-        timeSeed: isNT ? "NT" : "00:30.00",
+        isNoTime,
+        timeSeed: isNoTime ? "99:99.99" : "00:30.00",
       },
     }));
   };
@@ -211,8 +229,17 @@ export default function RegistrationModal({
       alert("Asal klub / sekolah wajib diisi");
       return;
     }
-    if (!contact.trim()) {
-      alert("Nomor WhatsApp PIC wajib diisi");
+    const cleanContact = contact.replace(/\D/g, "");
+    if (!cleanContact) {
+      alert("Nomor WhatsApp PIC wajib diisi (hanya angka)");
+      return;
+    }
+    if (cleanContact.length < 9) {
+      alert("Nomor WhatsApp tidak valid. Masukkan minimal 9 digit angka.");
+      return;
+    }
+    if (!docFileUrl) {
+      alert("Foto berkas identitas (" + docType + ") WAJIB diunggah sebelum melanjutkan ke pemilihan nomor lomba!");
       return;
     }
     setStep(2);
@@ -233,13 +260,22 @@ export default function RegistrationModal({
       alert("Nama pemilik rekening pengirim wajib diisi");
       return;
     }
-    // proofFileUrl is optional on initial submission, user can confirm via WhatsApp
+    if (!proofFileUrl) {
+      alert("Bukti struk transfer pembayaran WAJIB diunggah!");
+      return;
+    }
 
     setSubmitting(true);
-    const eventSelections = checkedEventEntries.map(([idStr, val]) => ({
-      swimming_event_id: Number(idStr),
-      time_seed: val.isNT ? "NT" : val.timeSeed || "NT",
-    }));
+    const eventSelections = checkedEventEntries.map(([idStr, val]) => {
+      const finalSeed =
+        val.isNoTime || !val.timeSeed || val.timeSeed.trim() === "" || val.timeSeed === "NT"
+          ? "99:99.99"
+          : val.timeSeed.trim();
+      return {
+        swimming_event_id: Number(idStr),
+        time_seed: finalSeed,
+      };
+    });
 
     const payload = {
       name: name.toUpperCase(),
@@ -293,7 +329,7 @@ export default function RegistrationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
+    <div ref={modalOuterRef} className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto">
       <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
         {/* MODAL HEADER BANNER (STEPS 1-4) */}
         <div className="bg-gradient-to-r from-sky-600 via-blue-600 to-blue-800 text-white p-5 sm:p-6 relative flex-shrink-0">
@@ -342,7 +378,7 @@ export default function RegistrationModal({
         </div>
 
         {/* MODAL BODY (SCROLLABLE) */}
-        <div className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6 font-sans text-xs">
+        <div ref={modalBodyRef} className="p-5 sm:p-6 overflow-y-auto flex-1 space-y-6 font-sans text-xs">
           {/* =================================================================== */}
           {/* STEP 1: IDENTITAS ATLET */}
           {/* =================================================================== */}
@@ -509,13 +545,30 @@ export default function RegistrationModal({
                     NO. WHATSAPP PIC (UNTUK KONFIRMASI) <span className="text-red-500">*</span>
                   </label>
                   <input
-                    type="text"
+                    type="tel"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
                     required
                     value={contact}
-                    onChange={(e) => setContact(e.target.value)}
-                    placeholder="0812xxxxxxxx"
+                    onChange={(e) => {
+                      const numsOnly = e.target.value.replace(/\D/g, "");
+                      setContact(numsOnly);
+                    }}
+                    onKeyDown={(e) => {
+                      if (
+                        ["Backspace", "Delete", "Tab", "ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key) ||
+                        (e.ctrlKey || e.metaKey)
+                      ) {
+                        return;
+                      }
+                      if (!/^[0-9]$/.test(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
+                    placeholder="0812xxxxxxxx (Hanya Angka)"
                     className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
                   />
+                  <p className="text-[10px] text-slate-400 mt-1 font-medium">Hanya angka (0-9), minimal 9 digit.</p>
                 </div>
               </div>
 
@@ -523,7 +576,7 @@ export default function RegistrationModal({
               <div>
                 <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
                   UPLOAD FOTO BERKAS ({docType.toUpperCase()}){" "}
-                  <span className="text-slate-400 font-medium">(OPSIONAL SAAT DAFTAR)</span>
+                  <span className="text-red-500 font-black">* WAJIB DIUNGGAH</span>
                 </label>
 
                 {docFileUrl ? (
@@ -593,16 +646,19 @@ export default function RegistrationModal({
                     </div>
                   </div>
                 ) : (
-                  <div className="border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
+                  <div className="border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
                     <label htmlFor="doc-upload" className="cursor-pointer block space-y-2">
                       <Upload className={`w-6 h-6 text-sky-500 mx-auto ${uploadingDoc ? "animate-bounce" : ""}`} />
                       <div>
                         <p className="font-black text-slate-800 text-xs">
                           {uploadingDoc
                             ? "Sedang mengunggah berkas..."
-                            : "Klik atau seret foto akte/KK ke sini"}
+                            : "Klik atau seret foto akte/KK ke sini (Wajib Diunggah)"}
                         </p>
-                        <p className="text-[10px] text-slate-400">Format JPG, PNG, WEBP, atau PDF (Maks. 5MB)</p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          Format JPG, PNG, WEBP, atau PDF (Maks. 5MB) •{" "}
+                          <span className="text-red-600 font-black">Wajib diunggah</span>
+                        </p>
                       </div>
                     </label>
                   </div>
@@ -719,20 +775,23 @@ export default function RegistrationModal({
                               <span className="text-[10px] font-bold text-slate-500">Seed Time:</span>
                               <input
                                 type="text"
-                                disabled={selected?.isNT}
-                                value={selected?.isNT ? "NT" : selected?.timeSeed}
+                                disabled={selected?.isNoTime}
+                                value={selected?.isNoTime ? "99:99.99" : (selected?.timeSeed || "99:99.99")}
                                 onChange={(e) => handleSeedChange(evt.id, e.target.value)}
                                 placeholder="00:30.00"
-                                className="w-20 px-2 py-1 text-center font-mono text-xs font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:bg-slate-100"
+                                className="w-24 px-2 py-1 text-center font-mono text-xs font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:bg-slate-100 disabled:text-slate-600"
                               />
-                              <label className="flex items-center gap-1 text-[10px] font-bold text-slate-600 cursor-pointer">
+                              <label
+                                className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200"
+                                title="Centang jika belum memiliki catatan waktu resmi (otomatis 99:99.99)"
+                              >
                                 <input
                                   type="checkbox"
-                                  checked={!!selected?.isNT}
-                                  onChange={(e) => handleNTToggle(evt.id, e.target.checked)}
-                                  className="w-3.5 h-3.5 rounded text-blue-600"
+                                  checked={!!selected?.isNoTime}
+                                  onChange={(e) => handleNoTimeToggle(evt.id, e.target.checked)}
+                                  className="w-3.5 h-3.5 rounded text-blue-600 cursor-pointer"
                                 />
-                                <span>NT</span>
+                                <span>Tanpa Waktu (99:99.99)</span>
                               </label>
                             </div>
                           )}
@@ -824,7 +883,7 @@ export default function RegistrationModal({
                             #{foundEv?.event_code} - {foundEv?.event_name}
                           </span>
                           <span className="text-[10px] text-slate-500 font-medium">
-                            Seed: <strong className="font-mono text-amber-700">{val.isNT ? "NT" : val.timeSeed}</strong> • {foundEv?.distance}
+                            Seed: <strong className="font-mono text-amber-700">{val.isNoTime || val.timeSeed === "NT" ? "99:99.99" : (val.timeSeed || "99:99.99")}</strong> • {foundEv?.distance}
                           </span>
                         </div>
                         <span className="font-black text-emerald-700 text-xs">
@@ -983,7 +1042,7 @@ export default function RegistrationModal({
               <div>
                 <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
                   UPLOAD BUKTI STRUK TRANSFER / SCREENSHOT{" "}
-                  <span className="text-slate-400 font-medium">(OPSIONAL VIA FORM / BISA DILAMPIRKAN SAAT CHAT WA)</span>
+                  <span className="text-red-500 font-black">* WAJIB DIUNGGAH</span>
                 </label>
 
                 {proofFileUrl ? (
@@ -1163,7 +1222,7 @@ export default function RegistrationModal({
                             #{evt?.event_code} {evt?.event_name} ({gender === "PUTRA" ? "Putra" : "Putri"})
                           </span>
                           <span className="font-mono text-[11px] font-black text-sky-600">
-                            Seed: {val.isNT ? "NT" : val.timeSeed}
+                            Seed: {val.isNoTime || val.timeSeed === "NT" ? "99:99.99" : (val.timeSeed || "99:99.99")}
                           </span>
                         </div>
                       );

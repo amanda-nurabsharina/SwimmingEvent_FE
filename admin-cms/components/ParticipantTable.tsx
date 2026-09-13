@@ -250,7 +250,19 @@ export default function ParticipantTable({
 
     try {
       await Promise.all(group.items.map((i) => verifyPayment(i.id, status)));
+      if (selectedGroup && selectedGroup.group_key === group.group_key) {
+        setSelectedGroup({
+          ...selectedGroup,
+          status,
+          items: selectedGroup.items.map((i) => ({ ...i, payment_status: status })),
+        });
+      }
       onRefresh();
+      alert(
+        status === "verified"
+          ? "Seluruh nomor lomba (" + (group.participant?.name || "Perenang") + ") berhasil disetujui (VERIFIED)!"
+          : "Seluruh nomor lomba (" + (group.participant?.name || "Perenang") + ") telah ditolak (REJECTED)."
+      );
     } catch (err) {
       alert("Gagal memperbarui status pendaftaran.");
     }
