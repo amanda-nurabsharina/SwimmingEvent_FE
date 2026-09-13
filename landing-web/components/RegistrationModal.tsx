@@ -20,6 +20,8 @@ import {
   User,
   Clock,
   Sparkles,
+  FileText,
+  ExternalLink,
 } from "lucide-react";
 import { registerParticipant, uploadImage } from "../lib/api";
 
@@ -522,28 +524,95 @@ export default function RegistrationModal({
                   UPLOAD FOTO BERKAS ({docType.toUpperCase()}){" "}
                   <span className="text-slate-400 font-medium">(OPSIONAL SAAT DAFTAR)</span>
                 </label>
-                <div className="border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
-                  <input
-                    type="file"
-                    accept="image/*,.pdf"
-                    onChange={handleDocUpload}
-                    className="hidden"
-                    id="doc-upload"
-                  />
-                  <label htmlFor="doc-upload" className="cursor-pointer block space-y-2">
-                    <Upload className="w-6 h-6 text-sky-500 mx-auto" />
-                    <div>
-                      <p className="font-black text-slate-800 text-xs">
-                        {uploadingDoc
-                          ? "Mengunggah berkas..."
-                          : docFileUrl
-                          ? "✓ Berkas Berhasil Diunggah"
-                          : "Klik atau seret foto akte/KK ke sini"}
-                      </p>
-                      <p className="text-[10px] text-slate-400">Format JPG, PNG, atau PDF (Maks. 5MB)</p>
+
+                {docFileUrl ? (
+                  <div className="bg-sky-50/60 border-2 border-sky-300 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-sky-800 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Pratinjau Berkas ({docType}):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setDocFileUrl("")}
+                        className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-1"
+                      >
+                        <X className="w-3.5 h-3.5" /> Hapus
+                      </button>
                     </div>
-                  </label>
-                </div>
+
+                    <div className="relative rounded-xl overflow-hidden border border-sky-200 bg-white shadow-xs max-h-56 flex items-center justify-center group p-2">
+                      {docFileUrl.toLowerCase().endsWith(".pdf") ? (
+                        <div className="p-6 text-center space-y-2">
+                          <FileText className="w-12 h-12 text-rose-500 mx-auto" />
+                          <p className="font-black text-slate-800 text-xs">Dokumen PDF Terunggah</p>
+                          <a
+                            href={docFileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs font-black text-sky-600 hover:underline"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" /> Buka PDF di Tab Baru
+                          </a>
+                        </div>
+                      ) : (
+                        <div className="relative w-full flex items-center justify-center">
+                          <img
+                            src={docFileUrl}
+                            alt="Pratinjau Berkas Identitas"
+                            className="max-h-48 w-auto object-contain rounded-lg shadow-2xs"
+                          />
+                          <a
+                            href={docFileUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1.5"
+                          >
+                            <Eye className="w-4 h-4" /> Buka Ukuran Penuh
+                          </a>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] pt-1">
+                      <a
+                        href={docFileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-sky-700 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Buka Berkas di Tab Baru
+                      </a>
+                      <label
+                        htmlFor="doc-upload"
+                        className="font-black text-sky-600 hover:text-sky-800 cursor-pointer underline"
+                      >
+                        Ganti File Foto
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
+                    <label htmlFor="doc-upload" className="cursor-pointer block space-y-2">
+                      <Upload className={`w-6 h-6 text-sky-500 mx-auto ${uploadingDoc ? "animate-bounce" : ""}`} />
+                      <div>
+                        <p className="font-black text-slate-800 text-xs">
+                          {uploadingDoc
+                            ? "Sedang mengunggah berkas..."
+                            : "Klik atau seret foto akte/KK ke sini"}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Format JPG, PNG, WEBP, atau PDF (Maks. 5MB)</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleDocUpload}
+                  className="hidden"
+                  id="doc-upload"
+                />
               </div>
 
               {/* Submit Button Step 1 */}
@@ -872,30 +941,83 @@ export default function RegistrationModal({
               {/* Upload Proof Screenshot */}
               <div>
                 <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                  UPLOAD BUKTI STRUK TRANSFER / SCREENSHOT <span className="text-slate-400 font-medium">(OPSIONAL VIA FORM / BISA DILAMPIRKAN SAAT CHAT WA)</span>
+                  UPLOAD BUKTI STRUK TRANSFER / SCREENSHOT{" "}
+                  <span className="text-slate-400 font-medium">(OPSIONAL VIA FORM / BISA DILAMPIRKAN SAAT CHAT WA)</span>
                 </label>
-                <div className="border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleProofUpload}
-                    className="hidden"
-                    id="proof-upload"
-                  />
-                  <label htmlFor="proof-upload" className="cursor-pointer block space-y-2">
-                    <Upload className="w-6 h-6 text-sky-500 mx-auto" />
-                    <div>
-                      <p className="font-black text-slate-800 text-xs">
-                        {uploadingProof
-                          ? "Mengunggah bukti pembayaran..."
-                          : proofFileUrl
-                          ? "✓ Bukti Transfer Berhasil Diunggah"
-                          : "Klik atau seret screenshot bukti transfer ke sini"}
-                      </p>
-                      <p className="text-[10px] text-slate-400">Format PNG, JPG, JPEG (Maks. 5MB)</p>
+
+                {proofFileUrl ? (
+                  <div className="bg-sky-50/60 border-2 border-sky-300 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-black text-sky-800 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        Pratinjau Bukti Transfer Pembayaran:
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setProofFileUrl("")}
+                        className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-1"
+                      >
+                        <X className="w-3.5 h-3.5" /> Hapus
+                      </button>
                     </div>
-                  </label>
-                </div>
+
+                    <div className="relative rounded-xl overflow-hidden border border-sky-200 bg-white shadow-xs max-h-56 flex items-center justify-center group p-2">
+                      <div className="relative w-full flex items-center justify-center">
+                        <img
+                          src={proofFileUrl}
+                          alt="Bukti Transfer Pembayaran"
+                          className="max-h-48 w-auto object-contain rounded-lg shadow-2xs"
+                        />
+                        <a
+                          href={proofFileUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1.5"
+                        >
+                          <Eye className="w-4 h-4" /> Buka Ukuran Penuh
+                        </a>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] pt-1">
+                      <a
+                        href={proofFileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-sky-700 hover:underline flex items-center gap-1"
+                      >
+                        <ExternalLink className="w-3 h-3" /> Buka Bukti Bayar di Tab Baru
+                      </a>
+                      <label
+                        htmlFor="proof-upload"
+                        className="font-black text-sky-600 hover:text-sky-800 cursor-pointer underline"
+                      >
+                        Ganti Bukti Bayar
+                      </label>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed border-sky-200 hover:border-sky-400 bg-sky-50/50 rounded-2xl p-4 text-center cursor-pointer transition-all">
+                    <label htmlFor="proof-upload" className="cursor-pointer block space-y-2">
+                      <Upload className={`w-6 h-6 text-sky-500 mx-auto ${uploadingProof ? "animate-bounce" : ""}`} />
+                      <div>
+                        <p className="font-black text-slate-800 text-xs">
+                          {uploadingProof
+                            ? "Sedang mengunggah bukti pembayaran..."
+                            : "Klik atau seret screenshot bukti transfer ke sini"}
+                        </p>
+                        <p className="text-[10px] text-slate-400">Format PNG, JPG, JPEG (Maks. 5MB)</p>
+                      </div>
+                    </label>
+                  </div>
+                )}
+                <input
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleProofUpload}
+                  className="hidden"
+                  id="proof-upload"
+                />
               </div>
 
               {/* Navigation Controls Step 3 */}
