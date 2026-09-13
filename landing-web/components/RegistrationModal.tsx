@@ -56,8 +56,16 @@ export default function RegistrationModal({
 
   // TOURNAMENT SELECTOR & DEADLINE CHECK
   const [selectedTournamentID, setSelectedTournamentID] = useState<string>(
-    tournaments?.[0]?.id ? String(tournaments[0].id) : "1"
+    tournaments?.[0]?.id ? String(tournaments[0].id) : ""
   );
+
+  useEffect(() => {
+    if (tournaments && tournaments.length > 0) {
+      if (!selectedTournamentID || !tournaments.some((t) => String(t.id) === String(selectedTournamentID))) {
+        setSelectedTournamentID(String(tournaments[0].id));
+      }
+    }
+  }, [tournaments]);
 
   const currentTourney =
     (tournaments || []).find((t) => String(t.id) === String(selectedTournamentID)) ||

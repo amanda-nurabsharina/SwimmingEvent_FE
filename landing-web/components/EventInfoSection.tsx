@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Filter, Trophy, Calendar, MapPin, Clock, Layers, Sparkles, AlertCircle } from "lucide-react";
 
 interface SwimmingEvent {
@@ -24,15 +24,26 @@ export default function EventInfoSection({
   tournaments?: any[];
 }) {
   const [selectedTournamentID, setSelectedTournamentID] = useState<string>(
-    tournaments?.[0]?.id ? String(tournaments[0].id) : "1"
+    tournaments?.[0]?.id ? String(tournaments[0].id) : ""
   );
   const [selectedGender, setSelectedGender] = useState<string>("ALL");
   const [selectedStroke, setSelectedStroke] = useState<string>("ALL");
   const [selectedKU, setSelectedKU] = useState<string>("ALL");
 
+  // Keep selectedTournamentID in sync when tournaments prop loads async
+  useEffect(() => {
+    if (tournaments && tournaments.length > 0) {
+      if (!selectedTournamentID || !tournaments.some((t) => String(t.id) === String(selectedTournamentID))) {
+        setSelectedTournamentID(String(tournaments[0].id));
+      }
+    }
+  }, [tournaments]);
+
   const currentTourney =
     (tournaments || []).find((t) => String(t.id) === String(selectedTournamentID)) ||
     tournaments?.[0];
+
+  const activeTourneyID = currentTourney?.id ? String(currentTourney.id) : selectedTournamentID;
 
   const todayStr = new Date().toISOString().slice(0, 10);
   const isRegistrationClosed = currentTourney?.registration_end_date
@@ -44,18 +55,48 @@ export default function EventInfoSection({
     currentTourney?.events && currentTourney.events.length > 0
       ? currentTourney.events
       : (events || []).filter(
-          (e) => !selectedTournamentID || String(e.tournament_id) === String(selectedTournamentID)
+          (e) => !activeTourneyID || String(e.tournament_id) === String(activeTourneyID)
         );
+
+  // Helper matchers for robust filtering
+  const isGenderMatch = (eventGender?: string, targetGender?: string) => {
+    if (!targetGender || targetGender === "ALL") return true;
+    if (!eventGender) return false;
+    return eventGender.toUpperCase() === targetGender.toUpperCase();
+  };
+
+  const isStrokeMatch = (eventStroke?: string, targetCode?: string) => {
+    if (!targetCode || targetCode === "ALL") return true;
+    if (!eventStroke) return false;
+    const s = eventStroke.toUpperCase();
+    const t = targetCode.toUpperCase();
+    if (s === t) return true;
+    if (t === "FREESTYLE" && (s.includes("BEBAS") || s.includes("FREE"))) return true;
+    if (t === "BREASTSTROKE" && (s.includes("DADA") || s.includes("BREAST"))) return true;
+    if (t === "BACKSTROKE" && (s.includes("PUNGGUNG") || s.includes("BACK"))) return true;
+    if (t === "BUTTERFLY" && (s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY"))) return true;
+    if (t === "INDIVIDUALMEDLEY" || t === "MEDLEY") {
+      if (s.includes("MEDLEY") || s.includes("GANTI") || s.includes("INDIVIDUAL")) return true;
+    }
+    return false;
+  };
+
+  const isKUMatch = (eventKU?: string, targetKU?: string) => {
+    if (!targetKU || targetKU === "ALL") return true;
+    if (targetKU === "OPEN") {
+      if (!eventKU || eventKU.toUpperCase() === "OPEN") return true;
+    }
+    if (!eventKU) return false;
+    const normEvent = eventKU.toUpperCase().replace(/\s+/g, "");
+    const normTarget = targetKU.toUpperCase().replace(/\s+/g, "");
+    return normEvent === normTarget || normEvent.includes(normTarget);
+  };
 
   // Apply secondary filters (Gender, Stroke, KU)
   const filteredEvents = tourneyEvents.filter((e) => {
-    const matchGender = selectedGender === "ALL" || e.gender?.toUpperCase() === selectedGender;
-    const matchStroke = selectedStroke === "ALL" || e.stroke?.toUpperCase() === selectedStroke;
-    const matchKU =
-      selectedKU === "ALL" ||
-      e.age_group?.toUpperCase() === selectedKU.toUpperCase() ||
-      (selectedKU === "OPEN" && (!e.age_group || e.age_group.toUpperCase() === "OPEN"));
-    return matchGender && matchStroke && matchKU;
+    return isGenderMatch(e.gender, selectedGender) &&
+           isStrokeMatch(e.stroke, selectedStroke) &&
+           isKUMatch(e.age_group, selectedKU);
   });
 
   return (
