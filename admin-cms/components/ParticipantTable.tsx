@@ -60,7 +60,7 @@ export default function ParticipantTable({
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterTournamentID, setFilterTournamentID] = useState("ALL");
 
-  // State for Collapsed/Expanded Rows per Swimmer Group
+  // State for Collapsed/Expanded Rows per Swimmer Person
   const [expandedKeys, setExpandedKeys] = useState<{ [groupKey: string]: boolean }>({});
 
   // Selected Group Registration for Modal View
@@ -79,19 +79,22 @@ export default function ParticipantTable({
   };
 
   // =========================================================================
-  // 1. GROUP REGISTRATIONS BY SWIMMER / REGISTRATION CODE
+  // 1. GROUP ALL REGISTRATIONS STRICTLY BY SWIMMER PERSON (PARTICIPANT ID/NAME)
   // =========================================================================
   const groupMap: { [key: string]: SwimmerGroup } = {};
 
   registrations.forEach((r) => {
-    const code = r.registration_code || `REG-P-${r.participant_id || r.id}`;
-    const pName = r.participant?.name || "Perenang";
-    const groupKey = `${code}_${pName}`;
+    const pId = r.participant_id || r.participant?.id;
+    const pName = (r.participant?.name || "Perenang").trim().toUpperCase();
+    const pClub = (r.participant?.club || "").trim().toUpperCase();
+
+    // Unique key per Swimmer Person (Ensures 1 Swimmer Person = EXACTLY 1 Row)
+    const groupKey = pId ? `P_${pId}` : `NAME_${pName}_${pClub}`;
 
     if (!groupMap[groupKey]) {
       groupMap[groupKey] = {
         group_key: groupKey,
-        registration_code: r.registration_code || code,
+        registration_code: r.registration_code || `REG-P-${pId || r.id}`,
         participant: r.participant || {},
         payment_method: r.payment_method || "BCA",
         sender_bank_owner: r.sender_bank_owner || "-",
@@ -119,7 +122,7 @@ export default function ParticipantTable({
     grp.total_fee += fee;
   });
 
-  // Calculate unified group status
+  // Calculate unified status for the Swimmer Group
   const swimmerGroups: SwimmerGroup[] = Object.values(groupMap).map((grp) => {
     const statuses = grp.items.map((i) => i.payment_status);
     let unifiedStatus = "pending";
@@ -138,7 +141,7 @@ export default function ParticipantTable({
     };
   });
 
-  // Count Statistics (Grouped per Swimmer)
+  // Count Statistics (Grouped per Person)
   const countPending = swimmerGroups.filter((g) => g.status === "pending").length;
   const countVerified = swimmerGroups.filter((g) => g.status === "verified").length;
   const countRejected = swimmerGroups.filter((g) => g.status === "rejected").length;
@@ -299,7 +302,7 @@ export default function ParticipantTable({
           {/* COUNTER BADGE */}
           <div className="text-xs font-bold text-slate-500 self-start lg:self-center">
             Menampilkan <span className="text-sky-700 font-black">{filteredGroups.length}</span> Perenang (Total{" "}
-            <span className="font-black text-slate-800">{swimmerGroups.length}</span> Registration Groups)
+            <span className="font-black text-slate-800">{swimmerGroups.length}</span> Perenang Terdaftar)
           </div>
         </div>
 
@@ -344,16 +347,16 @@ export default function ParticipantTable({
         </div>
       </div>
 
-      {/* COLLAPSIBLE GROUPED REGISTRATIONS TABLE */}
+      {/* COLLAPSIBLE GROUPED REGISTRATIONS TABLE (1 ROW PER PERSON) */}
       <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="bg-slate-100/80 text-slate-700 font-black border-b border-slate-200 uppercase tracking-wider">
-              <th className="p-4 w-12 text-center">DETAIL</th>
+              <th className="p-4 w-12 text-center">RINCIAN</th>
               <th className="p-4">KODE REGISTRASI</th>
-              <th className="p-4">PERENANG / ATLET</th>
+              <th className="p-4">NAMA PERENANG / ATLET</th>
               <th className="p-4">KLUB / KONTINGEN</th>
-              <th className="p-4 text-center">NOMOR LOMBA</th>
+              <th className="p-4 text-center">JUMLAH LOMBA</th>
               <th className="p-4 text-center">TOTAL BIAYA</th>
               <th className="p-4 text-center">KELENGKAPAN BERKAS</th>
               <th className="p-4 text-center">STATUS</th>
@@ -376,11 +379,11 @@ export default function ParticipantTable({
                 const completeness = checkDocCompleteness(g);
 
                 return (
-                  <tr key={g.group_key} className="contents group">
-                    {/* SUMMARY ROW FOR THIS SWIMMER */}
+                  <tbody key={g.group_key} className="divide-y divide-slate-100 border-b border-slate-100">
+                    {/* SUMMARY ROW FOR THIS SWIMMER PERSON */}
                     <tr
                       className={`hover:bg-sky-50/50 transition-colors cursor-pointer ${
-                        isExpanded ? "bg-sky-50/70 border-b-0" : ""
+                        isExpanded ? "bg-sky-50/80 font-semibold" : ""
                       }`}
                       onClick={() => toggleExpand(g.group_key)}
                     >
@@ -511,24 +514,24 @@ export default function ParticipantTable({
 
                     {/* EXPANDED SUB-TABLE VIEW (ITEMIZED VERIFICATION PER SUB-EVENT) */}
                     {isExpanded && (
-                      <tr className="bg-sky-50/30 border-b border-sky-200">
+                      <tr className="bg-sky-50/40">
                         <td colSpan={9} className="p-4 sm:p-6 space-y-4">
-                          <div className="bg-white rounded-2xl border border-sky-200 p-4 shadow-sm space-y-3">
+                          <div className="bg-white rounded-2xl border border-sky-200 p-4 sm:p-5 shadow-sm space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100">
                               <div>
                                 <h4 className="font-black text-xs uppercase text-slate-900 flex items-center gap-2">
                                   <Trophy className="w-4 h-4 text-sky-600" />
-                                  Rincian Sub Nomor Lomba per Perenang ({g.participant?.name})
+                                  Rincian {g.items.length} Nomor Lomba Terdaftar ({g.participant?.name})
                                 </h4>
-                                <p className="text-[11px] text-slate-500 font-medium">
-                                  Verifikasi setiap cabang nomor lomba satu per satu secara mandiri.
+                                <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                  Verifikasi setiap cabang nomor lomba satu per satu di bawah ini.
                                 </p>
                               </div>
 
                               {!completeness.isComplete && (
-                                <div className="px-3 py-1 bg-red-50 text-red-700 border border-red-200 rounded-xl text-[10px] font-black flex items-center gap-1.5">
-                                  <Lock className="w-3.5 h-3.5 text-red-500" />
-                                  <span>Tombol Setujui terkunci (Lengkapi Berkas Akte & Bukti Bayar)</span>
+                                <div className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-[10px] font-black flex items-center gap-1.5">
+                                  <Lock className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                                  <span>Tombol Setujui Terkunci (Unggah Berkas Akte/KK & Bukti Bayar Dahulu)</span>
                                 </div>
                               )}
                             </div>
@@ -538,7 +541,8 @@ export default function ParticipantTable({
                               <table className="w-full text-left text-xs">
                                 <thead>
                                   <tr className="bg-slate-50 text-slate-600 font-black border-b border-slate-200 uppercase text-[10px]">
-                                    <th className="p-2.5">KODE & NAMA LOMBA</th>
+                                    <th className="p-2.5">KODE REG</th>
+                                    <th className="p-2.5">KODE & NAMA CABANG LOMBA</th>
                                     <th className="p-2.5">JARAK & GAYA</th>
                                     <th className="p-2.5 text-center">TIME SEED</th>
                                     <th className="p-2.5 text-center">BIAYA NOMOR</th>
@@ -554,6 +558,9 @@ export default function ParticipantTable({
 
                                     return (
                                       <tr key={item.id} className="hover:bg-slate-50">
+                                        <td className="p-2.5 font-mono text-[11px] text-slate-500">
+                                          {item.registration_code}
+                                        </td>
                                         <td className="p-2.5">
                                           <span className="font-black text-indigo-700 block">
                                             #{evt.event_code} - {evt.event_name}
@@ -587,9 +594,9 @@ export default function ParticipantTable({
                                             <button
                                               onClick={() => handleVerifySingleItem(item, "verified", g)}
                                               disabled={verifyingItemId === item.id || isVerified || !completeness.isComplete}
-                                              className={`px-3 py-1 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                                                 isVerified
-                                                  ? "bg-emerald-600 text-white opacity-80"
+                                                  ? "bg-emerald-600 text-white opacity-90"
                                                   : !completeness.isComplete
                                                   ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
                                                   : "bg-emerald-100 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200"
@@ -608,9 +615,9 @@ export default function ParticipantTable({
                                             <button
                                               onClick={() => handleVerifySingleItem(item, "rejected", g)}
                                               disabled={verifyingItemId === item.id || isRejected}
-                                              className={`px-3 py-1 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
                                                 isRejected
-                                                  ? "bg-red-600 text-white opacity-80"
+                                                  ? "bg-red-600 text-white opacity-90"
                                                   : "bg-red-100 hover:bg-red-600 text-red-800 hover:text-white border border-red-200"
                                               }`}
                                             >
@@ -629,7 +636,7 @@ export default function ParticipantTable({
                         </td>
                       </tr>
                     )}
-                  </tr>
+                  </tbody>
                 );
               })
             )}
