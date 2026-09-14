@@ -109,6 +109,7 @@ export default function SectionOrderManager({ onRefresh }: { onRefresh?: () => v
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
+  const [confirmReset, setConfirmReset] = useState(false);
 
   // Load section ordering from Backend
   const loadSections = async () => {
@@ -217,10 +218,12 @@ export default function SectionOrderManager({ onRefresh }: { onRefresh?: () => v
 
   // Reset to default ordering
   const handleReset = async () => {
-    if (!confirm("Apakah Anda yakin ingin mengembalikan urutan section ke susunan standar awal?")) {
+    if (!confirmReset) {
+      setConfirmReset(true);
+      setTimeout(() => setConfirmReset(false), 5000);
       return;
     }
-
+    setConfirmReset(false);
     setSaving(true);
     const res = await resetPageSections("homepage");
     setSaving(false);
@@ -257,15 +260,34 @@ export default function SectionOrderManager({ onRefresh }: { onRefresh?: () => v
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-2.5">
-          <button
-            onClick={handleReset}
-            disabled={saving || loading}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm"
-            title="Kembalikan ke susunan bawaan"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-            <span>Reset Standar</span>
-          </button>
+          {confirmReset ? (
+            <div className="flex items-center gap-1.5 animate-fade-in">
+              <button
+                onClick={handleReset}
+                disabled={saving}
+                className="px-3.5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-md shadow-red-600/20 animate-pulse"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Yakin Reset?</span>
+              </button>
+              <button
+                onClick={() => setConfirmReset(false)}
+                className="px-2.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleReset}
+              disabled={saving || loading}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-2 transition-all cursor-pointer shadow-sm"
+              title="Kembalikan ke susunan bawaan"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Standar</span>
+            </button>
+          )}
 
           <button
             onClick={loadSections}
