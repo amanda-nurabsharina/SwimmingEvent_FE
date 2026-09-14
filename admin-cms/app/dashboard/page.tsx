@@ -14,6 +14,7 @@ import CoachManager from "../../components/CoachManager";
 import FacilityManager from "../../components/FacilityManager";
 import AchievementManager from "../../components/AchievementManager";
 import TestimonialManager from "../../components/TestimonialManager";
+import SectionOrderManager from "../../components/SectionOrderManager";
 import SettingsManager from "../../components/SettingsManager";
 import { getRegistrations, getBanners, fetchAdminTournaments } from "../../lib/api-admin";
 import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings } from "lucide-react";
@@ -311,6 +312,10 @@ export default function DashboardPage() {
 
         {activeTab === "testimonial" && (
           <TestimonialManager onRefresh={loadData} />
+        )}
+
+        {activeTab === "layout-order" && (
+          <SectionOrderManager onRefresh={loadData} />
         )}
 
         {activeTab === "settings" && (

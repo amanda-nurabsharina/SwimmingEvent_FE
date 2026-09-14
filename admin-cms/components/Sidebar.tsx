@@ -19,6 +19,7 @@ import {
   Award,
   ChevronDown,
   ChevronRight,
+  ArrowUpDown,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -72,6 +73,7 @@ export default function Sidebar({
         { id: "facility", label: "Fasilitas Kolam", icon: Building2 },
         { id: "achievement", label: "Prestasi & Medali", icon: Award },
         { id: "testimonial", label: "Testimoni & Ulasan", icon: MessageSquareQuote },
+        { id: "layout-order", label: "Urutan Menu Landing Page", icon: ArrowUpDown },
       ],
     },
     {

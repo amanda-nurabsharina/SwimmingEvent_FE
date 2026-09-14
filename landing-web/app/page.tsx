@@ -31,6 +31,7 @@ export default function HomePage() {
   const [achievementConfig, setAchievementConfig] = useState<any>(null);
   const [testimonials, setTestimonials] = useState<any[]>([]);
   const [testimonialConfig, setTestimonialConfig] = useState<any>(null);
+  const [pageSections, setPageSections] = useState<any[]>([]);
 
   const [isRegisterModalOpen, setIsRegisterModalOpen] = useState(false);
 
@@ -54,6 +55,7 @@ export default function HomePage() {
         if (res.data.achievement_section_config) setAchievementConfig(res.data.achievement_section_config);
         if (res.data.testimonials) setTestimonials(res.data.testimonials);
         if (res.data.testimonial_section_config) setTestimonialConfig(res.data.testimonial_section_config);
+        if (res.data.page_sections) setPageSections(res.data.page_sections);
       }
     }
     loadData();
@@ -62,22 +64,102 @@ export default function HomePage() {
   const openRegisterModal = () => setIsRegisterModalOpen(true);
   const closeRegisterModal = () => setIsRegisterModalOpen(false);
 
+  // Dynamic Section Component Dispatcher
+  const renderSection = (code: string) => {
+    switch (code) {
+      case "hero":
+        return (
+          <HeroBanner
+            key="hero"
+            banners={banners}
+            heroConfig={heroConfig}
+            heroStats={heroStats}
+            onOpenRegisterModal={openRegisterModal}
+          />
+        );
+      case "programs":
+        return (
+          <ProgramSection
+            key="programs"
+            programs={programs}
+            sectionConfig={programConfig}
+            siteConfig={siteConfig}
+          />
+        );
+      case "coaches":
+        return (
+          <CoachSection
+            key="coaches"
+            coaches={coaches}
+            sectionConfig={coachConfig}
+          />
+        );
+      case "facilities":
+        return (
+          <FacilitySection
+            key="facilities"
+            facilities={facilities}
+            facilityConfig={facilityConfig}
+          />
+        );
+      case "achievements":
+        return (
+          <AchievementSection
+            key="achievements"
+            achievements={achievements}
+            sectionConfig={achievementConfig}
+          />
+        );
+      case "testimonials":
+        return (
+          <TestimonialSection
+            key="testimonials"
+            testimonials={testimonials}
+            sectionConfig={testimonialConfig}
+          />
+        );
+      case "events":
+        return (
+          <EventInfoSection
+            key="events"
+            events={events}
+            tournaments={tournaments}
+            onOpenRegisterModal={openRegisterModal}
+          />
+        );
+      case "status_checker":
+        return <StatusCheckerSection key="status_checker" />;
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
-      <Header siteConfig={siteConfig} onOpenRegisterModal={openRegisterModal} />
+      <Header
+        siteConfig={siteConfig}
+        pageSections={pageSections}
+        onOpenRegisterModal={openRegisterModal}
+      />
       <main>
-        <HeroBanner
-          banners={banners}
-          heroConfig={heroConfig}
-          heroStats={heroStats}
-          onOpenRegisterModal={openRegisterModal}
-        />
-        <ProgramSection programs={programs} sectionConfig={programConfig} siteConfig={siteConfig} />
-        <CoachSection coaches={coaches} sectionConfig={coachConfig} />
-        <FacilitySection facilities={facilities} facilityConfig={facilityConfig} />
-        <TestimonialSection testimonials={testimonials} sectionConfig={testimonialConfig} />
-        <EventInfoSection events={events} tournaments={tournaments} onOpenRegisterModal={openRegisterModal} />
-        <StatusCheckerSection />
+        {pageSections && pageSections.length > 0
+          ? [...pageSections]
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .filter((sec) => sec.is_published !== false)
+              .map((sec) => renderSection(sec.section_code))
+          : (
+            // Default fallback order if page_sections is not yet loaded
+            <>
+              {renderSection("hero")}
+              {renderSection("programs")}
+              {renderSection("coaches")}
+              {renderSection("facilities")}
+              {renderSection("achievements")}
+              {renderSection("testimonials")}
+              {renderSection("events")}
+              {renderSection("status_checker")}
+            </>
+          )}
       </main>
       <Footer siteConfig={siteConfig} programs={programs} />
 

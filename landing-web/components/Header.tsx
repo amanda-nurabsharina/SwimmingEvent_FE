@@ -4,11 +4,23 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Waves } from "lucide-react";
 
+const NAV_ITEM_MAP: Record<string, { label: string; href: string }> = {
+  hero: { label: "Beranda", href: "/" },
+  programs: { label: "Program Pelatihan", href: "/#programs" },
+  coaches: { label: "Tim Pelatih", href: "/#coaches" },
+  facilities: { label: "Fasilitas", href: "/#facilities" },
+  achievements: { label: "Prestasi", href: "/#achievements" },
+  testimonials: { label: "Testimoni", href: "/#testimonials" },
+  events: { label: "Nomor Lomba", href: "/#events" },
+};
+
 export default function Header({
   siteConfig,
+  pageSections,
   onOpenRegisterModal,
 }: {
   siteConfig?: any;
+  pageSections?: any[];
   onOpenRegisterModal?: () => void;
 }) {
   const [scrolled, setScrolled] = useState(false);
@@ -24,6 +36,25 @@ export default function Header({
   const appName = siteConfig?.app_name || "AKUATIK TANGERANG";
   const appTagline = siteConfig?.app_tagline || "TIME TRIAL CHAMPIONSHIP 2025";
   const logoUrl = siteConfig?.logo_url || "";
+
+  // Generate dynamic nav items based on pageSections if available
+  const navLinks =
+    pageSections && pageSections.length > 0
+      ? [...pageSections]
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .filter((s) => s.is_published !== false && NAV_ITEM_MAP[s.section_code])
+          .map((s) => ({
+            code: s.section_code,
+            ...NAV_ITEM_MAP[s.section_code],
+          }))
+      : [
+          { code: "hero", label: "Beranda", href: "/" },
+          { code: "programs", label: "Program Pelatihan", href: "/#programs" },
+          { code: "coaches", label: "Tim Pelatih", href: "/#coaches" },
+          { code: "facilities", label: "Fasilitas", href: "/#facilities" },
+          { code: "achievements", label: "Prestasi", href: "/#achievements" },
+          { code: "events", label: "Nomor Lomba", href: "/#events" },
+        ];
 
   return (
     <header
@@ -53,25 +84,16 @@ export default function Header({
             </div>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6 lg:gap-8">
-            <Link href="/" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Beranda
-            </Link>
-            <Link href="/#programs" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Program Pelatihan
-            </Link>
-            <Link href="/#coaches" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Tim Pelatih
-            </Link>
-            <Link href="/#facilities" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Fasilitas
-            </Link>
-            <Link href="/#achievements" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Prestasi
-            </Link>
-            <Link href="/#events" className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors">
-              Nomor Lomba
-            </Link>
+          <nav className="hidden md:flex items-center gap-5 lg:gap-7">
+            {navLinks.map((item) => (
+              <Link
+                key={item.code}
+                href={item.href}
+                className="text-xs sm:text-sm font-bold text-slate-700 hover:text-sky-600 transition-colors whitespace-nowrap"
+              >
+                {item.label}
+              </Link>
+            ))}
           </nav>
 
           <div className="flex items-center gap-4">

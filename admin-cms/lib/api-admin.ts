@@ -755,6 +755,45 @@ export async function deleteAdminTournament(id: number) {
   }
 }
 
+// ----------------------------------------------------------------------
+// 20. PAGE SECTIONS (LANDING PAGE SORT & LAYOUT ORDER)
+// ----------------------------------------------------------------------
+export async function fetchPageSections(pageSlug = "homepage") {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/page-sections?page_slug=${encodeURIComponent(pageSlug)}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function batchSavePageSections(sections: any[]) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/page-sections/batch`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ sections }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function resetPageSections(pageSlug = "homepage") {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/page-sections/reset?page_slug=${encodeURIComponent(pageSlug)}`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
 
 
 
