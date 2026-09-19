@@ -28,6 +28,10 @@ export async function getEvents() {
   return fetchAPI("/events");
 }
 
+export async function getTournaments() {
+  return fetchAPI("/tournaments");
+}
+
 export async function submitRegistration(data: any) {
   return fetchAPI("/register", {
     method: "POST",
@@ -39,8 +43,12 @@ export async function getStartingList() {
   return fetchAPI("/starting-list");
 }
 
-export async function getBukuAcara() {
-  return fetchAPI("/buku-acara");
+export async function getBukuAcara(tournamentId?: number, round?: string) {
+  const params = new URLSearchParams();
+  if (tournamentId) params.append("tournament_id", tournamentId.toString());
+  if (round) params.append("round", round);
+  const queryString = params.toString() ? `?${params.toString()}` : "";
+  return fetchAPI(`/buku-acara${queryString}`);
 }
 
 export async function checkRegistrationCode(code: string) {

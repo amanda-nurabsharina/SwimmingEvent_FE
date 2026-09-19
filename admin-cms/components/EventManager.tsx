@@ -28,6 +28,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
   const [filterTournamentID, setFilterTournamentID] = useState("ALL");
   const [filterKU, setFilterKU] = useState("ALL");
   const [filterGender, setFilterGender] = useState("ALL");
+  const [filterCategory, setFilterCategory] = useState("ALL");
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -41,6 +42,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
   const [formAgeGroup, setFormAgeGroup] = useState("KU 2");
   const [formFee, setFormFee] = useState(150000);
   const [formScheduleTime, setFormScheduleTime] = useState("08:00 WIB");
+  const [formHeatCategory, setFormHeatCategory] = useState<"HEAT" | "GROUP">("HEAT");
   const [formIsActive, setFormIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -75,6 +77,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
     setFormAgeGroup("KU 2");
     setFormFee(150000);
     setFormScheduleTime("08:00 WIB");
+    setFormHeatCategory("HEAT");
     setFormIsActive(true);
     setIsModalOpen(true);
   };
@@ -90,6 +93,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
     setFormAgeGroup(evt.age_group || "KU 2");
     setFormFee(evt.fee || 150000);
     setFormScheduleTime(evt.schedule_time || "08:00 WIB");
+    setFormHeatCategory(evt.heat_category === "GROUP" || evt.heat_category === "CLUSTER" ? "GROUP" : "HEAT");
     setFormIsActive(evt.is_active ?? true);
     setIsModalOpen(true);
   };
@@ -113,6 +117,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
       age_group: formAgeGroup,
       fee: Number(formFee),
       schedule_time: formScheduleTime,
+      heat_category: formHeatCategory,
       is_active: formIsActive,
     };
 
@@ -149,8 +154,13 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
       filterTournamentID === "ALL" || String(e.tournament_id) === String(filterTournamentID);
     const matchKU = filterKU === "ALL" || e.age_group === filterKU;
     const matchGender = filterGender === "ALL" || e.gender === filterGender;
+    const matchCategory =
+      filterCategory === "ALL" ||
+      (filterCategory === "GROUP"
+        ? e.heat_category === "GROUP" || e.heat_category === "CLUSTER"
+        : e.heat_category !== "GROUP" && e.heat_category !== "CLUSTER");
 
-    return matchSearch && matchTourney && matchKU && matchGender;
+    return matchSearch && matchTourney && matchKU && matchGender && matchCategory;
   });
 
   if (loading) {
@@ -190,7 +200,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
 
       {/* FILTER & SEARCH BAR */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           {/* SEARCH INPUT */}
           <div className="relative">
             <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
@@ -198,7 +208,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari kode # / gaya / nama acara..."
+              placeholder="Cari kode # / nama acara..."
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all placeholder:text-slate-400"
             />
           </div>
@@ -220,6 +230,20 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
             </select>
           </div>
 
+          {/* TIPE BAGAN (HEAT VS CLUSTER) FILTER */}
+          <div className="relative">
+            <ListOrdered className="w-4 h-4 absolute left-3.5 top-3 text-purple-500 pointer-events-none" />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all truncate"
+            >
+              <option value="ALL">Semua Tipe Bagan</option>
+              <option value="HEAT">Heat Angka (1, 2, 3...)</option>
+              <option value="GROUP">Group Abjad (A, B, C...)</option>
+            </select>
+          </div>
+
           {/* KELOMPOK UMUR (KU) FILTER */}
           <div className="relative">
             <Filter className="w-4 h-4 absolute left-3.5 top-3 text-sky-500 pointer-events-none" />
@@ -228,7 +252,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               onChange={(e) => setFilterKU(e.target.value)}
               className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
             >
-              <option value="ALL">Semua Kelompok Umur (KU)</option>
+              <option value="ALL">Semua KU</option>
               <option value="KU 4">KU 4 (≤ 10 Thn)</option>
               <option value="KU 3">KU 3 (11-12 Thn)</option>
               <option value="KU 2">KU 2 (13-14 Thn)</option>
@@ -247,8 +271,8 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
             >
               <option value="ALL">Semua Gender</option>
-              <option value="PUTRA">Putra (Laki-laki)</option>
-              <option value="PUTRI">Putri (Perempuan)</option>
+              <option value="PUTRA">Putra</option>
+              <option value="PUTRI">Putri</option>
             </select>
           </div>
         </div>
@@ -260,8 +284,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-black text-slate-500 uppercase tracking-wider">
-                <th className="py-3.5 px-4">Kode #</th>
+                <th className="py-3.5 px-4 w-20 text-center">Kode #</th>
                 <th className="py-3.5 px-4">Nama Nomor Lomba</th>
+                <th className="py-3.5 px-4">Tipe Bagan</th>
                 <th className="py-3.5 px-4">Gaya & Jarak</th>
                 <th className="py-3.5 px-4">Kategori & KU</th>
                 <th className="py-3.5 px-4">Jadwal Jam</th>
@@ -270,62 +295,85 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-xs font-bold text-slate-700">
-              {filteredEvents.map((evt) => (
-                <tr key={evt.id} className="hover:bg-slate-50/80 transition-all">
-                  <td className="py-3 px-4">
-                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-black border border-blue-100">
-                      #{evt.event_code}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-black text-slate-900">{evt.event_name}</td>
-                  <td className="py-3 px-4 text-slate-600">
-                    {evt.distance} - {evt.stroke}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex items-center gap-1.5">
-                      <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-black">
-                        {evt.age_group || "OPEN"}
-                      </span>
-                      <span
-                        className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                          evt.gender === "PUTRA"
-                            ? "bg-blue-100 text-blue-800"
-                            : "bg-pink-100 text-pink-800"
-                        }`}
-                      >
-                        {evt.gender}
-                      </span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-slate-600">
-                    <div className="flex items-center gap-1">
-                      <Clock className="w-3.5 h-3.5 text-slate-400" />
-                      <span>{evt.schedule_time || "08:00 WIB"}</span>
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 font-black text-emerald-600">
-                    Rp {(evt.fee || 150000).toLocaleString("id-ID")}
-                  </td>
-                  <td className="py-3 px-4 text-right">
-                    <div className="flex items-center justify-end gap-1.5">
-                      <button
-                        onClick={() => openEditModal(evt)}
-                        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
-                        title="Edit Nomor Lomba"
-                      >
-                        <Edit2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDeleteEvent(evt.id, evt.event_code, evt.event_name)}
-                        className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                        title="Hapus Nomor Lomba"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+              {filteredEvents.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="py-8 text-center text-slate-400 font-medium">
+                    Tidak ada nomor lomba yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
-              ))}
+              ) : (
+                filteredEvents.map((evt) => (
+                  <tr key={evt.id} className="hover:bg-slate-50/80 transition-all">
+                    <td className="py-3.5 px-4 text-center">
+                      <span className="px-2.5 py-1 bg-slate-100 text-slate-800 rounded-lg text-xs font-black border border-slate-200 font-mono">
+                        #{evt.event_code}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="font-black text-slate-900 text-sm">{evt.event_name}</div>
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {evt.heat_category === "GROUP" || evt.heat_category === "CLUSTER" ? (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-purple-50 text-purple-700 border border-purple-200 rounded-xl text-xs font-black">
+                          <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                          Group Abjad (A-Z)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-sky-50 text-sky-700 border border-sky-200 rounded-xl text-xs font-black">
+                          <span className="w-2 h-2 rounded-full bg-sky-500"></span>
+                          Heat Angka (1-N)
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">
+                      {evt.distance} - {evt.stroke}
+                    </td>
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-black">
+                          {evt.age_group || "OPEN"}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                            evt.gender === "PUTRA"
+                              ? "bg-blue-100 text-blue-800"
+                              : "bg-pink-100 text-pink-800"
+                          }`}
+                        >
+                          {evt.gender}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-600">
+                      <div className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>{evt.schedule_time || "08:00 WIB"}</span>
+                      </div>
+                    </td>
+                    <td className="py-3.5 px-4 font-black text-emerald-600">
+                      Rp {(evt.fee || 150000).toLocaleString("id-ID")}
+                    </td>
+                    <td className="py-3.5 px-4 text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => openEditModal(evt)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"
+                          title="Edit Nomor Lomba"
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(evt.id, evt.event_code, evt.event_name)}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                          title="Hapus Nomor Lomba"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
         </div>
@@ -334,29 +382,40 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
       {/* FORM MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4 my-8">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-              <h3 className="text-base font-black text-slate-900 flex items-center gap-2">
-                <ListOrdered className="w-5 h-5 text-blue-600" />
-                {editingEvent ? "Edit Nomor Lomba" : "Tambah Nomor Lomba Baru"}
-              </h3>
+          <div className="bg-white rounded-3xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 my-8">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-2xl">
+                  <ListOrdered className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900">
+                    {editingEvent ? "Edit Data Nomor Lomba" : "Tambah Nomor Lomba Baru"}
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">
+                    Lengkapi parameter nomor lomba dan pilih format penentuan bagan (Heat / Cluster).
+                  </p>
+                </div>
+              </div>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 text-lg font-bold"
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center font-bold text-sm transition-all"
               >
                 ✕
               </button>
             </div>
 
             <form onSubmit={handleSaveEvent} className="space-y-4">
+              {/* Turnamen Induk */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                   Turnamen / Kejuaraan Induk *
                 </label>
                 <select
                   value={formTournamentID}
                   onChange={(e) => setFormTournamentID(Number(e.target.value))}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                 >
                   {tournaments.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -365,38 +424,97 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                   ))}
                 </select>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Kode Nomor Acara (#) *
+
+              {/* TIPE / FORMAT BAGAN (HEAT VS GROUP) - PROMINENT SECTION */}
+              <div className="bg-slate-50/90 p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                    <Trophy className="w-4 h-4 text-blue-600" /> Tipe / Format Bagan Nomor Lomba *
                   </label>
-                  <input
-                    type="number"
-                    required
-                    value={formEventCode}
-                    onChange={(e) => setFormEventCode(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    placeholder="103"
-                  />
+                  <select
+                    value={formHeatCategory}
+                    onChange={(e) => setFormHeatCategory(e.target.value as "HEAT" | "GROUP")}
+                    className="text-[11px] font-black px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-slate-800 focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                  >
+                    <option value="HEAT">Heat Angka (1, 2, 3...)</option>
+                    <option value="GROUP">Group Abjad (A, B, C...)</option>
+                  </select>
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
-                    Biaya per Nomor (Rp) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={formFee}
-                    onChange={(e) => setFormFee(Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                    placeholder="150000"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option 1: Heat */}
+                  <button
+                    type="button"
+                    onClick={() => setFormHeatCategory("HEAT")}
+                    className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+                      formHeatCategory === "HEAT"
+                        ? "bg-sky-50/90 border-sky-500 ring-2 ring-sky-500/20 text-sky-950 shadow-sm"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-xs text-slate-900 flex items-center gap-2">
+                        <span
+                          className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                            formHeatCategory === "HEAT"
+                              ? "border-sky-600 bg-sky-600"
+                              : "border-slate-300"
+                          }`}
+                        >
+                          {formHeatCategory === "HEAT" && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                          )}
+                        </span>
+                        Heat Angka
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-black bg-sky-100 text-sky-800 border border-sky-200">
+                        1, 2, 3...
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug pl-5">
+                      Standar PRSI/FINA: perenang tercepat berada di seri/heat terakhir (final heat).
+                    </p>
+                  </button>
+
+                  {/* Option 2: Group */}
+                  <button
+                    type="button"
+                    onClick={() => setFormHeatCategory("GROUP")}
+                    className={`p-3.5 rounded-xl border-2 text-left transition-all ${
+                      formHeatCategory === "GROUP"
+                        ? "bg-purple-50/90 border-purple-500 ring-2 ring-purple-500/20 text-purple-950 shadow-sm"
+                        : "bg-white border-slate-200 text-slate-600 hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-xs text-slate-900 flex items-center gap-2">
+                        <span
+                          className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${
+                            formHeatCategory === "GROUP"
+                              ? "border-purple-600 bg-purple-600"
+                              : "border-slate-300"
+                          }`}
+                        >
+                          {formHeatCategory === "GROUP" && (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white"></span>
+                          )}
+                        </span>
+                        Group Abjad
+                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded-md font-black bg-purple-100 text-purple-800 border border-purple-200">
+                        A, B, C, D...
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-snug pl-5">
+                      Diurut dari seed terlambat ke tercepat: Group A paling lambat, berlanjut ke B, C, dst.
+                    </p>
+                  </button>
                 </div>
               </div>
 
+              {/* Nama Acara Lomba */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                   Nama Acara Lomba *
                 </label>
                 <input
@@ -404,20 +522,52 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                   required
                   value={formEventName}
                   onChange={(e) => setFormEventName(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Contoh: 100m Gaya Kupu-kupu"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  placeholder="Contoh: 50m Gaya Bebas"
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Kode Nomor & Biaya */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
+                    Kode Nomor Acara (#) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={formEventCode}
+                    onChange={(e) => setFormEventCode(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="103"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
+                    Biaya per Nomor (Rp) *
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    value={formFee}
+                    onChange={(e) => setFormFee(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="150000"
+                  />
+                </div>
+              </div>
+
+              {/* Jarak & Gaya Renang */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                     Jarak Lomba *
                   </label>
                   <select
                     value={formDistance}
                     onChange={(e) => setFormDistance(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="50 METER">50 METER</option>
                     <option value="100 METER">100 METER</option>
@@ -427,13 +577,13 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                     Gaya Renang *
                   </label>
                   <select
                     value={formStroke}
                     onChange={(e) => setFormStroke(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
@@ -444,15 +594,16 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Kelompok Umur (KU) & Gender */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                     Kelompok Umur (KU) *
                   </label>
                   <select
                     value={formAgeGroup}
                     onChange={(e) => setFormAgeGroup(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="KU 4">KU 4 (≤ 10 Tahun)</option>
                     <option value="KU 3">KU 3 (11 - 12 Tahun)</option>
@@ -464,13 +615,13 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                     Gender *
                   </label>
                   <select
                     value={formGender}
                     onChange={(e) => setFormGender(e.target.value)}
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="PUTRA">PUTRA</option>
                     <option value="PUTRI">PUTRI</option>
@@ -478,31 +629,33 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                 </div>
               </div>
 
+              {/* Jadwal Waktu */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
                   Jadwal Waktu Pelaksanaan
                 </label>
                 <input
                   type="text"
                   value={formScheduleTime}
                   onChange={(e) => setFormScheduleTime(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   placeholder="08:30 WIB"
                 />
               </div>
 
+              {/* Modal Actions */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all"
+                  className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all"
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-black flex items-center gap-2 shadow-md shadow-blue-600/20 transition-all"
                 >
                   <Save className="w-4 h-4" />
                   {saving ? "Menyimpan..." : "Simpan Nomor Lomba"}

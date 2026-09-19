@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import {
   X,
   ShieldCheck,
@@ -23,8 +23,10 @@ import {
   FileText,
   ExternalLink,
   Trophy,
+  AlertTriangle,
 } from "lucide-react";
 import { registerParticipant, uploadImage } from "../lib/api";
+import SwimmingTimeInput from "./SwimmingTimeInput";
 
 interface SwimmingEvent {
   id: number;
@@ -121,19 +123,67 @@ export default function RegistrationModal({
     }
   }, [step]);
 
-  // Auto calculate KU based on birth date
-  useEffect(() => {
-    if (!birthDate) return;
-    const birthYear = new Date(birthDate).getFullYear();
-    const currentYear = 2026; // Championship year
-    const age = currentYear - birthYear;
+  // Tournament year for age computation
+  const tournamentYear = useMemo(() => {
+    if (currentTourney?.event_start_date) {
+      const parsed = new Date(currentTourney.event_start_date).getFullYear();
+      if (!isNaN(parsed) && parsed > 2000) return parsed;
+    }
+    return 2026;
+  }, [currentTourney]);
 
-    if (age <= 10) setDetectedKU("KU 4");
-    else if (age <= 12) setDetectedKU("KU 3");
-    else if (age <= 14) setDetectedKU("KU 2");
-    else if (age <= 17) setDetectedKU("KU 1");
-    else setDetectedKU("Senior");
-  }, [birthDate]);
+  // Real-time Age and official PB PRSI / Akuatik Indonesia KU validation
+  const ageValidation = useMemo(() => {
+    if (!birthDate) {
+      return { age: 0, ku: "KU 2", label: "-", valid: false, error: "Tanggal lahir wajib diisi" };
+    }
+    const parts = birthDate.split("-").map(Number);
+    if (parts.length !== 3 || isNaN(parts[0])) {
+      return { age: 0, ku: "KU 2", label: "-", valid: false, error: "Format tanggal tidak valid" };
+    }
+    const birthYear = parts[0];
+    const age = tournamentYear - birthYear;
+    const today = new Date();
+    const birthDateObj = new Date(birthDate);
+
+    if (birthDateObj > today) {
+      return { age, ku: "-", label: "-", valid: false, error: "Tanggal lahir tidak boleh di masa depan" };
+    }
+    if (age < 4) {
+      return { age, ku: "-", label: "-", valid: false, error: `Usia atlet (${age} tahun) belum mencukupi batas minimal kepesertaan turnamen (minimal 4 tahun)` };
+    }
+    if (age > 80) {
+      return { age, ku: "-", label: "-", valid: false, error: "Usia atlet melebihi batas ketentuan kejuaraan" };
+    }
+
+    let ku = "Senior";
+    let desc = "Senior (Usia 19 Tahun ke atas)";
+    if (age <= 9) {
+      ku = "KU 5";
+      desc = "KU 5 (Usia 9 Tahun ke bawah / Pemula)";
+    } else if (age <= 11) {
+      ku = "KU 4";
+      desc = "KU 4 (Usia 10 - 11 Tahun)";
+    } else if (age <= 13) {
+      ku = "KU 3";
+      desc = "KU 3 (Usia 12 - 13 Tahun)";
+    } else if (age <= 15) {
+      ku = "KU 2";
+      desc = "KU 2 (Usia 14 - 15 Tahun)";
+    } else if (age <= 18) {
+      ku = "KU 1";
+      desc = "KU 1 (Usia 16 - 18 Tahun)";
+    }
+
+    return { age, ku, label: desc, valid: true, error: null };
+  }, [birthDate, tournamentYear]);
+
+  // Sync detectedKU with ageValidation
+  useEffect(() => {
+    if (ageValidation.valid && ageValidation.ku !== "-") {
+      setDetectedKU(ageValidation.ku);
+    }
+  }, [ageValidation]);
 
   // Reset all states when modal is closed
   useEffect(() => {
@@ -190,7 +240,7 @@ export default function RegistrationModal({
       [eventId]: {
         ...prev[eventId],
         timeSeed,
-        isNoTime: timeSeed === "99:99.99" || timeSeed.trim() === "",
+        isNoTime: timeSeed === "99.99.99" || timeSeed === "99:99.99" || timeSeed.trim() === "",
       },
     }));
   };
@@ -201,7 +251,7 @@ export default function RegistrationModal({
       [eventId]: {
         ...prev[eventId],
         isNoTime,
-        timeSeed: isNoTime ? "99:99.99" : "00:30.00",
+        timeSeed: isNoTime ? "99.99.99" : "00.30.00",
       },
     }));
   };
@@ -250,6 +300,10 @@ export default function RegistrationModal({
       alert("Nama lengkap atlet wajib diisi");
       return;
     }
+    if (!ageValidation.valid) {
+      alert("Validasi Usia Gagal: " + (ageValidation.error || "Tanggal lahir atlet tidak memenuhi ketentuan kejuaraan."));
+      return;
+    }
     if (!club.trim()) {
       alert("Asal klub / sekolah wajib diisi");
       return;
@@ -294,7 +348,7 @@ export default function RegistrationModal({
     const eventSelections = checkedEventEntries.map(([idStr, val]) => {
       const finalSeed =
         val.isNoTime || !val.timeSeed || val.timeSeed.trim() === "" || val.timeSeed === "NT"
-          ? "99:99.99"
+          ? "99.99.99"
           : val.timeSeed.trim();
       return {
         swimming_event_id: Number(idStr),
@@ -531,19 +585,43 @@ export default function RegistrationModal({
 
                 <div>
                   <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                    TANGGAL LAHIR & KU <span className="text-red-500">*</span>
+                    TANGGAL LAHIR & KELOMPOK UMUR (KU) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="date"
                     required
                     value={birthDate}
                     onChange={(e) => setBirthDate(e.target.value)}
-                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                    max={new Date().toISOString().slice(0, 10)}
+                    className={`w-full px-4 py-3 bg-white border rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:outline-none transition-all ${
+                      ageValidation.valid
+                        ? "border-slate-300 focus:ring-sky-500"
+                        : "border-rose-400 bg-rose-50/40 focus:ring-rose-500 text-rose-900"
+                    }`}
                   />
-                  <div className="flex items-center gap-1.5 mt-1.5 text-sky-600 font-bold text-[11px]">
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Terdeteksi otomatis: {detectedKU}</span>
-                  </div>
+                  
+                  {/* Real-time Validasi Usia & KU Card */}
+                  {ageValidation.valid ? (
+                    <div className="mt-2 p-2.5 bg-sky-50/80 border border-sky-200 rounded-xl space-y-1">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="font-extrabold text-sky-950 flex items-center gap-1">
+                          <Sparkles className="w-3.5 h-3.5 text-sky-600" />
+                          Usia: <span className="font-black text-sky-700">{ageValidation.age} Tahun</span>
+                        </span>
+                        <span className="px-2 py-0.5 bg-sky-600 text-white rounded-md font-black text-[10px] uppercase tracking-wider shadow-xs">
+                          {ageValidation.ku}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-600">
+                        {ageValidation.label} • Acuan Kejuaraan {tournamentYear}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-bold flex items-start gap-1.5">
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                      <span>{ageValidation.error}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -757,8 +835,9 @@ export default function RegistrationModal({
                     Atlet: {name.toUpperCase()} ({gender === "PUTRA" ? "Putra" : "Putri"})
                   </h4>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    Klub: <span className="font-bold text-slate-700">{club}</span> • Kategori:{" "}
-                    <span className="font-black text-sky-600">{detectedKU}</span>
+                    Klub: <span className="font-bold text-slate-700">{club}</span> • Usia:{" "}
+                    <span className="font-bold text-slate-900">{ageValidation.age} Tahun</span> • Kategori:{" "}
+                    <span className="font-black text-sky-600 px-1.5 py-0.5 bg-sky-100 rounded">{detectedKU}</span>
                   </p>
                 </div>
                 <div className="text-right">
@@ -769,10 +848,15 @@ export default function RegistrationModal({
 
               {/* Section Header */}
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">
-                  DAFTAR NOMOR LOMBA SESUAI {detectedKU}
-                </h3>
-                <span className="px-3 py-1 bg-sky-100 text-sky-700 text-[11px] font-black rounded-full">
+                <div>
+                  <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">
+                    NOMOR LOMBA TERVALIDASI KATEGORI {detectedKU} & OPEN
+                  </h3>
+                  <p className="text-[10px] font-bold text-slate-400">
+                    Hanya nomor lomba yang sesuai dengan umur atlet ({detectedKU} {gender}) yang dapat dipilih
+                  </p>
+                </div>
+                <span className="px-3 py-1 bg-sky-100 text-sky-700 text-[11px] font-black rounded-full shrink-0">
                   {totalSelectedCount} Nomor Dipilih
                 </span>
               </div>
@@ -780,9 +864,14 @@ export default function RegistrationModal({
               {/* Event Cards Checklist */}
               <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
                 {eligibleEvents.length === 0 ? (
-                  <p className="text-center text-slate-400 py-8 font-medium">
-                    Tidak ada nomor lomba yang sesuai untuk kategori {detectedKU} ({gender}).
-                  </p>
+                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+                    <p className="font-black text-slate-700 text-xs">
+                      Tidak ada nomor lomba kategori {detectedKU} ({gender}) pada kejuaraan ini.
+                    </p>
+                    <p className="text-[11px] text-slate-400">
+                      Silakan periksa kembali tanggal lahir atlet pada Langkah 1 jika terjadi kekeliruan input tahun lahir.
+                    </p>
+                  </div>
                 ) : (
                   eligibleEvents.map((evt) => {
                     const selected = selectedEvents[evt.id];
@@ -827,18 +916,16 @@ export default function RegistrationModal({
                           {/* Seed Time Input Field (Displays when Checked) */}
                           {isChecked && (
                             <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-sky-200 shadow-xs">
-                              <span className="text-[10px] font-bold text-slate-500">Seed Time:</span>
-                              <input
-                                type="text"
+                              <span className="text-[10px] font-bold text-slate-500 shrink-0">Seed Time:</span>
+                              <SwimmingTimeInput
+                                value={selected?.isNoTime ? "99.99.99" : (selected?.timeSeed || "00.30.00")}
+                                onChange={(val) => handleSeedChange(evt.id, val)}
                                 disabled={selected?.isNoTime}
-                                value={selected?.isNoTime ? "99:99.99" : (selected?.timeSeed || "99:99.99")}
-                                onChange={(e) => handleSeedChange(evt.id, e.target.value)}
-                                placeholder="00:30.00"
-                                className="w-24 px-2 py-1 text-center font-mono text-xs font-bold border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:bg-slate-100 disabled:text-slate-600"
+                                size="sm"
                               />
                               <label
-                                className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200"
-                                title="Centang jika belum memiliki catatan waktu resmi (otomatis 99:99.99)"
+                                className="flex items-center gap-1 text-[10px] font-bold text-slate-700 cursor-pointer bg-slate-50 hover:bg-slate-100 px-2 py-1 rounded-lg border border-slate-200 shrink-0"
+                                title="Centang jika belum memiliki catatan waktu resmi (otomatis 99.99.99)"
                               >
                                 <input
                                   type="checkbox"
@@ -846,7 +933,7 @@ export default function RegistrationModal({
                                   onChange={(e) => handleNoTimeToggle(evt.id, e.target.checked)}
                                   className="w-3.5 h-3.5 rounded text-blue-600 cursor-pointer"
                                 />
-                                <span>Tanpa Waktu (99:99.99)</span>
+                                <span>Tanpa Waktu (99.99.99)</span>
                               </label>
                             </div>
                           )}

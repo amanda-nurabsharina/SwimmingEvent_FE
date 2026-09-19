@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { submitRegistration, uploadPaymentProof } from "../lib/api-client";
 import { User, Plus, Trash2, Upload, CheckCircle2, AlertCircle, Clock } from "lucide-react";
+import SwimmingTimeInput from "./SwimmingTimeInput";
 
 interface SwimmingEvent {
   id: number;
@@ -272,16 +273,14 @@ export default function RegistrationFormSection({
                     </select>
                   </div>
 
-                  <div className="w-full sm:w-48">
+                  <div className="w-full sm:w-56">
                     <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                      Time Seed (mm.ss.ms)
+                      Time Seed (Menit . Detik . 1/100s)
                     </label>
-                    <input
-                      type="text"
+                    <SwimmingTimeInput
                       value={sel.time_seed}
-                      onChange={(e) => updateSelection(idx, "time_seed", e.target.value)}
-                      placeholder="00.32.41 atau 99.99.99"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-slate-900 text-xs font-mono text-center font-bold focus:outline-none focus:border-sky-500"
+                      onChange={(val) => updateSelection(idx, "time_seed", val)}
+                      size="md"
                     />
                   </div>
 

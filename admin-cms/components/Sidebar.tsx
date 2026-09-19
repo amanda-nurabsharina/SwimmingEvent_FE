@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -20,6 +20,13 @@ import {
   ChevronDown,
   ChevronRight,
   ArrowUpDown,
+  History,
+  ClipboardList,
+  Printer,
+  Send,
+  ShieldCheck,
+  UserCog,
+  Shield,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -34,6 +41,16 @@ export default function Sidebar({
 
   // Collapsible state per group title (false = expanded, true = collapsed)
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("swimming_admin_user");
+      if (stored) {
+        setCurrentUser(JSON.parse(stored));
+      }
+    } catch (e) {}
+  }, []);
 
   const toggleGroup = (title: string) => {
     setCollapsedGroups((prev) => ({
@@ -44,10 +61,23 @@ export default function Sidebar({
 
   const handleLogout = () => {
     localStorage.removeItem("swimming_admin_token");
+    localStorage.removeItem("swimming_admin_user");
     router.push("/login");
   };
 
-  const menuGroups = [
+  const hasPermission = (itemId: string): boolean => {
+    if (!currentUser) return true;
+    if (currentUser.role === "Super Admin" || currentUser.role === "ADMIN") return true;
+    if (Array.isArray(currentUser.permissions)) {
+      if (currentUser.permissions.includes("*") || currentUser.permissions.includes("all")) {
+        return true;
+      }
+      return currentUser.permissions.includes(itemId);
+    }
+    return true;
+  };
+
+  const rawMenuGroups = [
     {
       title: "UTAMA",
       items: [
@@ -55,11 +85,19 @@ export default function Sidebar({
       ],
     },
     {
+      title: "OPERASIONAL PANITIA",
+      items: [
+        { id: "results", label: "Catat Hasil Lomba", icon: CheckSquare },
+        { id: "whatsapp-broadcast", label: "Broadcast WhatsApp PIC", icon: Send },
+        { id: "race-result-logs", label: "Log Audit Hasil Lomba", icon: History },
+      ],
+    },
+    {
       title: "MANAJEMEN KEJUARAAN",
       items: [
         { id: "registrations", label: "Kelola Pendaftaran", icon: Users },
         { id: "buku-acara", label: "Buku Acara & Heat", icon: Calendar },
-        { id: "results", label: "Catat Hasil Lomba", icon: CheckSquare },
+        { id: "form-timer", label: "Cetak Form Timer Juri", icon: Printer },
         { id: "tournaments", label: "Master Turnamen", icon: Trophy },
         { id: "events", label: "Master Nomor Lomba", icon: ListOrdered },
       ],
@@ -80,9 +118,19 @@ export default function Sidebar({
       title: "PENGATURAN",
       items: [
         { id: "settings", label: "Pengaturan Umum", icon: Settings },
+        { id: "roles", label: "Kelola Role & Hak Akses", icon: ShieldCheck },
+        { id: "users", label: "Kelola User & Admin", icon: UserCog },
       ],
     },
   ];
+
+  // Filter groups according to user permissions
+  const menuGroups = rawMenuGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => hasPermission(item.id)),
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 min-h-screen p-5 flex flex-col justify-between shadow-sm flex-shrink-0 font-sans">
@@ -92,9 +140,9 @@ export default function Sidebar({
           <div className="p-2.5 bg-sky-500 rounded-xl text-white shadow-md">
             <Waves className="w-6 h-6 animate-pulse" />
           </div>
-          <div>
-            <h1 className="text-sm font-black text-slate-900 tracking-wider">CMS AKUATIK</h1>
-            <p className="text-[10px] text-sky-600 font-bold">ADMIN DASHBOARD 2025</p>
+          <div className="min-w-0">
+            <h1 className="text-sm font-black text-slate-900 tracking-tight leading-tight">Portal Tim Resmi</h1>
+            <p className="text-[10px] text-sky-600 font-bold leading-snug">Pengurus besar MASC Swim Academy</p>
           </div>
         </div>
 
@@ -119,16 +167,16 @@ export default function Sidebar({
                       {group.items.length}
                     </span>
                     {isCollapsed ? (
-                      <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
+                      <ChevronRight className="w-3.5 h-3.5 transition-transform" />
                     ) : (
-                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
+                      <ChevronDown className="w-3.5 h-3.5 transition-transform" />
                     )}
                   </div>
                 </button>
 
-                {/* GROUP ITEMS LIST */}
+                {/* ITEMS LIST (SHOWN ONLY IF NOT COLLAPSED) */}
                 {!isCollapsed && (
-                  <div className="space-y-1 pl-1 transition-all">
+                  <div className="space-y-1 pl-1">
                     {group.items.map((item) => {
                       const Icon = item.icon;
                       const isActive = activeTab === item.id;
@@ -155,11 +203,23 @@ export default function Sidebar({
         </div>
       </div>
 
-      {/* LOGOUT BUTTON */}
-      <div className="pt-4 border-t border-slate-100 shrink-0 mt-4">
+      {/* USER PROFILE & LOGOUT */}
+      <div className="pt-4 border-t border-slate-100 shrink-0 mt-4 space-y-2.5">
+        {currentUser && (
+          <div className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-slate-800 truncate">{currentUser.username}</p>
+              <span className="text-[10px] font-bold text-indigo-600 flex items-center gap-1 truncate">
+                <Shield className="w-2.5 h-2.5" />
+                {currentUser.role || "Super Admin"}
+              </span>
+            </div>
+          </div>
+        )}
+
         <button
           onClick={handleLogout}
-          className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all border border-red-200"
+          className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold text-red-600 hover:bg-red-50 transition-all border border-red-200 cursor-pointer"
         >
           <LogOut className="w-4 h-4" />
           <span>Keluar (Logout)</span>

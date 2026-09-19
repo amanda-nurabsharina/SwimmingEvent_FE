@@ -5,7 +5,10 @@ import { useRouter } from "next/navigation";
 import Sidebar from "../../components/Sidebar";
 import ParticipantTable from "../../components/ParticipantTable";
 import BukuAcaraGenerator from "../../components/BukuAcaraGenerator";
+import BukuAcaraViewer from "../../components/BukuAcaraViewer";
+import FormTimerPrinter from "../../components/FormTimerPrinter";
 import RaceResultEditor from "../../components/RaceResultEditor";
+import RaceResultLogViewer from "../../components/RaceResultLogViewer";
 import EventManager from "../../components/EventManager";
 import TournamentManager from "../../components/TournamentManager";
 import BannerManager from "../../components/BannerManager";
@@ -16,8 +19,11 @@ import AchievementManager from "../../components/AchievementManager";
 import TestimonialManager from "../../components/TestimonialManager";
 import SectionOrderManager from "../../components/SectionOrderManager";
 import SettingsManager from "../../components/SettingsManager";
+import WhatsAppBroadcastView from "../../components/WhatsAppBroadcastView";
+import RoleManager from "../../components/RoleManager";
+import UserManager from "../../components/UserManager";
 import { getRegistrations, getBanners, fetchAdminTournaments } from "../../lib/api-admin";
-import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings } from "lucide-react";
+import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings, History, MessageSquare, Send } from "lucide-react";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -158,25 +164,36 @@ export default function DashboardPage() {
                 </button>
 
                 <button
-                  onClick={() => handleTabChange("programs")}
-                  className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-blue-400 hover:shadow-md transition-all text-left group"
+                  onClick={() => handleTabChange("results")}
+                  className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-emerald-400 hover:shadow-md transition-all text-left group"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                    <GraduationCap className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <CheckSquare className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-black text-slate-900 group-hover:text-blue-600 transition-colors">Program Pelatihan</h3>
-                  <p className="text-xs font-medium text-slate-500 mt-1">Kelola program renang & chat WhatsApp</p>
+                  <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition-colors">Catat Hasil Lomba</h3>
+                  <p className="text-xs font-medium text-slate-500 mt-1">Meja juri, tukar lintasan, & penentuan juara</p>
                 </button>
 
                 <button
-                  onClick={() => handleTabChange("settings")}
-                  className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-indigo-400 hover:shadow-md transition-all text-left group"
+                  onClick={() => handleTabChange("whatsapp-broadcast")}
+                  className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-emerald-500 hover:shadow-md transition-all text-left group"
                 >
-                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mb-3 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                    <Settings className="w-5 h-5" />
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                    <Send className="w-5 h-5" />
                   </div>
-                  <h3 className="text-sm font-black text-slate-900 group-hover:text-indigo-600 transition-colors">Pengaturan Umum</h3>
-                  <p className="text-xs font-medium text-slate-500 mt-1">Setup logo, nama, & nomor WhatsApp</p>
+                  <h3 className="text-sm font-black text-slate-900 group-hover:text-emerald-600 transition-colors">Broadcast WhatsApp PIC</h3>
+                  <p className="text-xs font-medium text-slate-500 mt-1">Kirim bagan, TM, & info ke WA orang tua/PIC</p>
+                </button>
+
+                <button
+                  onClick={() => handleTabChange("race-result-logs")}
+                  className="p-5 rounded-3xl bg-white border border-slate-200 shadow-sm hover:border-purple-400 hover:shadow-md transition-all text-left group"
+                >
+                  <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center mb-3 group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                    <History className="w-5 h-5" />
+                  </div>
+                  <h3 className="text-sm font-black text-slate-900 group-hover:text-purple-600 transition-colors">Log Audit Hasil Lomba</h3>
+                  <p className="text-xs font-medium text-slate-500 mt-1">Riwayat audit seluruh aksi & perubahan waktu</p>
                 </button>
               </div>
             </div>
@@ -250,28 +267,45 @@ export default function DashboardPage() {
         )}
 
         {activeTab === "buku-acara" && (
-          <div className="space-y-8">
-            <div className="flex justify-between items-center">
-              <div>
-                <h1 className="text-2xl font-black text-slate-900">Buku Acara & Heat Generator</h1>
-                <p className="text-xs font-bold text-sky-600">Penentuan lintasan (lane) dan seri tanding (heat) otomatis</p>
-              </div>
-            </div>
-            <BukuAcaraGenerator onGenerated={loadData} />
-            <ParticipantTable registrations={registrations} tournaments={tournaments} onRefresh={loadData} />
+          <div className="space-y-6">
+            <BukuAcaraViewer
+              tournaments={tournaments}
+              onRefresh={loadData}
+              refreshTrigger={registrations.length}
+            />
           </div>
+        )}
+
+        {activeTab === "form-timer" && (
+          <FormTimerPrinter
+            tournaments={tournaments}
+            onRefresh={loadData}
+            onNavigateTab={setActiveTab}
+          />
         )}
 
         {activeTab === "results" && (
           <div className="space-y-6">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-2xl font-black text-slate-900">Pencatatan Hasil Lomba & Peringkat</h1>
-                <p className="text-xs font-bold text-sky-600">Input catatan waktu resmi akhir perenang</p>
+                <h1 className="text-2xl font-black text-slate-900">Catat Hasil Lomba & Meja Juri</h1>
+                <p className="text-xs font-bold text-sky-600">Pencatatan waktu akhir resmi, status lomba, dan penukaran/pemindahan heat & lintasan atlet</p>
               </div>
             </div>
-            <RaceResultEditor registrations={registrations} onRefresh={loadData} />
+            <RaceResultEditor registrations={registrations} tournaments={tournaments} onRefresh={loadData} />
           </div>
+        )}
+
+        {activeTab === "whatsapp-broadcast" && (
+          <WhatsAppBroadcastView
+            registrations={registrations}
+            tournaments={tournaments}
+            onRefresh={loadData}
+          />
+        )}
+
+        {activeTab === "race-result-logs" && (
+          <RaceResultLogViewer tournaments={tournaments} />
         )}
 
         {activeTab === "tournaments" && (
@@ -320,6 +354,14 @@ export default function DashboardPage() {
 
         {activeTab === "settings" && (
           <SettingsManager onRefresh={loadData} />
+        )}
+
+        {activeTab === "roles" && (
+          <RoleManager onRefresh={loadData} />
+        )}
+
+        {activeTab === "users" && (
+          <UserManager onRefresh={loadData} />
         )}
       </main>
     </div>

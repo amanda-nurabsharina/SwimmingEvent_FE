@@ -22,6 +22,9 @@ export default function LoginPage() {
 
     if (res.success && res.data?.token) {
       localStorage.setItem("swimming_admin_token", res.data.token);
+      if (res.data.user) {
+        localStorage.setItem("swimming_admin_user", JSON.stringify(res.data.user));
+      }
       router.push("/dashboard");
     } else {
       setErrorMsg(res.message || "Username atau password salah");

@@ -103,12 +103,16 @@ export async function verifyPayment(id: number, status: string) {
 // ----------------------------------------------------------------------
 // 3. BUKU ACARA & RACE RESULTS
 // ----------------------------------------------------------------------
-export async function generateBukuAcara(maxLanes?: number) {
+export async function generateBukuAcara(maxLanes?: number, tournamentID?: number, force?: boolean) {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/buku-acara/generate`, {
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ max_lanes: maxLanes || 3 }),
+      body: JSON.stringify({
+        max_lanes: maxLanes || 3,
+        tournament_id: tournamentID || 0,
+        force: !!force,
+      }),
     });
     return await res.json();
   } catch (error) {
@@ -116,12 +120,99 @@ export async function generateBukuAcara(maxLanes?: number) {
   }
 }
 
-export async function recordRaceResult(id: number, finalTime: string, rank: number) {
+export async function getBukuAcara(tournamentID?: number, round?: string) {
+  try {
+    const params = new URLSearchParams();
+    if (tournamentID) params.append("tournament_id", tournamentID.toString());
+    if (round) params.append("round", round);
+    const queryString = params.toString() ? `?${params.toString()}` : "";
+    const res = await fetch(`${API_BASE_URL}/admin/buku-acara${queryString}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error", data: [] };
+  }
+}
+
+export async function generateFinalRound(tournamentID: number, maxLanes?: number, qualifyMode?: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/buku-acara/generate-final`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        tournament_id: tournamentID,
+        max_lanes: maxLanes || 3,
+        qualify_mode: qualifyMode || "heat_winners_and_fastest",
+      }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function lockTournamentBukuAcara(tournamentID: number, isLocked: boolean) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/tournaments/${tournamentID}/lock-buku-acara`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ is_locked: isLocked }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function publishTournamentBukuAcara(tournamentID: number, isPublished: boolean) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/tournaments/${tournamentID}/publish-buku-acara`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ is_published: isPublished }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function swapRegistrationHeatLine(
+  id: number,
+  targetHeat: number,
+  targetLine: number,
+  swapIfOccupied: boolean = true,
+  round: string = "preliminary"
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/heat-line`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({
+        target_heat: targetHeat,
+        target_line: targetLine,
+        swap_if_occupied: swapIfOccupied,
+        round: round,
+      }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function recordRaceResult(id: number, finalTime: string, rank: number, status?: string, round?: string) {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/result`, {
       method: "PUT",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ final_time: finalTime, rank }),
+      body: JSON.stringify({
+        final_time: finalTime,
+        rank,
+        status: status || "OK",
+        round: round || "preliminary",
+      }),
     });
     return await res.json();
   } catch (error) {
@@ -794,8 +885,230 @@ export async function resetPageSections(pageSlug = "homepage") {
   }
 }
 
+// ----------------------------------------------------------------------
+// 12. RACE RESULT AUDIT LOGS
+// ----------------------------------------------------------------------
+export async function fetchRaceResultLogs(params: {
+  tournament_id?: number;
+  round?: string;
+  action?: string;
+  search?: string;
+  limit?: number;
+  offset?: number;
+} = {}) {
+  try {
+    const query = new URLSearchParams();
+    if (params.tournament_id) query.append("tournament_id", params.tournament_id.toString());
+    if (params.round && params.round !== "ALL") query.append("round", params.round);
+    if (params.action && params.action !== "ALL") query.append("action", params.action);
+    if (params.search) query.append("search", params.search);
+    if (params.limit) query.append("limit", params.limit.toString());
+    if (params.offset !== undefined) query.append("offset", params.offset.toString());
 
+    const queryString = query.toString() ? `?${query.toString()}` : "";
+    const res = await fetch(`${API_BASE_URL}/admin/race-results/logs${queryString}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
 
+export async function fetchRaceResultLogStats(tournamentId?: number) {
+  try {
+    const query = tournamentId ? `?tournament_id=${tournamentId}` : "";
+    const res = await fetch(`${API_BASE_URL}/admin/race-results/logs/stats${query}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
 
+// ----------------------------------------------------------------------
+// 19. WHATSAPP GATEWAY (BAILEYS) API
+// ----------------------------------------------------------------------
+const WA_GATEWAY_URL = process.env.NEXT_PUBLIC_WA_GATEWAY_URL || "http://localhost:5001/api/wa";
 
+export async function getWhatsAppStatus() {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/status`, { cache: "no-store" });
+    return await res.json();
+  } catch (error) {
+    return { success: false, isConnected: false, message: "WhatsApp Gateway offline" };
+  }
+}
 
+export async function requestWhatsAppPairingCode(phoneNumber: string) {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/pair`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ phoneNumber }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Gagal meminta kode pairing" };
+  }
+}
+
+export async function sendWhatsAppMessage(to: string, text: string) {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ to, text }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Gagal mengirim pesan WhatsApp" };
+  }
+}
+
+export async function sendWhatsAppBroadcast(
+  recipients: { id: string | number; phone: string; text: string }[],
+  delayMs: number = 2000
+) {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/broadcast`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipients, delayMs }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Gagal mengirim broadcast WhatsApp" };
+  }
+}
+
+export async function logoutWhatsApp() {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/logout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Gagal memutuskan koneksi WhatsApp" };
+  }
+}
+
+// ----------------------------------------------------------------------
+// 20. ROLE & PERMISSION MANAGEMENT API
+// ----------------------------------------------------------------------
+export async function fetchAdminRoles() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/roles`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching roles" };
+  }
+}
+
+export async function createAdminRole(data: { name: string; description?: string; permissions: string[] }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/roles`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating role" };
+  }
+}
+
+export async function updateAdminRole(id: number, data: { name: string; description?: string; permissions: string[] }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/roles/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating role" };
+  }
+}
+
+export async function deleteAdminRole(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/roles/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting role" };
+  }
+}
+
+// ----------------------------------------------------------------------
+// 21. USER MANAGEMENT API
+// ----------------------------------------------------------------------
+export async function fetchAdminUsers() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching users" };
+  }
+}
+
+export async function createAdminUser(data: {
+  username: string;
+  email: string;
+  password: string;
+  role_id: number;
+  status: string;
+}) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating user" };
+  }
+}
+
+export async function updateAdminUser(
+  id: number,
+  data: {
+    email?: string;
+    password?: string;
+    role_id?: number;
+    status?: string;
+  }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating user" };
+  }
+}
+
+export async function deleteAdminUser(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/users/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting user" };
+  }
+}
