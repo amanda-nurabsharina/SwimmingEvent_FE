@@ -21,6 +21,7 @@ import {
   ChevronRight,
   ShieldCheck,
   FileText,
+  Palette,
 } from "lucide-react";
 import { getBukuAcara, getRegistrations, uploadImage } from "../lib/api-admin";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
@@ -125,10 +126,10 @@ export default function CertificateManager({
   const [categoryFilter, setCategoryFilter] = useState<"all" | "champion" | "participant">("all");
   const [selectedCertId, setSelectedCertId] = useState<string | number>("");
 
-  // Template Mode & QR Code
+  // Template Color Mode & QR Code
   const [selectedTemplateMode, setSelectedTemplateMode] = useState<
-    "auto" | "best_swimmer" | "winner" | "participant"
-  >("auto");
+    "winner" | "best_swimmer" | "participant" | null
+  >(null);
   const [overrideTournamentText, setOverrideTournamentText] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
@@ -377,18 +378,10 @@ export default function CertificateManager({
 
   // Compute active template type (winner, best_swimmer, or participant)
   const activeTemplateType = useMemo(() => {
-    if (selectedTemplateMode === "best_swimmer") return "best_swimmer";
-    if (selectedTemplateMode === "winner") return "winner";
-    if (selectedTemplateMode === "participant") return "participant";
-
-    // Auto mode based on result & championship
-    if (activeCertificate?.rank === 1 && activeCertificate?.isChampion) {
-      return "best_swimmer";
+    if (selectedTemplateMode) {
+      return selectedTemplateMode;
     }
-    if (activeCertificate?.isChampion) {
-      return "winner";
-    }
-    return "participant";
+    return activeCertificate?.isChampion ? "winner" : "participant";
   }, [selectedTemplateMode, activeCertificate]);
 
   const certCategoryTitle = useMemo(() => {
@@ -465,7 +458,7 @@ export default function CertificateManager({
             title="Atur teks, logo watermark & tanda tangan"
           >
             <Settings className="w-4 h-4 text-slate-600" />
-            <span>Config Watermark & TTD</span>
+            <span>Config Certificate</span>
           </button>
 
           <button
@@ -660,80 +653,54 @@ export default function CertificateManager({
             </div>
           ) : (
             <div className="space-y-4">
-              {/* TOOLBAR CONTROLS (TEMPLATE PICKER & OVERLAY TOGGLE) */}
-              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs print:hidden">
-                <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                  <span className="text-[11px] font-bold text-slate-500 mr-1">Pilih Template:</span>
-                  <button
-                    type="button"
-                    onClick={() => setSelectedTemplateMode("auto")}
-                    className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
-                      selectedTemplateMode === "auto"
-                        ? "bg-blue-600 text-white shadow-2xs"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    Otomatis
-                  </button>
+              {/* THEME / COLOR PICKER CONTROLS */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs print:hidden">
+                <div className="flex items-center gap-2">
+                  <Palette className="w-4 h-4 text-blue-600 shrink-0" />
+                  <span className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Pilihan Warna Sertifikat:
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setSelectedTemplateMode("winner")}
-                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedTemplateMode === "winner"
-                        ? "bg-slate-900 text-amber-300 shadow-2xs border border-amber-400/50"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeTemplateType === "winner"
+                        ? "bg-[#164e87] text-white shadow-sm ring-2 ring-[#164e87]/40 font-extrabold"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
                     <span>🏆</span>
-                    <span>Winner (Navy)</span>
+                    <span>Biru (Winner)</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setSelectedTemplateMode("best_swimmer")}
-                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedTemplateMode === "best_swimmer"
-                        ? "bg-amber-400 text-amber-950 font-black shadow-2xs border border-amber-500"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeTemplateType === "best_swimmer"
+                        ? "bg-amber-400 text-amber-950 font-black shadow-sm ring-2 ring-amber-400/50"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
                     <span>🌟</span>
-                    <span>Best Swimmer (Gold)</span>
+                    <span>Emas (Best Swimmer)</span>
                   </button>
+
                   <button
                     type="button"
                     onClick={() => setSelectedTemplateMode("participant")}
-                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                      selectedTemplateMode === "participant"
-                        ? "bg-red-600 text-white font-black shadow-2xs border border-red-700"
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      activeTemplateType === "participant"
+                        ? "bg-red-600 text-white font-black shadow-sm ring-2 ring-red-600/40"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
                     <span>🎖️</span>
-                    <span>Participant (Red)</span>
+                    <span>Merah (Participant)</span>
                   </button>
-                </div>
-
-                {/* Toolbar Controls for Text Setup & Toggle */}
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowConfigModal(true)}
-                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
-                    title="Atur teks isi turnamen/lomba di sertifikat"
-                  >
-                    <FileText className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Setup Teks Isi</span>
-                  </button>
-
-                  <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 transition-colors">
-                    <input
-                      type="checkbox"
-                      checked={config.useCustomBodyText}
-                      onChange={(e) => saveConfig({ ...config, useCustomBodyText: e.target.checked })}
-                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Teks Dinamis</span>
-                  </label>
                 </div>
               </div>
 
@@ -797,8 +764,8 @@ export default function CertificateManager({
                         <stop offset="100%" stopColor="#334155" />
                       </linearGradient>
                       <linearGradient id="waveDeep" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#1e293b" />
-                        <stop offset="100%" stopColor="#0a152d" />
+                        <stop offset="0%" stopColor="#1e3e6b" />
+                        <stop offset="100%" stopColor="#14365d" />
                       </linearGradient>
                     </defs>
                     <path
@@ -835,7 +802,7 @@ export default function CertificateManager({
                       activeTemplateType === "best_swimmer"
                         ? "bg-gradient-to-b from-[#d97706] via-[#fef08a] to-[#b45309] border-x-2 border-[#b45309]"
                         : activeTemplateType === "winner"
-                        ? "bg-[#0b1f42] border-x-2 border-[#d4af37]"
+                        ? "bg-[#164e87] border-x-2 border-[#d4af37]"
                         : "bg-[#991b1b] border-x-2 border-[#d4af37]"
                     }`}
                   >
@@ -845,48 +812,86 @@ export default function CertificateManager({
 
                     {/* 3D Gold Medallion Medal Badge */}
                     <div className="absolute top-[13%] w-20 h-20 sm:w-24 sm:h-24 -translate-x-[2px] pointer-events-none">
-                      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-md">
+                      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
                         <defs>
-                          <radialGradient id="goldMedalGrad" cx="40%" cy="40%" r="60%">
-                            <stop offset="0%" stopColor="#fef08a" />
-                            <stop offset="35%" stopColor="#f59e0b" />
-                            <stop offset="70%" stopColor="#d97706" />
-                            <stop offset="100%" stopColor="#92400e" />
+                          {/* Rich Champagne Gold Radial Gradient (No Brown) */}
+                          <radialGradient id="goldMedalGrad" cx="38%" cy="32%" r="68%">
+                            <stop offset="0%" stopColor="#fffdf0" />
+                            <stop offset="25%" stopColor="#fef08a" />
+                            <stop offset="55%" stopColor="#f5c94c" />
+                            <stop offset="85%" stopColor="#d8a11e" />
+                            <stop offset="100%" stopColor="#be8513" />
                           </radialGradient>
+
+                          {/* Metallic Satin Gold Rim Gradient */}
                           <linearGradient id="goldRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#fde047" />
-                            <stop offset="50%" stopColor="#b45309" />
-                            <stop offset="100%" stopColor="#fef08a" />
+                            <stop offset="0%" stopColor="#fffbeb" />
+                            <stop offset="20%" stopColor="#fde047" />
+                            <stop offset="50%" stopColor="#eab308" />
+                            <stop offset="80%" stopColor="#ca8a04" />
+                            <stop offset="100%" stopColor="#fff9c4" />
                           </linearGradient>
                         </defs>
-                        <circle cx="50" cy="50" r="48" fill="url(#goldRimGrad)" stroke="#78350f" strokeWidth="0.8" />
-                        {Array.from({ length: 24 }).map((_, i) => {
-                          const angle = (i * 360) / 24;
-                          return (
-                            <circle
-                              key={i}
-                              cx={50 + 44 * Math.cos((angle * Math.PI) / 180)}
-                              cy={50 + 44 * Math.sin((angle * Math.PI) / 180)}
-                              r="3.5"
-                              fill="url(#goldRimGrad)"
-                            />
-                          );
-                        })}
-                        <circle cx="50" cy="50" r="41" fill="url(#goldMedalGrad)" stroke="#fef08a" strokeWidth="1" />
-                        <circle cx="50" cy="50" r="38" fill="none" stroke="#78350f" strokeWidth="0.7" strokeDasharray="1.5,1.5" />
-                        <circle cx="50" cy="50" r="33" fill="url(#goldMedalGrad)" stroke="#fde047" strokeWidth="1.2" />
-                        <g transform="translate(30, 30) scale(0.4)" stroke="#78350f" strokeWidth="2" fill="none">
-                          <polygon points="50,10 90,32 90,78 50,100 10,78 10,32" stroke="#fef08a" strokeWidth="4" fill="url(#goldRimGrad)" />
-                          <path d="M50 25 L75 40 L75 68 L50 82 L25 68 L25 40 Z" fill="#b45309" opacity="0.4" />
-                          <path d="M35 55 L50 45 L65 55 L50 65 Z" fill="#fef08a" stroke="#78350f" strokeWidth="2" />
-                          <path d="M50 32 L50 45 M35 55 L25 62 M65 55 L75 62" stroke="#fef08a" strokeWidth="3" strokeLinecap="round" />
+
+                        {/* 16-Scallop Rosette Outer Medallion Border */}
+                        <path
+                          d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
+                          fill="url(#goldRimGrad)"
+                          stroke="#ca8a04"
+                          strokeWidth="0.75"
+                        />
+
+                        {/* Inner Scallop Shadow Ring */}
+                        <circle cx="50" cy="50" r="42.5" fill="url(#goldRimGrad)" stroke="#c28e18" strokeWidth="0.6" />
+
+                        {/* Polished Inner Ring Ridge */}
+                        <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fff9c4" strokeWidth="1.2" strokeOpacity="0.9" />
+                        <circle cx="50" cy="50" r="38" fill="none" stroke="#b8860b" strokeWidth="0.6" strokeOpacity="0.7" />
+
+                        {/* Center Gold Medallion Sunburst / Satin Face */}
+                        <circle cx="50" cy="50" r="36.5" fill="url(#goldMedalGrad)" stroke="#eab308" strokeWidth="0.8" />
+                        <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf0" strokeWidth="0.75" strokeOpacity="0.6" />
+
+                        {/* MASC Geometric Emblem in Pure Golden Relief */}
+                        <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
+                          {/* Top roof chevron */}
+                          <path
+                            d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
+                            fill="url(#goldRimGrad)"
+                            stroke="#ca8a04"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                          />
+                          {/* Center geometric S waves */}
+                          <path
+                            d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
+                            fill="url(#goldRimGrad)"
+                            stroke="#ca8a04"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
+                            fill="url(#goldRimGrad)"
+                            stroke="#ca8a04"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                          />
+                          {/* Bottom interlocking diamond point */}
+                          <path
+                            d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
+                            fill="url(#goldRimGrad)"
+                            stroke="#ca8a04"
+                            strokeWidth="1.2"
+                            strokeLinejoin="round"
+                          />
                         </g>
                       </svg>
                     </div>
                   </div>
 
                   {/* 6. BOTTOM-LEFT MASC CLUB PILL BADGE */}
-                  <div className="absolute left-6 sm:left-9 bottom-3.5 sm:bottom-5 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#09152e] border border-amber-400/40 shadow-lg">
+                  <div className="absolute left-6 sm:left-9 bottom-3.5 sm:bottom-5 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#143963] border border-amber-400/40 shadow-lg">
                     <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 p-1 flex items-center justify-center text-slate-950 font-black text-xs">
                       <span>M</span>
                     </div>
@@ -904,7 +909,7 @@ export default function CertificateManager({
                   <div className="relative z-20 pt-7 sm:pt-9 pl-7 sm:pl-10 pr-20 sm:pr-24 flex flex-col items-start text-left">
                     {/* TOP HEADER */}
                     <div className="space-y-0.5">
-                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[0.12em] text-[#0b1b36] uppercase font-sans leading-none">
+                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[0.12em] text-[#193d6e] uppercase font-sans leading-none">
                         CERTIFICATE
                       </h1>
                       <div className="text-xl sm:text-2xl md:text-[27px] font-black tracking-[0.16em] uppercase bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 bg-clip-text text-transparent leading-tight">
@@ -1052,10 +1057,10 @@ export default function CertificateManager({
                 </div>
                 <div>
                   <h3 className="text-lg font-black text-slate-900">
-                    Konfigurasi Watermark & Pejabat Sertifikat
+                    Config Certificate
                   </h3>
                   <p className="text-xs text-slate-500 font-semibold">
-                    Kustomisasi teks/logo watermark latar dan nama tanda tangan resmi
+                    Kustomisasi watermark latar, teks kejuaraan, dan pejabat penandatangan resmi
                   </p>
                 </div>
               </div>
