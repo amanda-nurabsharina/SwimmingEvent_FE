@@ -437,7 +437,7 @@ export default function CertificateManager({
   return (
     <div className="space-y-6 font-sans">
       {/* 1. TOP HEADER & ACTION BAR */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm print:hidden">
         <div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-black tracking-wider uppercase shadow-2xs">
             <Award className="w-3.5 h-3.5 text-blue-600" />
@@ -473,7 +473,7 @@ export default function CertificateManager({
       </div>
 
       {/* 2. TOURNAMENT SELECTOR FILTER */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/90">
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/90 print:hidden">
         <div className="flex items-center gap-2.5">
           <Filter className="w-4 h-4 text-blue-600" />
           <span className="text-xs font-bold text-slate-700">Filter Turnamen:</span>
@@ -709,7 +709,7 @@ export default function CertificateManager({
                 <div
                   ref={printAreaRef}
                   id="certificate-print-area"
-                  className="relative w-full max-w-[590px] aspect-[723/1024] bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden border-[12px] border-[#1e293b] select-none print:border-none print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
+                  className="relative w-full max-w-[590px] aspect-[210/297] bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden border-[12px] border-[#1e293b] select-none print:border-[12px] print:border-[#1e293b] print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
                   style={{
                     boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
                     background: "linear-gradient(145deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%)",
@@ -906,38 +906,38 @@ export default function CertificateManager({
                   </div>
 
                   {/* 7. CERTIFICATE FOREGROUND CONTENT (ALL 100% NATIVE TYPOGRAPHY) */}
-                  <div className="relative z-20 pt-7 sm:pt-9 pl-7 sm:pl-10 pr-20 sm:pr-24 flex flex-col items-start text-left">
+                  <div className="relative z-20 pt-8 sm:pt-10 pl-7 sm:pl-10 pr-20 sm:pr-24 flex flex-col items-start text-left">
                     {/* TOP HEADER */}
-                    <div className="space-y-0.5">
+                    <div className="space-y-0.5 sm:space-y-1">
                       <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[0.12em] text-[#193d6e] uppercase font-sans leading-none">
                         CERTIFICATE
                       </h1>
-                      <div className="text-xl sm:text-2xl md:text-[27px] font-black tracking-[0.16em] uppercase bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 bg-clip-text text-transparent leading-tight">
+                      <div className="text-xl sm:text-2xl md:text-[28px] font-black tracking-[0.16em] uppercase bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 bg-clip-text text-transparent leading-tight">
                         {certCategoryTitle}
                       </div>
-                      <div className="h-[2px] w-48 sm:w-60 bg-gradient-to-r from-[#d4af37] via-[#facc15] to-transparent my-1" />
-                      <p className="text-[9.5px] sm:text-[10.5px] font-bold tracking-[0.2em] text-slate-500 uppercase pt-0.5">
+                      <div className="h-[2px] w-48 sm:w-64 bg-gradient-to-r from-[#d4af37] via-[#facc15] to-transparent my-1 sm:my-1.5" />
+                      <p className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-slate-500 uppercase pt-0.5">
                         AS A MARK OF RECOGNITION FOR
                       </p>
                     </div>
 
                     {/* RECIPIENT REGION */}
-                    <div className="mt-3.5 sm:mt-4 flex flex-col items-start text-left">
+                    <div className="mt-5 sm:mt-6 md:mt-7 flex flex-col items-start text-left">
                       <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-black uppercase tracking-[0.08em] text-[#0f172a] leading-tight drop-shadow-xs">
                         {activeCertificate.swimmerName}
                       </h2>
-                      <div className="h-[1.5px] w-44 sm:w-64 bg-gradient-to-r from-[#c59e38] to-transparent my-1" />
+                      <div className="h-[2px] w-44 sm:w-64 bg-gradient-to-r from-[#c59e38] to-transparent my-1 sm:my-1.5" />
                       <span className="text-xs sm:text-sm font-black uppercase tracking-[0.18em] text-[#9b7b2c]">
                         {activeCertificate.club}
                       </span>
-                      <p className="mt-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 leading-snug">
+                      <p className="mt-1 text-[10.5px] sm:text-[11.5px] font-bold uppercase tracking-wider text-slate-700 leading-snug">
                         {formatEventTitle(activeCertificate.eventName)} ({activeCertificate.gender} • {activeCertificate.ageGroup})
                       </p>
 
                       {/* Rank & Official Time Badge */}
-                      <div className="mt-1.5">
+                      <div className="mt-2">
                         {activeCertificate.isChampion ? (
-                          <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-amber-50/95 border border-amber-400/90 shadow-2xs">
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50/95 border border-amber-400/90 shadow-2xs">
                             <Trophy className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                             <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-amber-950 uppercase">
                               {activeCertificate.rankBadge}
@@ -948,7 +948,7 @@ export default function CertificateManager({
                             </span>
                           </div>
                         ) : (
-                          <div className="inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-100/95 border border-slate-300 shadow-2xs">
+                          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100/95 border border-slate-300 shadow-2xs">
                             <Medal className="w-3.5 h-3.5 text-sky-600 shrink-0" />
                             <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-slate-800 uppercase">
                               PESERTA RESMI
@@ -962,9 +962,9 @@ export default function CertificateManager({
                       </div>
                     </div>
 
-                    {/* DYNAMIC TOURNAMENT BODY DESCRIPTION TEXT (100% NATIVE & EDITABLE IN CONFIG) */}
-                    <div className="mt-3.5 sm:mt-5 space-y-2 text-left max-w-[400px]">
-                      <div className="space-y-0.5 text-[9px] sm:text-[10.5px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
+                    {/* DYNAMIC TOURNAMENT BODY DESCRIPTION TEXT (NATURAL MIDDLE POSITIONING) */}
+                    <div className="mt-6 sm:mt-8 md:mt-10 space-y-2 text-left max-w-[420px]">
+                      <div className="space-y-0.5 sm:space-y-1 text-[9.5px] sm:text-[11px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
                         <p>{config.bodyPreText || "FOR PARTICIPATING IN THE"}</p>
                         <p className="font-extrabold text-[#0f172a]">
                           {config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}
@@ -973,7 +973,7 @@ export default function CertificateManager({
                         <p>{config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}</p>
                       </div>
 
-                      <div className="pt-1.5 space-y-0.5 text-[9px] sm:text-[10.5px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
+                      <div className="pt-2 space-y-0.5 sm:space-y-1 text-[9.5px] sm:text-[11px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
                         <p className="font-extrabold text-[#0f172a]">
                           {config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
                         </p>
@@ -1431,35 +1431,62 @@ export default function CertificateManager({
         </div>
       )}
 
-      {/* PRINT CSS STYLING (A4 PORTRAIT) */}
+      {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE A4 PORTRAIT) */}
       <style jsx global>{`
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0;
+            margin: 0mm;
+          }
+          html,
+          body {
+            width: 210mm !important;
+            height: 297mm !important;
+            max-width: 210mm !important;
+            max-height: 297mm !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: hidden !important;
+            background: #ffffff !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          /* Completely hide all elements outside the certificate */
+          nav,
+          header,
+          aside,
+          footer,
+          .print\:hidden {
+            display: none !important;
           }
           body * {
-            visibility: hidden !important;
+            visibility: hidden;
           }
           #certificate-print-area,
           #certificate-print-area * {
-            visibility: visible !important;
+            visibility: visible;
           }
           #certificate-print-area {
-            position: fixed !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 100vw !important;
-            height: 100vh !important;
-            max-width: none !important;
-            max-height: none !important;
-            border: none !important;
-            box-shadow: none !important;
-            border-radius: 0 !important;
+            width: 210mm !important;
+            height: 296.5mm !important;
+            max-width: 210mm !important;
+            max-height: 296.5mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
+            box-sizing: border-box !important;
+            border: 12px solid #1e293b !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+            overflow: hidden !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            page-break-before: avoid !important;
+            break-after: avoid !important;
+            break-inside: avoid !important;
+            break-before: avoid !important;
           }
         }
       `}</style>
