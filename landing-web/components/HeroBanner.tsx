@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { CheckCircle2, ChevronLeft, ChevronRight, Trophy, Users, ShieldCheck, Lightbulb, UserCheck } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Trophy, Users, ShieldCheck, Lightbulb } from "lucide-react";
 
 interface Banner {
   id: number;
@@ -126,8 +126,6 @@ export default function HeroBanner({
   const ctaPrimaryUrl = heroConfig?.cta_primary_url || "#register";
   const ctaSecondaryText = heroConfig?.cta_secondary_text || "Lihat Bagan (Heat Sheet)";
   const ctaSecondaryUrl = heroConfig?.cta_secondary_url || "/buku-acara";
-  const ctaTertiaryText = heroConfig?.cta_tertiary_text || "Login Portal Tim";
-  const ctaTertiaryUrl = heroConfig?.cta_tertiary_url || "http://localhost:3001";
 
   const noteText =
     heroConfig?.note_text || "Tamu & Penonton: Bebas melihat bagan lomba, jadwal, & pendaftaran langsung tanpa login.";
@@ -192,7 +190,7 @@ export default function HeroBanner({
               </div>
             </div>
 
-            {/* 3 Action CTA Buttons */}
+            {/* 2 Action CTA Buttons */}
             <div className="flex flex-wrap gap-3 pt-3">
               <button
                 onClick={onOpenRegisterModal}
@@ -209,15 +207,6 @@ export default function HeroBanner({
               >
                 <Trophy className="w-4 h-4 text-amber-500" />
                 {ctaSecondaryText}
-              </a>
-
-              <a
-                href={ctaTertiaryUrl}
-                className="px-6 py-3.5 bg-sky-50 hover:bg-sky-100 text-sky-800 font-extrabold text-xs sm:text-sm rounded-xl border border-sky-300 transition-all flex items-center gap-2"
-              >
-                <UserCheck className="w-4 h-4 text-sky-600" />
-                {ctaTertiaryText}
-                <span className="text-xs">&rarr;</span>
               </a>
             </div>
 

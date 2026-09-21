@@ -52,8 +52,6 @@ export default function BannerManager({
   const [ctaPrimaryUrl, setCtaPrimaryUrl] = useState("#register");
   const [ctaSecondaryText, setCtaSecondaryText] = useState("Lihat Bagan (Heat Sheet)");
   const [ctaSecondaryUrl, setCtaSecondaryUrl] = useState("/buku-acara");
-  const [ctaTertiaryText, setCtaTertiaryText] = useState("Login Portal Tim");
-  const [ctaTertiaryUrl, setCtaTertiaryUrl] = useState("http://localhost:3001");
 
   const [noteText, setNoteText] = useState(
     "Tamu & Penonton: Bebas melihat bagan lomba, jadwal, & pendaftaran langsung tanpa login."
@@ -130,8 +128,6 @@ export default function BannerManager({
       if (d.cta_primary_url) setCtaPrimaryUrl(d.cta_primary_url);
       if (d.cta_secondary_text) setCtaSecondaryText(d.cta_secondary_text);
       if (d.cta_secondary_url) setCtaSecondaryUrl(d.cta_secondary_url);
-      if (d.cta_tertiary_text) setCtaTertiaryText(d.cta_tertiary_text);
-      if (d.cta_tertiary_url) setCtaTertiaryUrl(d.cta_tertiary_url);
       if (d.note_text) setNoteText(d.note_text);
       if (d.trust_text_1) setTrustText1(d.trust_text_1);
       if (d.trust_text_2) setTrustText2(d.trust_text_2);
@@ -164,8 +160,8 @@ export default function BannerManager({
       cta_primary_url: ctaPrimaryUrl,
       cta_secondary_text: ctaSecondaryText,
       cta_secondary_url: ctaSecondaryUrl,
-      cta_tertiary_text: ctaTertiaryText,
-      cta_tertiary_url: ctaTertiaryUrl,
+      cta_tertiary_text: "",
+      cta_tertiary_url: "",
       note_text: noteText,
       trust_text_1: trustText1,
       trust_text_2: trustText2,
@@ -480,28 +476,6 @@ export default function BannerManager({
                     value={ctaSecondaryUrl}
                     onChange={(e) => setCtaSecondaryUrl(e.target.value)}
                     className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              {/* Button 3 */}
-              <div className="grid grid-cols-2 gap-2 p-3 rounded-2xl bg-cyan-50/80 border border-cyan-200">
-                <div>
-                  <label className="block text-[10px] font-bold text-cyan-900">Tombol 3 (Login Portal Tim)</label>
-                  <input
-                    type="text"
-                    value={ctaTertiaryText}
-                    onChange={(e) => setCtaTertiaryText(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-cyan-900">Link Target 3</label>
-                  <input
-                    type="text"
-                    value={ctaTertiaryUrl}
-                    onChange={(e) => setCtaTertiaryUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-white border border-cyan-300 rounded-lg text-slate-900 text-xs font-mono font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>
               </div>

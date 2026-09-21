@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import { getBukuAcara, getTournaments } from "../../lib/api-client";
 import {
   Download,
@@ -57,7 +58,11 @@ interface EventGroup {
   heats: HeatItem[];
 }
 
-export default function BukuAcaraPage() {
+function BukuAcaraContent() {
+  const searchParams = useSearchParams();
+  const urlTourneyId = searchParams.get("tournament_id");
+  const urlTab = searchParams.get("tab");
+
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number>(0);
 
@@ -65,7 +70,9 @@ export default function BukuAcaraPage() {
   const [loading, setLoading] = useState(true);
 
   // View Tab State ("bagan" vs "juara")
-  const [activeTab, setActiveTab] = useState<"bagan" | "juara">("bagan");
+  const [activeTab, setActiveTab] = useState<"bagan" | "juara">(
+    urlTab === "juara" ? "juara" : "bagan"
+  );
 
   // Sub-filters (Cascaded from tournament)
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
@@ -82,12 +89,19 @@ export default function BukuAcaraPage() {
       const res = await getTournaments();
       if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
         setTournaments(res.data);
-        const active = res.data.find((t: any) => t.is_active);
-        setSelectedTournamentId(active ? active.id : res.data[0].id);
+        if (urlTourneyId) {
+          setSelectedTournamentId(Number(urlTourneyId));
+        } else {
+          const active = res.data.find((t: any) => t.is_active);
+          setSelectedTournamentId(active ? active.id : res.data[0].id);
+        }
+        if (urlTab === "juara" || urlTab === "bagan") {
+          setActiveTab(urlTab);
+        }
       }
     }
     loadTourneys();
-  }, []);
+  }, [urlTourneyId, urlTab]);
 
   // 2. Fetch Buku Acara when tournament changes
   const fetchBukuAcara = async (tourneyId?: number) => {
@@ -255,7 +269,7 @@ export default function BukuAcaraPage() {
               BUKU ACARA & HASIL PERTANDINGAN
             </h1>
             <p className="text-slate-600 font-bold text-xs sm:text-sm">
-              AKUATIK INDONESIA KOTA TANGERANG
+              {currentTournament?.name || "MASC KOTA TANGERANG"}
             </p>
           </div>
 
@@ -746,5 +760,13 @@ export default function BukuAcaraPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function BukuAcaraPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-500 font-bold">Memuat Buku Acara &amp; Hasil Lomba...</div>}>
+      <BukuAcaraContent />
+    </Suspense>
   );
 }

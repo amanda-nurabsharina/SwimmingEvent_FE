@@ -77,16 +77,22 @@ interface EventGroup {
 interface RaceResultEditorProps {
   registrations?: any[];
   tournaments?: any[];
+  initialTournamentId?: number;
+  onSelectTournamentId?: (id: number) => void;
   onRefresh?: () => void;
 }
 
 export default function RaceResultEditor({
   registrations = [],
   tournaments = [],
+  initialTournamentId,
+  onSelectTournamentId,
   onRefresh,
 }: RaceResultEditorProps) {
   // 1. FILTER STATES
-  const [selectedTournamentId, setSelectedTournamentId] = useState<number>(0);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<number>(
+    initialTournamentId || 0
+  );
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
   const [selectedStroke, setSelectedStroke] = useState<string>("ALL");
   const [selectedDistance, setSelectedDistance] = useState<string>("ALL");
@@ -170,13 +176,15 @@ export default function RaceResultEditor({
     }
   };
 
-  // Initialize selected tournament on mount
+  // Initialize / sync selected tournament on mount or when prop changes
   useEffect(() => {
-    if (tournaments.length > 0 && selectedTournamentId === 0) {
+    if (initialTournamentId && initialTournamentId > 0) {
+      setSelectedTournamentId(initialTournamentId);
+    } else if (tournaments.length > 0 && selectedTournamentId === 0) {
       const active = tournaments.find((t) => t.is_active);
       setSelectedTournamentId(active ? active.id : tournaments[0].id);
     }
-  }, [tournaments, selectedTournamentId]);
+  }, [tournaments, initialTournamentId]);
 
   // Fetch bagan data from backend
   const fetchBaganData = async (tourneyId?: number) => {
@@ -669,7 +677,7 @@ export default function RaceResultEditor({
 
             {/* Public Page Direct Link */}
             <a
-              href="http://localhost:3000/buku-acara"
+              href={`http://localhost:3000/buku-acara?tournament_id=${selectedTournamentId}&tab=juara`}
               target="_blank"
               rel="noreferrer"
               className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-sky-700 rounded-xl transition-all shadow-sm"
@@ -788,7 +796,9 @@ export default function RaceResultEditor({
             <select
               value={selectedTournamentId}
               onChange={(e) => {
-                setSelectedTournamentId(Number(e.target.value));
+                const newTid = Number(e.target.value);
+                setSelectedTournamentId(newTid);
+                if (onSelectTournamentId) onSelectTournamentId(newTid);
                 setSelectedEventCode("ALL");
               }}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"

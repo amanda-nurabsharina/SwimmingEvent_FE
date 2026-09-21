@@ -39,8 +39,9 @@ export async function submitRegistration(data: any) {
   });
 }
 
-export async function getStartingList() {
-  return fetchAPI("/starting-list");
+export async function getStartingList(tournamentId?: number) {
+  const query = tournamentId && tournamentId > 0 ? `?tournament_id=${tournamentId}` : "";
+  return fetchAPI(`/starting-list${query}`);
 }
 
 export async function getBukuAcara(tournamentId?: number, round?: string) {

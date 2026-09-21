@@ -88,6 +88,7 @@ export default function Sidebar({
       title: "OPERASIONAL PANITIA",
       items: [
         { id: "results", label: "Catat Hasil Lomba", icon: CheckSquare },
+        { id: "certificates", label: "E-Sertifikat & Piagam", icon: Award },
         { id: "whatsapp-broadcast", label: "Broadcast WhatsApp PIC", icon: Send },
         { id: "race-result-logs", label: "Log Audit Hasil Lomba", icon: History },
       ],
