@@ -73,6 +73,13 @@ export interface WatermarkConfig {
   signatory2Name: string;
   signatory2Title: string;
   city: string;
+  bodyPreText: string;
+  bodyCompetitionName: string;
+  bodyOrganizerName: string;
+  bodyDateText: string;
+  bodyVenueText: string;
+  bodyLocationText: string;
+  useCustomBodyText: boolean;
 }
 
 const DEFAULT_CONFIG: WatermarkConfig = {
@@ -83,11 +90,18 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   opacity: 0.12,
   orgName: "MASC SWIM ACADEMY & TOURNAMENT",
   subOrgName: "AKUATIK INDONESIA KOTA TANGERANG",
-  signatory1Name: "Ridwan Syahputra, M.Pd",
-  signatory1Title: "Technical Delegate (TD)",
+  signatory1Name: "FAJAR YOGANTARA",
+  signatory1Title: "EXECUTIVE DIRECTOR",
   signatory2Name: "Ammar Fadhil, S.Or",
   signatory2Title: "Ketua Pelaksana Turnamen",
   city: "Kota Tangerang",
+  bodyPreText: "FOR PARTICIPATING IN THE",
+  bodyCompetitionName: "FUN SWIMMING COMPETITION ORGANIZED BY",
+  bodyOrganizerName: "MODERN AQUATIC SWIMMING CLUB ( MASC )",
+  bodyDateText: "IN OCTOBER 17TH, 2026",
+  bodyVenueText: "MODERN GOLF AND COUNTRY CLUB",
+  bodyLocationText: "KOTA MODERN, KOTA TANGERANG",
+  useCustomBodyText: false,
 };
 
 interface CertificateManagerProps {
@@ -693,16 +707,28 @@ export default function CertificateManager({
                   </button>
                 </div>
 
-                {/* Optional Dynamic Tournament Info Overlay Toggle */}
-                <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={overrideTournamentText}
-                    onChange={(e) => setOverrideTournamentText(e.target.checked)}
-                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
-                  />
-                  <span>Teks Turnamen Dinamis</span>
-                </label>
+                {/* Toolbar Controls for Text Setup & Toggle */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowConfigModal(true)}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-bold text-slate-700 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                    title="Atur teks isi turnamen/lomba di sertifikat"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Setup Teks Isi</span>
+                  </button>
+
+                  <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={config.useCustomBodyText}
+                      onChange={(e) => saveConfig({ ...config, useCustomBodyText: e.target.checked })}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>Teks Dinamis</span>
+                  </label>
+                </div>
               </div>
 
               {/* THE OFFICIAL CERTIFICATE SHEET (A4 PORTRAIT) */}
@@ -794,21 +820,25 @@ export default function CertificateManager({
                     </div>
                   </div>
 
-                  {/* 4. OPTIONAL DYNAMIC TOURNAMENT INFO OVERLAY */}
-                  {overrideTournamentText && (
-                    <div className="absolute top-[48%] left-[8%] right-[25%] z-20 flex flex-col items-center text-center px-4 py-2 rounded-xl bg-white/80 backdrop-blur-xs border border-white/80 shadow-2xs">
-                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase tracking-wider">
-                        FOR PARTICIPATING IN THE
-                      </p>
-                      <p className="text-[11px] sm:text-xs font-black text-slate-900 uppercase tracking-wide leading-tight my-0.5">
-                        {activeCertificate.tournamentName}
-                      </p>
-                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 uppercase tracking-wider">
-                        ORGANIZED BY {config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
-                      </p>
-                      <p className="text-[8px] sm:text-[9px] font-semibold text-slate-600 uppercase mt-0.5">
-                        IN {activeCertificate.tournamentDate} • {activeCertificate.tournamentLocation || config.city}
-                      </p>
+                  {/* 4. DYNAMIC TOURNAMENT BODY TEXT OVERLAY */}
+                  {config.useCustomBodyText && (
+                    <div
+                      className="absolute top-[44%] left-[13.5%] right-[25%] z-20 flex flex-col text-left py-1.5 px-2 rounded-lg"
+                      style={{
+                        backgroundColor: "rgba(235, 238, 242, 0.96)",
+                      }}
+                    >
+                      <div className="space-y-0.5 text-[8.5px] sm:text-[9.5px] md:text-[10px] font-bold tracking-wider text-[#1e293b] uppercase leading-tight font-sans">
+                        <p>{config.bodyPreText || "FOR PARTICIPATING IN THE"}</p>
+                        <p>{config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}</p>
+                        <p>{config.bodyOrganizerName || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}</p>
+                        <p>{config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}</p>
+                      </div>
+
+                      <div className="mt-2.5 sm:mt-3 space-y-0.5 text-[8.5px] sm:text-[9.5px] md:text-[10px] font-bold tracking-wider text-[#1e293b] uppercase leading-tight font-sans">
+                        <p>{config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}</p>
+                        <p>{config.bodyLocationText || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}</p>
+                      </div>
                     </div>
                   )}
 
@@ -1009,6 +1039,137 @@ export default function CertificateManager({
                         <span>Sangat Samar (4%)</span>
                         <span>Standar (12%)</span>
                         <span>Tegas (40%)</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* TOURNAMENT BODY TEXT CUSTOMIZATION SECTION */}
+              <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+                    <FileText className="w-4 h-4 text-amber-600" />
+                    SETUP TEKS ISI KEJUARAAN / TURNAMEN (TENGAH SERTIFIKAT)
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={config.useCustomBodyText}
+                      onChange={(e) => saveConfig({ ...config, useCustomBodyText: e.target.checked })}
+                      className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-xs font-bold text-amber-900">Aktifkan Teks Kustom</span>
+                  </label>
+                </div>
+
+                <p className="text-[11px] text-amber-800/90 leading-relaxed">
+                  Gunakan bagian ini untuk mengubah kalimat isi di tengah sertifikat (nama turnamen, klub penyelenggara, tanggal, dan lokasi/venue kolam) agar sesuai kejuaraan aktif.
+                </p>
+
+                {config.useCustomBodyText && (
+                  <div className="space-y-3 pt-2 border-t border-amber-200/80">
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (activeCertificate) {
+                            saveConfig({
+                              ...config,
+                              useCustomBodyText: true,
+                              bodyPreText: "FOR PARTICIPATING IN THE",
+                              bodyCompetitionName: `${activeCertificate.tournamentName} ORGANIZED BY`,
+                              bodyOrganizerName: config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )",
+                              bodyDateText: `IN ${activeCertificate.tournamentDate.toUpperCase()}`,
+                              bodyVenueText: activeCertificate.tournamentLocation ? activeCertificate.tournamentLocation.toUpperCase() : "MODERN GOLF AND COUNTRY CLUB",
+                              bodyLocationText: config.city.toUpperCase() || "KOTA MODERN, KOTA TANGERANG",
+                            });
+                          }
+                        }}
+                        className="px-3 py-1.5 bg-amber-200/80 hover:bg-amber-300 text-amber-950 rounded-xl text-xs font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-700" />
+                        <span>Salin Otomatis Data Turnamen DB</span>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 1: Teks Pembuka (Pre-text)
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyPreText}
+                          onChange={(e) => saveConfig({ ...config, bodyPreText: e.target.value })}
+                          placeholder="FOR PARTICIPATING IN THE"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 2: Nama Lomba / Kejuaraan
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyCompetitionName}
+                          onChange={(e) => saveConfig({ ...config, bodyCompetitionName: e.target.value })}
+                          placeholder="FUN SWIMMING COMPETITION ORGANIZED BY"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 3: Nama Klub Penyelenggara
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyOrganizerName}
+                          onChange={(e) => saveConfig({ ...config, bodyOrganizerName: e.target.value })}
+                          placeholder="MODERN AQUATIC SWIMMING CLUB ( MASC )"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 4: Tanggal / Waktu Pelaksanaan
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyDateText}
+                          onChange={(e) => saveConfig({ ...config, bodyDateText: e.target.value })}
+                          placeholder="IN OCTOBER 17TH, 2026"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 5: Venue / Lokasi Kolam
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyVenueText}
+                          onChange={(e) => saveConfig({ ...config, bodyVenueText: e.target.value })}
+                          placeholder="MODERN GOLF AND COUNTRY CLUB"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Baris 6: Kota Pelaksanaan
+                        </label>
+                        <input
+                          type="text"
+                          value={config.bodyLocationText}
+                          onChange={(e) => saveConfig({ ...config, bodyLocationText: e.target.value })}
+                          placeholder="KOTA MODERN, KOTA TANGERANG"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
                       </div>
                     </div>
                   </div>
