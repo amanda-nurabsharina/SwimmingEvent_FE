@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { getBukuAcara, getRegistrations, uploadImage } from "../lib/api-admin";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
+import QRCode from "qrcode";
 
 export interface CertificateItem {
   id: string | number;
@@ -99,6 +100,13 @@ export default function CertificateManager({
   const [searchQuery, setSearchQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<"all" | "champion" | "participant">("all");
   const [selectedCertId, setSelectedCertId] = useState<string | number>("");
+
+  // Template Mode & QR Code
+  const [selectedTemplateMode, setSelectedTemplateMode] = useState<
+    "auto" | "best_swimmer" | "winner" | "participant"
+  >("auto");
+  const [overrideTournamentText, setOverrideTournamentText] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
   // Config modal state & persistent settings
   const [showConfigModal, setShowConfigModal] = useState(false);
@@ -342,6 +350,42 @@ export default function CertificateManager({
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
+  // Compute active template image (Winner, Best Swimmer, or Participant)
+  const currentTemplate = useMemo(() => {
+    if (selectedTemplateMode === "best_swimmer") return "/templates/cert-best-swimmer.jpg";
+    if (selectedTemplateMode === "winner") return "/templates/cert-winner.jpg";
+    if (selectedTemplateMode === "participant") return "/templates/cert-participant.jpg";
+
+    // Auto mode based on result & championship
+    if (activeCertificate?.rank === 1 && activeCertificate?.isChampion) {
+      return "/templates/cert-winner.jpg";
+    }
+    if (activeCertificate?.isChampion) {
+      return "/templates/cert-winner.jpg";
+    }
+    return "/templates/cert-participant.jpg";
+  }, [selectedTemplateMode, activeCertificate]);
+
+  // Generate dynamic QR Code for landing page verification
+  useEffect(() => {
+    if (!activeCertificate) return;
+    const baseUrl = process.env.NEXT_PUBLIC_LANDING_URL || "https://masc.fourplusone.my.id";
+    const targetUrl = `${baseUrl}/#status-check?code=${encodeURIComponent(
+      activeCertificate.docNumber || String(activeCertificate.id)
+    )}`;
+
+    QRCode.toDataURL(targetUrl, {
+      width: 256,
+      margin: 1,
+      color: {
+        dark: "#0f172a",
+        light: "#ffffff",
+      },
+    })
+      .then((url) => setQrCodeUrl(url))
+      .catch((err) => console.error("Error generating QR code:", err));
+  }, [activeCertificate]);
+
   // 6. Print / Download handler
   const handlePrint = () => {
     window.print();
@@ -584,172 +628,199 @@ export default function CertificateManager({
               <p className="text-base font-bold text-slate-700">Pilih Sertifikat untuk Melihat Preview</p>
             </div>
           ) : (
-            <div className="bg-slate-200/60 p-3 sm:p-6 rounded-3xl border border-slate-200 shadow-inner flex justify-center print:bg-transparent print:p-0 print:border-none">
-              {/* THE OFFICIAL CERTIFICATE SHEET (A4 Landscape / Portrait friendly) */}
-              <div
-                ref={printAreaRef}
-                id="certificate-print-area"
-                className="w-full max-w-[760px] bg-white text-slate-900 rounded-3xl shadow-2xl relative overflow-hidden p-6 sm:p-10 border-4 border-amber-400 print:shadow-none print:rounded-none print:max-w-none print:w-full print:m-0 print:border-4"
-                style={{
-                  boxShadow: "0 20px 40px -15px rgba(0,0,0,0.15)",
-                }}
-              >
-                {/* INNER DECORATIVE GOLD/AMBER DOUBLE BORDER */}
-                <div className="absolute inset-3 sm:inset-4 border-2 border-amber-300/80 rounded-2xl pointer-events-none" />
-                <div className="absolute inset-4 sm:inset-5 border border-amber-200/60 rounded-xl pointer-events-none" />
-
-                {/* DYNAMIC WATERMARK LAYER (LOGO & TEXT) */}
-                {config.enabled && (
-                  <div
-                    className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-0 overflow-hidden"
-                    style={{ opacity: config.opacity }}
+            <div className="space-y-4">
+              {/* TOOLBAR CONTROLS (TEMPLATE PICKER & OVERLAY TOGGLE) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200 shadow-xs print:hidden">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <span className="text-[11px] font-bold text-slate-500 mr-1">Pilih Template:</span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateMode("auto")}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all cursor-pointer ${
+                      selectedTemplateMode === "auto"
+                        ? "bg-blue-600 text-white shadow-2xs"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
                   >
-                    {(config.type === "both" || config.type === "logo") && config.logoUrl && (
-                      <img
-                        src={config.logoUrl}
-                        alt="Watermark Logo"
-                        className="w-72 sm:w-96 h-auto object-contain mb-2 filter grayscale contrast-125"
-                        onError={(e) => {
-                          // Fallback if image fails
-                          (e.target as HTMLElement).style.display = "none";
-                        }}
-                      />
-                    )}
-                    {(config.type === "both" || config.type === "text") && config.text && (
-                      <p className="text-2xl sm:text-4xl lg:text-5xl font-black text-slate-900 uppercase tracking-widest text-center transform -rotate-12 select-none px-6 font-serif">
-                        {config.text}
-                      </p>
-                    )}
-                  </div>
-                )}
+                    Otomatis
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateMode("winner")}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      selectedTemplateMode === "winner"
+                        ? "bg-slate-900 text-amber-300 shadow-2xs border border-amber-400/50"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>🏆</span>
+                    <span>Winner (Navy)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateMode("best_swimmer")}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      selectedTemplateMode === "best_swimmer"
+                        ? "bg-amber-400 text-amber-950 font-black shadow-2xs border border-amber-500"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>🌟</span>
+                    <span>Best Swimmer (Gold)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedTemplateMode("participant")}
+                    className={`px-3 py-1.5 rounded-xl font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                      selectedTemplateMode === "participant"
+                        ? "bg-red-600 text-white font-black shadow-2xs border border-red-700"
+                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span>🎖️</span>
+                    <span>Participant (Red)</span>
+                  </button>
+                </div>
 
-                {/* CERTIFICATE FOREGROUND CONTENT */}
-                <div className="relative z-10 flex flex-col items-center text-center space-y-4 sm:space-y-5">
-                  {/* Top Organization Header Pill */}
-                  <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-600 text-white text-[10px] sm:text-xs font-black tracking-widest uppercase shadow-sm">
-                    <span className="w-2 h-2 rounded-full bg-amber-400" />
-                    <span>{config.orgName || "MASC SWIM ACADEMY & TOURNAMENT"}</span>
-                  </div>
+                {/* Optional Dynamic Tournament Info Overlay Toggle */}
+                <label className="flex items-center gap-2 cursor-pointer bg-slate-50 hover:bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 transition-colors">
+                  <input
+                    type="checkbox"
+                    checked={overrideTournamentText}
+                    onChange={(e) => setOverrideTournamentText(e.target.checked)}
+                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                  />
+                  <span>Teks Turnamen Dinamis</span>
+                </label>
+              </div>
 
-                  {/* Main Document Title */}
-                  <div className="space-y-1">
-                    <h2 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight uppercase text-amber-900 font-serif leading-tight">
-                      {activeCertificate.isChampion
-                        ? "PIAGAM PENGHARGAAN JUARA"
-                        : "SERTIFIKAT APRESIASI PESERTA"}
-                    </h2>
-                    <p className="text-[11px] sm:text-xs font-mono font-bold text-slate-500 tracking-wider">
-                      No. Dokumen: {activeCertificate.docNumber}
-                    </p>
-                  </div>
+              {/* THE OFFICIAL CERTIFICATE SHEET (A4 PORTRAIT) */}
+              <div className="bg-slate-200/60 p-3 sm:p-6 rounded-3xl border border-slate-200 shadow-inner flex justify-center print:bg-transparent print:p-0 print:border-none">
+                <div
+                  ref={printAreaRef}
+                  id="certificate-print-area"
+                  className="relative w-full max-w-[580px] aspect-[723/1024] bg-slate-900 rounded-3xl shadow-2xl overflow-hidden border-2 border-slate-300 select-none print:border-none print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
+                  style={{
+                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+                  }}
+                >
+                  {/* 1. Base High-Res Certificate Template Background */}
+                  <img
+                    src={currentTemplate}
+                    alt="Certificate Background Template"
+                    className="absolute inset-0 w-full h-full object-fill pointer-events-none"
+                  />
 
-                  {/* Subtitle wording */}
-                  <p className="text-xs sm:text-sm font-medium text-slate-600 italic">
-                    Diberikan secara resmi dan sah kepada perenang:
-                  </p>
+                  {/* 2. Optional Config Watermark Layer */}
+                  {config.enabled && (
+                    <div
+                      className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none select-none z-10 overflow-hidden"
+                      style={{ opacity: config.opacity }}
+                    >
+                      {(config.type === "both" || config.type === "logo") && config.logoUrl && (
+                        <img
+                          src={config.logoUrl}
+                          alt="Watermark Logo"
+                          className="w-56 h-auto object-contain mb-2 filter grayscale contrast-125"
+                          onError={(e) => {
+                            (e.target as HTMLElement).style.display = "none";
+                          }}
+                        />
+                      )}
+                      {(config.type === "both" || config.type === "text") && config.text && (
+                        <p className="text-xl sm:text-2xl font-black text-slate-900 uppercase tracking-widest text-center transform -rotate-12 select-none px-6 font-serif">
+                          {config.text}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
-                  {/* Swimmer Name & Club Display */}
-                  <div className="space-y-1.5 w-full py-1">
-                    <h3 className="text-2xl sm:text-4xl lg:text-5xl font-black text-slate-950 uppercase tracking-tight font-sans">
+                  {/* 3. RECIPIENT REGION (Positioned under 'AS A MARK OF RECOGNITION FOR') */}
+                  <div className="absolute top-[26%] left-[6%] right-[25%] z-20 flex flex-col items-center text-center px-3">
+                    {/* Swimmer Name */}
+                    <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wider text-[#0e172a] leading-tight font-sans drop-shadow-2xs">
                       {activeCertificate.swimmerName}
-                    </h3>
-                    <div className="inline-block px-4 py-1 rounded-xl bg-blue-50 border border-blue-200">
-                      <span className="text-xs sm:text-sm font-black text-blue-800 uppercase tracking-wide">
+                    </h2>
+
+                    {/* Club / Kontingen */}
+                    <div className="mt-1">
+                      <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-[#967425] drop-shadow-2xs">
                         {activeCertificate.club}
                       </span>
                     </div>
-                  </div>
 
-                  {/* Thin Divider Line */}
-                  <div className="w-3/4 h-0.5 bg-gradient-to-r from-transparent via-amber-300 to-transparent my-1" />
+                    {/* Event / Nomor Acara & Kategori */}
+                    <div className="mt-1.5 flex flex-col items-center">
+                      <span className="text-[10px] sm:text-xs font-black uppercase tracking-wide text-slate-800">
+                        {activeCertificate.eventName} ({activeCertificate.gender} • {activeCertificate.ageGroup})
+                      </span>
 
-                  {/* Achievement & Event Description */}
-                  <div className="max-w-xl text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
-                    Atas prestasi dan partisipasinya pada Kejuaraan Renang Resmi{" "}
-                    <strong className="text-slate-900 font-extrabold uppercase">
-                      {activeCertificate.tournamentName}
-                    </strong>{" "}
-                    untuk nomor acara:
-                  </div>
-
-                  {/* Event Name Box */}
-                  <div className="w-full max-w-lg px-6 py-2.5 rounded-2xl bg-sky-50/80 border border-sky-200 shadow-2xs">
-                    <span className="text-sm sm:text-base font-black text-slate-900 uppercase">
-                      {activeCertificate.eventName} ({activeCertificate.gender} • {activeCertificate.ageGroup})
-                    </span>
-                  </div>
-
-                  {/* Rank & Official Time Capsule Badge */}
-                  <div className="pt-1">
-                    {activeCertificate.isChampion ? (
-                      <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 border-2 border-amber-400 font-black text-xs sm:text-sm shadow-sm tracking-wide">
-                        <Trophy className="w-4 h-4 text-amber-900" />
-                        <span>
-                          {activeCertificate.rankBadge} • WAKTU RESMI:{" "}
-                          {activeCertificate.timeResult || activeCertificate.timeSeed}
-                        </span>
+                      {/* Rank / Badge & Official Time */}
+                      <div className="mt-1.5">
+                        {activeCertificate.isChampion ? (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 border border-amber-500/40 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-xs">
+                            <Trophy className="w-3 h-3 text-amber-900" />
+                            <span>{activeCertificate.rankBadge}</span>
+                            <span className="opacity-50">•</span>
+                            <span>WAKTU RESMI: {activeCertificate.timeResult || activeCertificate.timeSeed}</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/95 border border-slate-300/80 text-slate-800 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                            <Medal className="w-3 h-3 text-sky-600" />
+                            <span>PESERTA RESMI</span>
+                            <span className="opacity-50">•</span>
+                            <span>WAKTU: {activeCertificate.timeResult || activeCertificate.timeSeed}</span>
+                          </div>
+                        )}
                       </div>
+                    </div>
+                  </div>
+
+                  {/* 4. OPTIONAL DYNAMIC TOURNAMENT INFO OVERLAY */}
+                  {overrideTournamentText && (
+                    <div className="absolute top-[48%] left-[8%] right-[25%] z-20 flex flex-col items-center text-center px-4 py-2 rounded-xl bg-white/80 backdrop-blur-xs border border-white/80 shadow-2xs">
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+                        FOR PARTICIPATING IN THE
+                      </p>
+                      <p className="text-[11px] sm:text-xs font-black text-slate-900 uppercase tracking-wide leading-tight my-0.5">
+                        {activeCertificate.tournamentName}
+                      </p>
+                      <p className="text-[9px] sm:text-[10px] font-bold text-slate-700 uppercase tracking-wider">
+                        ORGANIZED BY {config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
+                      </p>
+                      <p className="text-[8px] sm:text-[9px] font-semibold text-slate-600 uppercase mt-0.5">
+                        IN {activeCertificate.tournamentDate} • {activeCertificate.tournamentLocation || config.city}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 5. OFFICIAL BARCODE & QR CODE VERIFICATION BOX */}
+                  <div className="absolute right-[24%] sm:right-[25%] bottom-[9.5%] z-20 flex flex-col items-center p-1.5 sm:p-2 rounded-xl bg-white/95 border border-amber-400/60 shadow-md backdrop-blur-xs">
+                    {qrCodeUrl ? (
+                      <img
+                        src={qrCodeUrl}
+                        alt="QR Code Verifikasi Resmi"
+                        className="w-14 h-14 sm:w-16 sm:h-16 object-contain rounded-md"
+                      />
                     ) : (
-                      <div className="inline-flex items-center gap-2 px-6 py-2 rounded-full bg-sky-100 text-sky-900 border border-sky-300 font-black text-xs sm:text-sm shadow-2xs tracking-wide">
-                        <Medal className="w-4 h-4 text-sky-600" />
-                        <span>
-                          PARTISIPASI RESMI • WAKTU:{" "}
-                          {activeCertificate.timeResult || activeCertificate.timeSeed}
-                        </span>
+                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 rounded flex items-center justify-center text-[8px] text-slate-400">
+                        QR Code
                       </div>
                     )}
-                  </div>
 
-                  {/* Bottom Date & City */}
-                  <div className="pt-2 text-center text-xs font-semibold text-slate-500">
-                    <span>
-                      {config.city}, {activeCertificate.issueDate}
+                    {/* 1D Barcode Graphic Lines */}
+                    <div className="w-full flex items-center justify-between gap-[1.5px] h-2.5 my-1 px-0.5 opacity-90">
+                      {[3, 1, 4, 1, 3, 2, 4, 1, 3, 2, 4, 1, 2, 3, 1, 4, 2, 3, 1, 3].map((w, i) => (
+                        <div key={i} className="bg-slate-900 h-full" style={{ width: `${w * 0.7}px` }} />
+                      ))}
+                    </div>
+
+                    <span className="text-[7px] sm:text-[8px] font-black text-slate-900 tracking-wider font-mono uppercase text-center leading-none">
+                      VERIFIKASI RESMI
                     </span>
-                  </div>
-
-                  {/* BOTTOM SIGNATURES (BARCODE REMOVED AS REQUESTED) */}
-                  <div className="w-full pt-6 sm:pt-8 flex items-end justify-between px-4 sm:px-12">
-                    {/* Signatory 1 (Technical Delegate) */}
-                    <div className="flex flex-col items-center text-center w-48 sm:w-56">
-                      <div className="h-12 flex items-center justify-center">
-                        <span className="font-serif italic text-lg sm:text-xl text-blue-900 opacity-90 select-none">
-                          {config.signatory1Name.split(" ")[0]}
-                        </span>
-                      </div>
-                      <div className="w-full border-b border-slate-400 my-1" />
-                      <span className="text-xs sm:text-sm font-black text-slate-900 leading-tight">
-                        {config.signatory1Name}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 leading-tight mt-0.5">
-                        {config.signatory1Title}
-                      </span>
-                    </div>
-
-                    {/* Official Stamp / Seal Emblem Centerpiece */}
-                    <div className="flex flex-col items-center justify-center opacity-80 shrink-0">
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full border-2 border-amber-500/70 p-1 flex items-center justify-center">
-                        <div className="w-full h-full rounded-full border border-dashed border-amber-400 flex flex-col items-center justify-center text-[7px] font-black uppercase text-amber-800 text-center leading-tight">
-                          <span>OFFICIAL</span>
-                          <span>SEAL</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Signatory 2 (Ketua Panitia) */}
-                    <div className="flex flex-col items-center text-center w-48 sm:w-56">
-                      <div className="h-12 flex items-center justify-center">
-                        <span className="font-serif italic text-lg sm:text-xl text-blue-900 opacity-90 select-none">
-                          {config.signatory2Name.split(" ")[0]}
-                        </span>
-                      </div>
-                      <div className="w-full border-b border-slate-400 my-1" />
-                      <span className="text-xs sm:text-sm font-black text-slate-900 leading-tight">
-                        {config.signatory2Name}
-                      </span>
-                      <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 leading-tight mt-0.5">
-                        {config.signatory2Title}
-                      </span>
-                    </div>
+                    <span className="text-[6px] sm:text-[7px] font-bold text-slate-500 font-mono leading-none mt-0.5">
+                      {activeCertificate.docNumber}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1036,30 +1107,35 @@ export default function CertificateManager({
         </div>
       )}
 
-      {/* PRINT CSS STYLING */}
+      {/* PRINT CSS STYLING (A4 PORTRAIT) */}
       <style jsx global>{`
         @media print {
+          @page {
+            size: A4 portrait;
+            margin: 0;
+          }
           body * {
-            visibility: hidden;
+            visibility: hidden !important;
           }
           #certificate-print-area,
           #certificate-print-area * {
-            visibility: visible;
+            visibility: visible !important;
           }
           #certificate-print-area {
-            position: fixed;
-            left: 0;
-            top: 0;
+            position: fixed !important;
+            left: 0 !important;
+            top: 0 !important;
             width: 100vw !important;
             height: 100vh !important;
             max-width: none !important;
-            border: 4px solid #f59e0b !important;
+            max-height: none !important;
+            border: none !important;
             box-shadow: none !important;
+            border-radius: 0 !important;
             margin: 0 !important;
-            padding: 24px !important;
-            page-break-after: avoid;
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
         }
       `}</style>
