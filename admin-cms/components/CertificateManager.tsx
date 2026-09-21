@@ -180,7 +180,7 @@ export default function CertificateManager({
     setLoading(true);
     try {
       const [bukuRes, regRes] = await Promise.all([
-        getBukuAcara(tid, "preliminary"),
+        getBukuAcara(tid),
         getRegistrations(),
       ]);
 
@@ -191,7 +191,16 @@ export default function CertificateManager({
       }
 
       if (regRes && regRes.success && Array.isArray(regRes.data)) {
-        setRawRegistrations(regRes.data.filter((r: any) => r.tournament_id === tid));
+        const matchingRegs = regRes.data.filter((r: any) => {
+          const rTid = Number(
+            r.swimming_event?.tournament_id ||
+            r.swimming_event?.tournament?.id ||
+            r.tournament_id ||
+            0
+          );
+          return rTid === Number(tid);
+        });
+        setRawRegistrations(matchingRegs);
       } else {
         setRawRegistrations([]);
       }
@@ -308,29 +317,44 @@ export default function CertificateManager({
       });
     } else if (rawRegistrations.length > 0) {
       // Fallback: If Buku Acara has not been generated yet, populate from verified registrations
-      rawRegistrations.forEach((r, idx) => {
-        const certId = `fallback-reg-${r.id}`;
-        const docNumber = `CERT/${tourneyCode}/PART/101-${String(idx + 1).padStart(2, "0")}`;
+      rawRegistrations.forEach((r: any, idx: number) => {
+        const certId = `reg-${r.id}`;
+        const p = r.participant || {};
+        const ev = r.swimming_event || {};
+        const sName = p.nama || p.name || r.name || r.swimmer_name || "Perenang";
+        const sClub = p.club || r.club || "MASC KOTA TANGERANG";
+        const evName = ev.event_name || (ev.distance ? `${ev.distance} ${ev.stroke || "Gaya Bebas"}` : "Nomor Lomba");
+        const sRank = Number(r.final_rank || r.rank || 0);
+        const isChamp = sRank >= 1 && sRank <= 3;
+        let rankBadge = "PESERTA";
+        if (sRank === 1) rankBadge = "JUARA 1 (EMAS)";
+        else if (sRank === 2) rankBadge = "JUARA 2 (PERAK)";
+        else if (sRank === 3) rankBadge = "JUARA 3 (PERUNGGU)";
+
+        const docNumber = `CERT/${tourneyCode}/${isChamp ? "CHAMP" : "PART"}/${ev.event_code || 101}-${String(
+          idx + 1
+        ).padStart(2, "0")}`;
+
         list.push({
           id: certId,
           registrationId: r.id,
-          swimmerName: r.name || r.swimmer_name || "Perenang",
-          club: r.club || "MASC KOTA TANGERANG",
-          tournamentId: r.tournament_id,
+          swimmerName: sName,
+          club: sClub,
+          tournamentId: Number(ev.tournament_id || currentTournament?.id || 0),
           tournamentName: tourneyName,
           tournamentLocation: tourneyLoc,
           tournamentDate: tourneyDate,
-          eventCode: r.event_code || 101,
-          eventName: r.event_name || "50m Gaya Bebas",
-          stroke: "FREESTYLE",
-          distance: "50m",
-          gender: r.gender || "PUTRA",
-          ageGroup: r.age_group || "KU 2",
-          timeResult: "",
-          timeSeed: r.best_time || "-",
-          rank: 99,
-          isChampion: false,
-          rankBadge: "PESERTA",
+          eventCode: ev.event_code || 101,
+          eventName: evName,
+          stroke: ev.stroke || "FREESTYLE",
+          distance: ev.distance || "50m",
+          gender: ev.gender || p.gender || "PUTRA",
+          ageGroup: ev.age_group || p.age_group || "KU",
+          timeResult: r.final_result_time || r.race_result_time || "",
+          timeSeed: r.time_seed || r.best_time || "-",
+          rank: sRank > 0 ? sRank : 99,
+          isChampion: isChamp,
+          rankBadge,
           docNumber,
           issueDate: tourneyDate,
         });
