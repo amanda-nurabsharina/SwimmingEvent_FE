@@ -26,6 +26,16 @@ import { getBukuAcara, getRegistrations, uploadImage } from "../lib/api-admin";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
 import QRCode from "qrcode";
 
+function formatEventTitle(name: string) {
+  if (!name) return "";
+  return name
+    .replace(/INDIVIDUALMEDLEY/gi, "INDIVIDUAL MEDLEY")
+    .replace(/GAYABEBAS/gi, "GAYA BEBAS")
+    .replace(/GAYADADA/gi, "GAYA DADA")
+    .replace(/GAYAPUNGGUNG/gi, "GAYA PUNGGUNG")
+    .replace(/GAYAKUPU/gi, "GAYA KUPU-KUPU");
+}
+
 export interface CertificateItem {
   id: string | number;
   registrationId?: number;
@@ -66,7 +76,7 @@ export interface WatermarkConfig {
 }
 
 const DEFAULT_CONFIG: WatermarkConfig = {
-  enabled: true,
+  enabled: false,
   type: "both",
   text: "MASC SWIM ACADEMY & TOURNAMENT",
   logoUrl: "/logo-swimming.png",
@@ -120,7 +130,8 @@ export default function CertificateManager({
     try {
       const saved = localStorage.getItem("swimming_certificate_config");
       if (saved) {
-        setConfig({ ...DEFAULT_CONFIG, ...JSON.parse(saved) });
+        const parsed = JSON.parse(saved);
+        setConfig({ ...DEFAULT_CONFIG, ...parsed, enabled: false });
       }
     } catch (e) {}
   }, []);
@@ -736,43 +747,50 @@ export default function CertificateManager({
                   )}
 
                   {/* 3. RECIPIENT REGION (Positioned under 'AS A MARK OF RECOGNITION FOR') */}
-                  <div className="absolute top-[26%] left-[6%] right-[25%] z-20 flex flex-col items-center text-center px-3">
+                  <div className="absolute top-[28.5%] left-[8%] right-[24%] z-20 flex flex-col items-center text-center px-4">
                     {/* Swimmer Name */}
-                    <h2 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wider text-[#0e172a] leading-tight font-sans drop-shadow-2xs">
+                    <h2 className="text-xl sm:text-2xl md:text-[27px] font-serif font-black uppercase tracking-[0.08em] text-[#0f172a] leading-tight drop-shadow-2xs">
                       {activeCertificate.swimmerName}
                     </h2>
 
+                    {/* Subtle Gold Decorative Line */}
+                    <div className="h-[1.5px] w-40 sm:w-56 bg-gradient-to-r from-transparent via-[#c59e38] to-transparent my-1.5" />
+
                     {/* Club / Kontingen */}
-                    <div className="mt-1">
-                      <span className="text-xs sm:text-sm font-extrabold uppercase tracking-widest text-[#967425] drop-shadow-2xs">
-                        {activeCertificate.club}
-                      </span>
-                    </div>
+                    <span className="text-[11px] sm:text-xs font-black uppercase tracking-[0.16em] text-[#9b7b2c] drop-shadow-2xs">
+                      {activeCertificate.club}
+                    </span>
 
                     {/* Event / Nomor Acara & Kategori */}
-                    <div className="mt-1.5 flex flex-col items-center">
-                      <span className="text-[10px] sm:text-xs font-black uppercase tracking-wide text-slate-800">
-                        {activeCertificate.eventName} ({activeCertificate.gender} • {activeCertificate.ageGroup})
-                      </span>
+                    <p className="mt-1 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-slate-700 leading-snug">
+                      {formatEventTitle(activeCertificate.eventName)} ({activeCertificate.gender} • {activeCertificate.ageGroup})
+                    </p>
 
-                      {/* Rank / Badge & Official Time */}
-                      <div className="mt-1.5">
-                        {activeCertificate.isChampion ? (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-amber-400 via-amber-300 to-amber-400 text-amber-950 border border-amber-500/40 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-xs">
-                            <Trophy className="w-3 h-3 text-amber-900" />
-                            <span>{activeCertificate.rankBadge}</span>
-                            <span className="opacity-50">•</span>
-                            <span>WAKTU RESMI: {activeCertificate.timeResult || activeCertificate.timeSeed}</span>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100/95 border border-slate-300/80 text-slate-800 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow-2xs">
-                            <Medal className="w-3 h-3 text-sky-600" />
-                            <span>PESERTA RESMI</span>
-                            <span className="opacity-50">•</span>
-                            <span>WAKTU: {activeCertificate.timeResult || activeCertificate.timeSeed}</span>
-                          </div>
-                        )}
-                      </div>
+                    {/* Rank / Badge & Official Time */}
+                    <div className="mt-2">
+                      {activeCertificate.isChampion ? (
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50/95 border border-amber-400/90 shadow-2xs">
+                          <Trophy className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-amber-950 uppercase">
+                            {activeCertificate.rankBadge}
+                          </span>
+                          <span className="w-1 h-1 rounded-full bg-amber-400 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px] font-bold font-mono tracking-wide text-slate-800">
+                            WAKTU RESMI: {activeCertificate.timeResult || activeCertificate.timeSeed}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-50/95 border border-slate-300 shadow-2xs">
+                          <Medal className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-slate-800 uppercase">
+                            PESERTA RESMI
+                          </span>
+                          <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />
+                          <span className="text-[10px] sm:text-[11px] font-bold font-mono tracking-wide text-slate-600">
+                            WAKTU: {activeCertificate.timeResult || activeCertificate.timeSeed}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -795,15 +813,15 @@ export default function CertificateManager({
                   )}
 
                   {/* 5. OFFICIAL BARCODE & QR CODE VERIFICATION BOX */}
-                  <div className="absolute right-[24%] sm:right-[25%] bottom-[9.5%] z-20 flex flex-col items-center p-1.5 sm:p-2 rounded-xl bg-white/95 border border-amber-400/60 shadow-md backdrop-blur-xs">
+                  <div className="absolute right-[25%] bottom-[15.5%] z-20 flex flex-col items-center p-2 rounded-xl bg-white/95 border border-amber-400/80 shadow-md backdrop-blur-xs">
                     {qrCodeUrl ? (
                       <img
                         src={qrCodeUrl}
                         alt="QR Code Verifikasi Resmi"
-                        className="w-14 h-14 sm:w-16 sm:h-16 object-contain rounded-md"
+                        className="w-13 h-13 sm:w-15 sm:h-15 object-contain rounded-md"
                       />
                     ) : (
-                      <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 rounded flex items-center justify-center text-[8px] text-slate-400">
+                      <div className="w-13 h-13 sm:w-15 sm:h-15 bg-slate-100 rounded flex items-center justify-center text-[8px] text-slate-400">
                         QR Code
                       </div>
                     )}
@@ -815,10 +833,10 @@ export default function CertificateManager({
                       ))}
                     </div>
 
-                    <span className="text-[7px] sm:text-[8px] font-black text-slate-900 tracking-wider font-mono uppercase text-center leading-none">
+                    <span className="text-[7.5px] sm:text-[8px] font-black text-slate-900 tracking-wider font-mono uppercase text-center leading-none">
                       VERIFIKASI RESMI
                     </span>
-                    <span className="text-[6px] sm:text-[7px] font-bold text-slate-500 font-mono leading-none mt-0.5">
+                    <span className="text-[6.5px] sm:text-[7px] font-bold text-slate-500 font-mono leading-none mt-0.5">
                       {activeCertificate.docNumber}
                     </span>
                   </div>
