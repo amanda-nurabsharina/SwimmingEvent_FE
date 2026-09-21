@@ -6,6 +6,7 @@ import {
   generateBukuAcara,
   lockTournamentBukuAcara,
   publishTournamentBukuAcara,
+  PUBLIC_LANDING_URL,
 } from "../lib/api-admin";
 import {
   Search,
@@ -481,7 +482,7 @@ export default function BukuAcaraViewer({
 
               {/* Public Page Direct Link */}
               <a
-                href="http://localhost:3000/buku-acara"
+                href={`${PUBLIC_LANDING_URL}/buku-acara`}
                 target="_blank"
                 rel="noreferrer"
                 className="p-2 bg-white hover:bg-slate-100 border border-slate-300 text-sky-700 rounded-xl transition-all shadow-sm"

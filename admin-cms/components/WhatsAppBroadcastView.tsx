@@ -419,9 +419,10 @@ export default function WhatsAppBroadcastView({
     const regCode = p?.registration_code ? p.registration_code : "{KODE_REGISTRASI}";
 
     const currentOrigin =
-      typeof window !== "undefined"
+      process.env.NEXT_PUBLIC_LANDING_URL ||
+      (typeof window !== "undefined"
         ? window.location.origin.replace(":3001", ":3000")
-        : "http://localhost:3000";
+        : "http://localhost:3000");
     const bukuAcaraLink = `${currentOrigin}/buku-acara`;
     const websiteLink = currentOrigin;
 

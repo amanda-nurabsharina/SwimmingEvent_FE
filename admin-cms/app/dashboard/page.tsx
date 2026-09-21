@@ -23,7 +23,7 @@ import WhatsAppBroadcastView from "../../components/WhatsAppBroadcastView";
 import CertificateManager from "../../components/CertificateManager";
 import RoleManager from "../../components/RoleManager";
 import UserManager from "../../components/UserManager";
-import { getRegistrations, getBanners, fetchAdminTournaments } from "../../lib/api-admin";
+import { getRegistrations, getBanners, fetchAdminTournaments, PUBLIC_LANDING_URL } from "../../lib/api-admin";
 import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings, History, MessageSquare, Send, Sparkles, Clock, Wallet, Filter } from "lucide-react";
 
 export default function DashboardPage() {
@@ -207,7 +207,7 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     const tid = activeTournament?.id || selectedTourneyId;
-                    window.open(`http://localhost:3000/live-scoreboard${tid ? `?tournament_id=${tid}` : ""}`, "_blank");
+                    window.open(`${PUBLIC_LANDING_URL}/live-scoreboard${tid ? `?tournament_id=${tid}` : ""}`, "_blank");
                   }}
                   className="px-5 py-2.5 bg-[#7a1c43] hover:bg-[#8e2250] active:scale-95 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md border border-rose-400/20 flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >

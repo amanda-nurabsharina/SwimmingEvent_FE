@@ -5,22 +5,32 @@ services:
     build:
       context: ./landing-web
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+        - NEXT_PUBLIC_API_KEY=${NEXT_PUBLIC_API_KEY:-secret-swimming-api-key-2026}
     container_name: swimming_landing_web
     restart: always
     ports:
-      - "3000:3000"
+      - "${PORT_LANDING:-3000}:3000"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1/public
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+      - NEXT_PUBLIC_API_KEY=${NEXT_PUBLIC_API_KEY:-secret-swimming-api-key-2026}
 
   admin-cms:
     build:
       context: ./admin-cms
       dockerfile: Dockerfile
+      args:
+        - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+        - NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL:-http://localhost:3000}
+        - NEXT_PUBLIC_WA_GATEWAY_URL=${NEXT_PUBLIC_WA_GATEWAY_URL:-http://localhost:5001/api/wa}
     container_name: swimming_admin_cms
     restart: always
     ports:
-      - "3001:3001"
+      - "${PORT_ADMIN:-3001}:3001"
     environment:
       - NODE_ENV=production
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
+      - NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_WA_GATEWAY_URL=${NEXT_PUBLIC_WA_GATEWAY_URL:-http://localhost:5001/api/wa}

@@ -8,6 +8,7 @@ import {
   lockTournamentBukuAcara,
   publishTournamentBukuAcara,
   generateFinalRound,
+  PUBLIC_LANDING_URL,
 } from "../lib/api-admin";
 import {
   Trophy,
@@ -677,7 +678,7 @@ export default function RaceResultEditor({
 
             {/* Public Page Direct Link */}
             <a
-              href={`http://localhost:3000/buku-acara?tournament_id=${selectedTournamentId}&tab=juara`}
+              href={`${PUBLIC_LANDING_URL}/buku-acara?tournament_id=${selectedTournamentId}&tab=juara`}
               target="_blank"
               rel="noreferrer"
               className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-sky-700 rounded-xl transition-all shadow-sm"

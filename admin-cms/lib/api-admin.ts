@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+export const PUBLIC_LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL || "http://localhost:3000";
 
 function getAuthHeaders(customToken?: string) {
   const token = customToken || (typeof window !== "undefined" ? localStorage.getItem("swimming_admin_token") : "");

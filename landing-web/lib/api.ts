@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const RAW_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api/v1";
+const API_BASE_URL = RAW_API_URL.replace(/\/public\/?$/, "");
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || "secret-swimming-api-key-2026";
 
 function getPublicHeaders() {
