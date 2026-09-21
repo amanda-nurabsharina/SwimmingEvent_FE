@@ -1371,58 +1371,34 @@ export default function CertificateManager({
                 </div>
               </div>
 
-              {/* SIGNATURES SECTION */}
+              {/* SIGNATURES SECTION (SINGLE SIGNATORY) */}
               <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
                 <label className="text-xs font-black text-slate-900 uppercase tracking-wider block">
                   PEJABAT PENANDATANGAN RESMI
                 </label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Signatory 1 */}
-                  <div className="space-y-2 p-3 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-black text-blue-700 uppercase">
-                      Penandatangan Kiri (Technical Delegate)
-                    </span>
+                <div className="p-3.5 bg-white rounded-xl border border-slate-200 space-y-2.5">
+                  <span className="text-[10px] font-black text-blue-700 uppercase tracking-wider block">
+                    Penandatangan Sertifikat (Executive Director / Technical Delegate)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500">Nama Lengkap</label>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Nama Lengkap</label>
                       <input
                         type="text"
                         value={config.signatory1Name}
                         onChange={(e) => saveConfig({ ...config, signatory1Name: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        placeholder="Contoh: FAJAR YOGANTARA"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500">Jabatan / Gelar</label>
+                      <label className="block text-[10px] font-bold text-slate-500 mb-1">Jabatan / Gelar</label>
                       <input
                         type="text"
                         value={config.signatory1Title}
                         onChange={(e) => saveConfig({ ...config, signatory1Title: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Signatory 2 */}
-                  <div className="space-y-2 p-3 bg-white rounded-xl border border-slate-200">
-                    <span className="text-[10px] font-black text-blue-700 uppercase">
-                      Penandatangan Kanan (Ketua Panitia)
-                    </span>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500">Nama Lengkap</label>
-                      <input
-                        type="text"
-                        value={config.signatory2Name}
-                        onChange={(e) => saveConfig({ ...config, signatory2Name: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[10px] font-bold text-slate-500">Jabatan / Gelar</label>
-                      <input
-                        type="text"
-                        value={config.signatory2Title}
-                        onChange={(e) => saveConfig({ ...config, signatory2Title: e.target.value })}
-                        className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+                        placeholder="Contoh: EXECUTIVE DIRECTOR"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-1 focus:ring-blue-500 focus:outline-none"
                       />
                     </div>
                   </div>
