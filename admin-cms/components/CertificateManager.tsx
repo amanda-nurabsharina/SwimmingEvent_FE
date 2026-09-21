@@ -1470,10 +1470,12 @@ export default function CertificateManager({
             position: absolute !important;
             left: 0 !important;
             top: 0 !important;
-            width: 210mm !important;
-            height: 296.5mm !important;
-            max-width: 210mm !important;
-            max-height: 296.5mm !important;
+            width: 590px !important;
+            height: 834.4px !important;
+            max-width: 590px !important;
+            max-height: 834.4px !important;
+            min-width: 590px !important;
+            min-height: 834.4px !important;
             margin: 0 !important;
             padding: 0 !important;
             box-sizing: border-box !important;
@@ -1481,6 +1483,9 @@ export default function CertificateManager({
             border-radius: 0 !important;
             box-shadow: none !important;
             overflow: hidden !important;
+            transform-origin: 0 0 !important;
+            transform: scale(1.342) !important;
+            -webkit-transform: scale(1.342) !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
             page-break-before: avoid !important;
