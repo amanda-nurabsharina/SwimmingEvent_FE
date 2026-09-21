@@ -151,13 +151,19 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   };
 
   const handleDeleteTournament = async (id: number, name: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus turnamen "${name}"?`)) return;
+    if (
+      !confirm(
+        `PERINGATAN HAPUS TURNAMEN:\nApakah Anda yakin ingin menghapus turnamen "${name}"?\n\nCATATAN KEAMANAN: Turnamen hanya dapat dihapus jika sudah tidak ada peserta yang terdaftar di dalamnya.`
+      )
+    )
+      return;
     const res = await deleteAdminTournament(id);
     if (res.success) {
+      alert(`Turnamen "${name}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus turnamen: " + res.message);
+      alert("Gagal Menghapus Turnamen:\n" + (res.message || "Terjadi kesalahan server"));
     }
   };
 
@@ -179,14 +185,14 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   };
 
   const openEditSubEventModal = (evt: any) => {
-    setSubTourneyId(evt.tournament_id || 1);
     setEditingSubEvent(evt);
-    setSubEventCode(evt.event_code || 101);
-    setSubEventName(evt.event_name || "");
-    setSubDistance(evt.distance || "50 METER");
-    setSubStroke(evt.stroke || "FREESTYLE");
-    setSubGender(evt.gender || "PUTRA");
-    setSubAgeGroup(evt.age_group || "KU 2");
+    setSubTourneyId(evt.tournament_id);
+    setSubEventCode(evt.event_code);
+    setSubEventName(evt.event_name);
+    setSubDistance(evt.distance);
+    setSubStroke(evt.stroke);
+    setSubGender(evt.gender);
+    setSubAgeGroup(evt.age_group);
     setSubFee(evt.fee || 150000);
     setSubScheduleTime(evt.schedule_time || "08:00 WIB");
     setIsSubEventModalOpen(true);
@@ -226,13 +232,19 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   };
 
   const handleDeleteSubEvent = async (id: number, name: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus nomor lomba "${name}"?`)) return;
+    if (
+      !confirm(
+        `PERINGATAN HAPUS NOMOR LOMBA:\nApakah Anda yakin ingin menghapus nomor lomba "${name}"?\n\nCATATAN KEAMANAN: Nomor lomba tidak dapat dihapus jika masih ada peserta yang terdaftar.`
+      )
+    )
+      return;
     const res = await deleteAdminEvent(id);
     if (res.success) {
+      alert(`Nomor lomba "${name}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus nomor lomba: " + res.message);
+      alert("Gagal Menghapus Nomor Lomba:\n" + (res.message || "Terjadi kesalahan server"));
     }
   };
 
