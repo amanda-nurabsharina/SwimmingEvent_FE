@@ -161,7 +161,7 @@ export default function HomePage() {
             </>
           )}
       </main>
-      <Footer siteConfig={siteConfig} programs={programs} />
+      <Footer siteConfig={siteConfig} programs={programs} tournaments={tournaments} />
 
       {/* Interactive 4-Step Popup Registration Modal */}
       <RegistrationModal

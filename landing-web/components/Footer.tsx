@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { Waves, Phone, Mail, MapPin } from "lucide-react";
+import { Waves, Phone, Mail, MapPin, Trophy } from "lucide-react";
 
 interface FooterProps {
   siteConfig?: any;
   programs?: any[];
+  tournaments?: any[];
 }
 
-export default function Footer({ siteConfig, programs }: FooterProps) {
+export default function Footer({ siteConfig, programs, tournaments }: FooterProps) {
   const appName = siteConfig?.app_name || "AKUATIK TANGERANG";
   const logoUrl = siteConfig?.logo_url || "";
   const footerDesc =
@@ -36,6 +37,15 @@ export default function Footer({ siteConfig, programs }: FooterProps) {
           { title: "Prestasi & Squad Atlet (Club)" },
           { title: "Private & Adult Master Swim" },
         ];
+
+  // Default tournaments fallback list
+  const defaultTournaments = [
+    { id: 1, name: "TIME TRIAL 2026 MASC KOTA TANGERANG", is_active: true },
+    { id: 2, name: "TURNAMEN RENANG HUT RI 17 2027", is_active: false },
+    { id: 3, name: "KEJUARAAN RENANG PELAJAR TERBUKA 2025", is_active: false },
+  ];
+  const tournamentList =
+    tournaments && tournaments.length > 0 ? tournaments.slice(0, 5) : defaultTournaments;
 
   return (
     <footer className="bg-[#091433] text-slate-300 text-xs py-14 border-t border-blue-950/80">
@@ -127,35 +137,40 @@ export default function Footer({ siteConfig, programs }: FooterProps) {
           </ul>
         </div>
 
-        {/* COLUMN 3: SISTEM KEJUARAAN */}
+        {/* COLUMN 3: TURNAMEN */}
         <div className="space-y-3">
-          <h4 className="text-xs font-black uppercase tracking-wider text-white">
-            SISTEM KEJUARAAN
+          <h4 className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+            <Trophy className="w-3.5 h-3.5 text-amber-400" />
+            TURNAMEN
           </h4>
           <ul className="space-y-2.5 font-semibold text-slate-400">
+            {tournamentList.map((t: any, idx: number) => (
+              <li key={t.id || idx}>
+                <Link
+                  href={`/buku-acara?tournament_id=${t.id}`}
+                  className="hover:text-sky-400 transition-colors flex items-center gap-2 group"
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      t.is_active ? "bg-emerald-400 ring-2 ring-emerald-400/30" : "bg-cyan-500/50"
+                    } shrink-0`}
+                  />
+                  <span className="truncate group-hover:underline">{t.name}</span>
+                  {t.is_active && (
+                    <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 shrink-0">
+                      Aktif
+                    </span>
+                  )}
+                </Link>
+              </li>
+            ))}
             <li>
-              <a href="/#register" className="hover:text-sky-400 transition-colors flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/50" />
-                Pendaftaran Atlet & Event Lomba
-              </a>
-            </li>
-            <li>
-              <a href="/buku-acara" className="hover:text-sky-400 transition-colors flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/50" />
-                Dashboard Bagan Kolam (Heat Sheet)
-              </a>
-            </li>
-            <li>
-              <a href="/starting-list" className="hover:text-sky-400 transition-colors flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/50" />
-                Live Scoreboard Hasil Venue
-              </a>
-            </li>
-            <li>
-              <a href="/#status-check" className="hover:text-sky-400 transition-colors flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-cyan-500/50" />
-                Unduh E-Sertifikat Resmi
-              </a>
+              <Link
+                href="/buku-acara"
+                className="text-[11px] text-sky-400/90 hover:text-sky-300 font-bold flex items-center gap-1 pt-1"
+              >
+                <span>Lihat Semua Turnamen &rarr;</span>
+              </Link>
             </li>
           </ul>
         </div>
