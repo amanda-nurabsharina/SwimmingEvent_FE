@@ -37,6 +37,50 @@ function formatEventTitle(name: string) {
     .replace(/GAYAKUPU/gi, "GAYA KUPU-KUPU");
 }
 
+function formatEventRaceLine(item: CertificateItem): string {
+  let stroke = item.stroke || "";
+  if (!stroke && item.eventName) {
+    stroke = item.eventName;
+  }
+  stroke = stroke
+    .replace(/GAYA DADA/gi, "Breaststroke")
+    .replace(/GAYADADA/gi, "Breaststroke")
+    .replace(/GAYA BEBAS/gi, "Freestyle")
+    .replace(/GAYABEBAS/gi, "Freestyle")
+    .replace(/GAYA PUNGGUNG/gi, "Backstroke")
+    .replace(/GAYAPUNGGUNG/gi, "Backstroke")
+    .replace(/GAYA KUPU-KUPU/gi, "Butterfly")
+    .replace(/GAYAKUPU/gi, "Butterfly")
+    .replace(/INDIVIDUAL MEDLEY/gi, "Individual Medley")
+    .replace(/INDIVIDUALMEDLEY/gi, "Individual Medley");
+
+  let dist = item.distance || "";
+  if (dist.toLowerCase().endsWith("m") && !dist.includes(" ")) {
+    dist = dist.slice(0, -1).trim() + " M";
+  }
+
+  const parts = [];
+  if (dist) parts.push(dist);
+  if (stroke) parts.push(stroke);
+  if (item.gender) parts.push(item.gender.toUpperCase());
+
+  let main = parts.join(" ");
+  if (item.ageGroup) {
+    main += ` – ${item.ageGroup.toUpperCase()}`;
+  }
+  return main || item.eventName || "50 M Breaststroke PUTRA – KU 2";
+}
+
+function getScreenshotDocNumber(item: CertificateItem): string {
+  if (item.docNumber && item.docNumber.startsWith("NO.")) {
+    return item.docNumber;
+  }
+  const regNum = item.registrationId || item.rank || 25;
+  const numPadded = String(regNum).padStart(2, "0");
+  const yearShort = new Date().getFullYear().toString().slice(-2);
+  return `NO. ${numPadded} / MASC / FSW / XII / ${yearShort}`;
+}
+
 export interface CertificateItem {
   id: string | number;
   registrationId?: number;
@@ -89,7 +133,7 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   text: "MASC SWIM ACADEMY & TOURNAMENT",
   logoUrl: "/logo-swimming.png",
   opacity: 0.12,
-  orgName: "MASC SWIM ACADEMY & TOURNAMENT",
+  orgName: "MODERN AQUATIC SWIMMING CLUB",
   subOrgName: "AKUATIK INDONESIA KOTA TANGERANG",
   signatory1Name: "FAJAR YOGANTARA",
   signatory1Title: "EXECUTIVE DIRECTOR",
@@ -99,7 +143,7 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   bodyPreText: "FOR PARTICIPATING IN THE",
   bodyCompetitionName: "FUN SWIMMING COMPETITION ORGANIZED BY",
   bodyOrganizerName: "MODERN AQUATIC SWIMMING CLUB ( MASC )",
-  bodyDateText: "IN OCTOBER 17TH, 2026",
+  bodyDateText: "IN DECEMBER 13TH, 2025",
   bodyVenueText: "MODERN GOLF AND COUNTRY CLUB",
   bodyLocationText: "KOTA MODERN, KOTA TANGERANG",
   useCustomBodyText: false,
@@ -400,6 +444,64 @@ export default function CertificateManager({
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
+  // Theme Color Presets for Blue (Winner), Gold (Best Swimmer), and Red (Participant)
+  const THEME_CONFIG = {
+    winner: {
+      key: "winner",
+      outerBorder: "#142236",
+      bannerBg: "#142236",
+      bannerGradient: "linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
+      bannerText: "#facc15",
+      bannerSubText: "#fef08a",
+      bannerLogoGrad: ["#fef08a", "#facc15", "#ca8a04"],
+      ribbonBg: "#142236",
+      ribbonGradient: "linear-gradient(180deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)",
+      stripeColor: "#142236",
+      stripeGold: "#eab308",
+      titleColor: "#142236",
+      categoryColor: "#1e3a8a",
+      wavePrimary: "#142236",
+      waveGold: "#d4af37",
+      titleCategory: "OF CHAMPION",
+    },
+    best_swimmer: {
+      key: "best_swimmer",
+      outerBorder: "#ca8a04", // Bright Championship Gold Border (No brown)
+      bannerBg: "#eab308",
+      bannerGradient: "linear-gradient(90deg, #ca8a04 0%, #eab308 25%, #fef08a 50%, #eab308 75%, #ca8a04 100%)",
+      bannerText: "#0f172a", // Dark charcoal high-contrast text on metallic gold banner
+      bannerSubText: "#1e293b",
+      bannerLogoGrad: ["#0f172a", "#1e293b", "#0f172a"],
+      ribbonBg: "#eab308",
+      ribbonGradient: "linear-gradient(180deg, #ca8a04 0%, #facc15 25%, #fef08a 50%, #eab308 75%, #b8860b 100%)",
+      stripeColor: "#ca8a04", // Bright Metallic Gold stripes (NOT BROWN)
+      stripeGold: "#fef9c3", // Shimmering light pale gold highlight
+      titleColor: "#0f172a", // Deep Charcoal for CERTIFICATE title (Left-aligned & ultra sharp)
+      categoryColor: "#b45309", // Warm Golden Amber for category subtitle
+      wavePrimary: "#eab308", // Vivid Yellow Gold wave
+      waveGold: "#facc15", // Brilliant Light Gold contour
+      titleCategory: "OF BEST SWIMMER",
+    },
+    participant: {
+      key: "participant",
+      outerBorder: "#881337",
+      bannerBg: "#881337",
+      bannerGradient: "linear-gradient(90deg, #700c28 0%, #9f1239 50%, #700c28 100%)",
+      bannerText: "#fef08a",
+      bannerSubText: "#facc15",
+      bannerLogoGrad: ["#fef08a", "#facc15", "#ca8a04"],
+      ribbonBg: "#881337",
+      ribbonGradient: "linear-gradient(180deg, #700c28 0%, #9f1239 40%, #700c28 100%)",
+      stripeColor: "#4c0519",
+      stripeGold: "#facc15",
+      titleColor: "#881337",
+      categoryColor: "#be123c",
+      wavePrimary: "#881337",
+      waveGold: "#f43f5e",
+      titleCategory: "OF PARTICIPANT",
+    },
+  };
+
   // Compute active template type (winner, best_swimmer, or participant)
   const activeTemplateType = useMemo(() => {
     if (selectedTemplateMode) {
@@ -408,11 +510,8 @@ export default function CertificateManager({
     return activeCertificate?.isChampion ? "winner" : "participant";
   }, [selectedTemplateMode, activeCertificate]);
 
-  const certCategoryTitle = useMemo(() => {
-    if (activeTemplateType === "best_swimmer") return "OF BEST SWIMMER";
-    if (activeTemplateType === "winner") return "OF WINNER";
-    return "OF PARTICIPANT";
-  }, [activeTemplateType]);
+  const currentTheme = THEME_CONFIG[activeTemplateType] || THEME_CONFIG.winner;
+  const certCategoryTitle = currentTheme.titleCategory;
 
   // Generate dynamic QR Code for landing page verification
   useEffect(() => {
@@ -692,7 +791,7 @@ export default function CertificateManager({
                     onClick={() => setSelectedTemplateMode("winner")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "winner"
-                        ? "bg-[#164e87] text-white shadow-sm ring-2 ring-[#164e87]/40 font-extrabold"
+                        ? "bg-[#142236] text-white shadow-sm ring-2 ring-[#142236]/40 font-extrabold"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
@@ -705,7 +804,7 @@ export default function CertificateManager({
                     onClick={() => setSelectedTemplateMode("best_swimmer")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "best_swimmer"
-                        ? "bg-amber-400 text-amber-950 font-black shadow-sm ring-2 ring-amber-400/50"
+                        ? "bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-amber-950 font-black shadow-md ring-2 ring-yellow-400/80"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
@@ -718,7 +817,7 @@ export default function CertificateManager({
                     onClick={() => setSelectedTemplateMode("participant")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "participant"
-                        ? "bg-red-600 text-white font-black shadow-sm ring-2 ring-red-600/40"
+                        ? "bg-[#881337] text-white font-black shadow-sm ring-2 ring-rose-600/40"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
@@ -733,262 +832,332 @@ export default function CertificateManager({
                 <div
                   ref={printAreaRef}
                   id="certificate-print-area"
-                  className="relative w-full max-w-[590px] aspect-[210/297] bg-white text-slate-900 rounded-3xl shadow-2xl overflow-hidden border-[12px] border-[#1e293b] select-none print:border-[12px] print:border-[#1e293b] print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
+                  className="relative w-full max-w-[590px] aspect-[210/297] bg-[#f8f9fa] text-slate-900 shadow-2xl overflow-hidden select-none print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
                   style={{
+                    borderWidth: "14px",
+                    borderStyle: "solid",
+                    borderColor: currentTheme.outerBorder,
                     boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                    background: "linear-gradient(145deg, #f8fafc 0%, #edf2f7 50%, #e2e8f0 100%)",
                   }}
                 >
-                  {/* 1. INNER METALLIC GOLD PINSTRIPE BORDER */}
-                  <div className="absolute inset-2 sm:inset-2.5 border-[1.5px] border-[#d4af37] rounded-2xl pointer-events-none z-30" />
+                  {/* 1. INNER MARGIN BORDER LINE */}
+                  <div className="absolute inset-2 border-[1.5px] border-[#cbd5e1] pointer-events-none z-30" />
 
-                  {/* 2. BACKGROUND SOFT DIAGONAL RAYS */}
-                  <svg className="absolute inset-0 w-full h-full pointer-events-none opacity-40 z-0">
+                  {/* 2. LAYERED BACKGROUND CURVED WAVES (DYNAMICALLY ADAPT TO THEME COLORS) */}
+                  <svg
+                    className="absolute inset-0 w-full h-full pointer-events-none z-0"
+                    viewBox="0 0 590 834"
+                    fill="none"
+                    preserveAspectRatio="none"
+                  >
                     <defs>
-                      <linearGradient id="ray1" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.9" />
+                      <linearGradient id="themeWaveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={currentTheme.waveGold} stopOpacity="0.65" />
+                        <stop offset="40%" stopColor="#fef08a" stopOpacity="0.5" />
+                        <stop offset="80%" stopColor={currentTheme.waveGold} stopOpacity="0.2" />
                         <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
                       </linearGradient>
+                      <linearGradient id="themeNavyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={currentTheme.wavePrimary} stopOpacity="0.9" />
+                        <stop offset="60%" stopColor={currentTheme.wavePrimary} stopOpacity="0.5" />
+                        <stop offset="100%" stopColor="#334155" stopOpacity="0.1" />
+                      </linearGradient>
+                      <linearGradient id="softBaseWave" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
+                        <stop offset="50%" stopColor="#f1f5f9" stopOpacity="0.85" />
+                        <stop offset="100%" stopColor="#e2e8f0" stopOpacity="0.4" />
+                      </linearGradient>
                     </defs>
-                    <polygon points="120,0 260,0 60,1024 0,1024" fill="url(#ray1)" />
-                    <polygon points="300,0 520,0 220,1024 100,1024" fill="url(#ray1)" opacity="0.6" />
-                  </svg>
 
-                  {/* 3. LEFT EDGE GOLD GEOMETRIC FACETS */}
-                  <svg className="absolute left-0 top-0 bottom-0 w-24 sm:w-32 h-full pointer-events-none z-0">
-                    <defs>
-                      <linearGradient id="goldFacet1" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#d97706" stopOpacity="0.85" />
-                        <stop offset="45%" stopColor="#fde047" stopOpacity="0.95" />
-                        <stop offset="100%" stopColor="#78350f" stopOpacity="0.3" />
-                      </linearGradient>
-                      <linearGradient id="goldFacet2" x1="100%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#fbbf24" stopOpacity="0.75" />
-                        <stop offset="100%" stopColor="#451a03" stopOpacity="0.25" />
-                      </linearGradient>
-                    </defs>
-                    <polygon points="0,0 42,0 0,390" fill="url(#goldFacet1)" />
-                    <polygon points="0,190 70,370 0,660" fill="url(#goldFacet2)" />
-                    <polygon points="0,490 38,640 0,820" fill="url(#goldFacet1)" opacity="0.6" />
-                  </svg>
-
-                  {/* 4. BOTTOM AQUATIC WAVES */}
-                  <svg
-                    viewBox="0 0 723 210"
-                    preserveAspectRatio="none"
-                    className="absolute bottom-0 left-0 right-0 w-full h-32 sm:h-44 pointer-events-none z-10"
-                  >
-                    <defs>
-                      <linearGradient id="waveLight" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#cbd5e1" stopOpacity="0.85" />
-                        <stop offset="100%" stopColor="#94a3b8" stopOpacity="0.95" />
-                      </linearGradient>
-                      <linearGradient id="waveMid" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#475569" />
-                        <stop offset="100%" stopColor="#334155" />
-                      </linearGradient>
-                      <linearGradient id="waveDeep" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#1e3e6b" />
-                        <stop offset="100%" stopColor="#14365d" />
-                      </linearGradient>
-                    </defs>
+                    {/* Soft ambient wave base */}
                     <path
-                      d="M0,60 C140,20 280,90 420,50 C540,15 630,70 723,40 L723,210 L0,210 Z"
-                      fill="url(#waveLight)"
+                      d="M0,280 C120,240 240,320 340,460 C420,580 440,700 380,834 L0,834 Z"
+                      fill="url(#softBaseWave)"
+                    />
+
+                    {/* Deep Ribbon Curves on Left Edge & Bottom Left */}
+                    <path
+                      d="M0,430 C45,390 75,430 95,510 C120,610 90,720 0,810 Z"
+                      fill="url(#themeNavyGrad)"
                     />
                     <path
-                      d="M0,75 C150,35 290,105 430,65 C550,30 640,85 723,55"
-                      fill="none"
-                      stroke="#ffffff"
-                      strokeWidth="2.5"
-                      strokeOpacity="0.6"
+                      d="M0,610 C60,570 120,620 140,700 C155,765 130,810 60,834 L0,834 Z"
+                      fill={currentTheme.wavePrimary}
+                      opacity="0.85"
+                    />
+
+                    {/* Flowing Champagne & Gold Waves */}
+                    <path
+                      d="M0,320 C85,290 165,360 235,480 C305,600 335,720 270,834 L210,834 C260,735 240,625 180,515 C130,425 70,385 0,390 Z"
+                      fill="url(#themeWaveGrad)"
                     />
                     <path
-                      d="M0,95 C130,55 270,125 410,85 C530,50 620,105 723,75"
-                      fill="none"
-                      stroke="#ffffff"
+                      d="M0,170 C55,200 105,270 155,390 C215,530 275,650 385,730 C435,765 465,790 480,834 L450,834 C425,795 395,770 350,740 C250,660 190,540 135,410 C90,300 50,235 0,215 Z"
+                      fill="url(#themeWaveGrad)"
+                      opacity="0.6"
+                    />
+                    <path
+                      d="M0,510 C95,460 185,520 265,640 C325,730 375,790 420,834 L380,834 C335,790 290,735 235,655 C170,555 100,510 0,545 Z"
+                      fill="url(#themeWaveGrad)"
+                      opacity="0.7"
+                    />
+
+                    {/* Subtle Contour Wave Strokes */}
+                    <path
+                      d="M0,335 C85,305 165,375 235,495 C305,615 335,735 270,834"
+                      stroke={currentTheme.waveGold}
                       strokeWidth="1.5"
                       strokeOpacity="0.4"
+                      fill="none"
                     />
                     <path
-                      d="M0,105 C160,70 300,135 450,95 C570,60 650,110 723,90 L723,210 L0,210 Z"
-                      fill="url(#waveMid)"
-                    />
-                    <path
-                      d="M0,140 C180,110 320,165 480,130 C600,100 660,135 723,125 L723,210 L0,210 Z"
-                      fill="url(#waveDeep)"
+                      d="M0,185 C55,215 105,285 155,405 C215,545 275,665 385,745"
+                      stroke={currentTheme.waveGold}
+                      strokeWidth="1"
+                      strokeOpacity="0.3"
+                      fill="none"
                     />
                   </svg>
 
-                  {/* 5. RIGHT VERTICAL RIBBON & 3D GOLD MEDALLION SEAL */}
-                  <div
-                    className={`absolute top-0 bottom-0 right-[6%] sm:right-[7%] w-14 sm:w-18 z-20 flex flex-col items-center shadow-lg pointer-events-none ${
-                      activeTemplateType === "best_swimmer"
-                        ? "bg-gradient-to-b from-[#d97706] via-[#fef08a] to-[#b45309] border-x-2 border-[#b45309]"
-                        : activeTemplateType === "winner"
-                        ? "bg-[#164e87] border-x-2 border-[#d4af37]"
-                        : "bg-[#991b1b] border-x-2 border-[#d4af37]"
-                    }`}
-                  >
-                    {/* Inner gold pinstripes */}
-                    <div className="absolute inset-y-0 left-1 w-[1.5px] bg-[#fde047]/60" />
-                    <div className="absolute inset-y-0 right-1 w-[1.5px] bg-[#fde047]/60" />
-
-                    {/* 3D Gold Medallion Medal Badge */}
-                    <div className="absolute top-[13%] w-20 h-20 sm:w-24 sm:h-24 -translate-x-[2px] pointer-events-none">
-                      <svg viewBox="0 0 100 100" className="w-full h-full drop-shadow-lg">
-                        <defs>
-                          {/* Rich Champagne Gold Radial Gradient (No Brown) */}
-                          <radialGradient id="goldMedalGrad" cx="38%" cy="32%" r="68%">
-                            <stop offset="0%" stopColor="#fffdf0" />
-                            <stop offset="25%" stopColor="#fef08a" />
-                            <stop offset="55%" stopColor="#f5c94c" />
-                            <stop offset="85%" stopColor="#d8a11e" />
-                            <stop offset="100%" stopColor="#be8513" />
-                          </radialGradient>
-
-                          {/* Metallic Satin Gold Rim Gradient */}
-                          <linearGradient id="goldRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor="#fffbeb" />
-                            <stop offset="20%" stopColor="#fde047" />
-                            <stop offset="50%" stopColor="#eab308" />
-                            <stop offset="80%" stopColor="#ca8a04" />
-                            <stop offset="100%" stopColor="#fff9c4" />
-                          </linearGradient>
-                        </defs>
-
-                        {/* 16-Scallop Rosette Outer Medallion Border */}
-                        <path
-                          d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
-                          fill="url(#goldRimGrad)"
-                          stroke="#ca8a04"
-                          strokeWidth="0.75"
+                  {/* 3. OPTIONAL WATERMARK LAYER */}
+                  {config.enabled && (
+                    <div
+                      className="absolute inset-0 z-5 flex items-center justify-center pointer-events-none"
+                      style={{ opacity: config.opacity || 0.12 }}
+                    >
+                      {(config.type === "both" || config.type === "logo") && config.logoUrl && (
+                        <img
+                          src={config.logoUrl}
+                          alt="Watermark"
+                          className="w-48 h-48 object-contain"
                         />
+                      )}
+                      {(config.type === "both" || config.type === "text") && config.text && (
+                        <div className="absolute text-2xl sm:text-3xl font-black uppercase text-slate-400 -rotate-45 tracking-widest select-none">
+                          {config.text}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
-                        {/* Inner Scallop Shadow Ring */}
-                        <circle cx="50" cy="50" r="42.5" fill="url(#goldRimGrad)" stroke="#c28e18" strokeWidth="0.6" />
+                  {/* 4. RIGHT VERTICAL RIBBON */}
+                  <div
+                    className="absolute top-2 bottom-2 right-2 w-[23%] z-20 overflow-hidden flex flex-col border-l border-black/20 shadow-md pointer-events-none"
+                    style={{ background: currentTheme.ribbonGradient || currentTheme.ribbonBg }}
+                  >
+                    {/* Lower Section: Diagonal Gold Stripes (Angled Top-Right to Bottom-Left) */}
+                    <div
+                      className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none"
+                      style={{
+                        background: `repeating-linear-gradient(-45deg, ${currentTheme.stripeGold} 0px, ${currentTheme.stripeGold} 12px, ${currentTheme.stripeColor} 12px, ${currentTheme.stripeColor} 24px)`,
+                        boxShadow: "inset 0 4px 14px rgba(0,0,0,0.25)",
+                      }}
+                    />
+                  </div>
 
-                        {/* Polished Inner Ring Ridge */}
-                        <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fff9c4" strokeWidth="1.2" strokeOpacity="0.9" />
-                        <circle cx="50" cy="50" r="38" fill="none" stroke="#b8860b" strokeWidth="0.6" strokeOpacity="0.7" />
+                  {/* 5. 3D GOLD MEDALLION ROSETTE SEAL (CENTERED PRECISELY OVER SEAM LINE) */}
+                  <div className="absolute top-[18%] right-[14%] sm:right-[14.5%] w-22 h-22 sm:w-26 sm:h-26 z-25 pointer-events-none drop-shadow-[0_10px_22px_rgba(0,0,0,0.45)]">
+                    <svg viewBox="0 0 100 100" className="w-full h-full">
+                      <defs>
+                        <radialGradient id="medallionSunburst" cx="38%" cy="32%" r="68%">
+                          <stop offset="0%" stopColor="#fffdf0" />
+                          <stop offset="25%" stopColor="#fef08a" />
+                          <stop offset="55%" stopColor="#f5c94c" />
+                          <stop offset="85%" stopColor="#d8a11e" />
+                          <stop offset="100%" stopColor="#be8513" />
+                        </radialGradient>
+                        <linearGradient id="medallionRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor="#fffbeb" />
+                          <stop offset="20%" stopColor="#fde047" />
+                          <stop offset="50%" stopColor="#eab308" />
+                          <stop offset="80%" stopColor="#ca8a04" />
+                          <stop offset="100%" stopColor="#fff9c4" />
+                        </linearGradient>
+                      </defs>
 
-                        {/* Center Gold Medallion Sunburst / Satin Face */}
-                        <circle cx="50" cy="50" r="36.5" fill="url(#goldMedalGrad)" stroke="#eab308" strokeWidth="0.8" />
-                        <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf0" strokeWidth="0.75" strokeOpacity="0.6" />
+                      {/* 16-Scallop Rosette Fluted Outer Medallion Border */}
+                      <path
+                        d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
+                        fill="url(#medallionRimGrad)"
+                        stroke="#ca8a04"
+                        strokeWidth="0.8"
+                      />
 
-                        {/* MASC Geometric Emblem in Pure Golden Relief */}
-                        <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
-                          {/* Top roof chevron */}
-                          <path
-                            d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
-                            fill="url(#goldRimGrad)"
-                            stroke="#ca8a04"
-                            strokeWidth="1.2"
-                            strokeLinejoin="round"
-                          />
-                          {/* Center geometric S waves */}
-                          <path
-                            d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
-                            fill="url(#goldRimGrad)"
-                            stroke="#ca8a04"
-                            strokeWidth="1.2"
-                            strokeLinejoin="round"
-                          />
-                          <path
-                            d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
-                            fill="url(#goldRimGrad)"
-                            stroke="#ca8a04"
-                            strokeWidth="1.2"
-                            strokeLinejoin="round"
-                          />
-                          {/* Bottom interlocking diamond point */}
-                          <path
-                            d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
-                            fill="url(#goldRimGrad)"
-                            stroke="#ca8a04"
-                            strokeWidth="1.2"
-                            strokeLinejoin="round"
-                          />
-                        </g>
-                      </svg>
+                      {/* Inner Scallop Shadow Ring */}
+                      <circle cx="50" cy="50" r="42.5" fill="url(#medallionRimGrad)" stroke="#c28e18" strokeWidth="0.6" />
+
+                      {/* Polished Inner Ring Ridge */}
+                      <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fff9c4" strokeWidth="1.2" strokeOpacity="0.9" />
+                      <circle cx="50" cy="50" r="38" fill="none" stroke="#b8860b" strokeWidth="0.6" strokeOpacity="0.7" />
+
+                      {/* Center Gold Face */}
+                      <circle cx="50" cy="50" r="36.5" fill="url(#medallionSunburst)" stroke="#eab308" strokeWidth="0.8" />
+                      <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf0" strokeWidth="0.75" strokeOpacity="0.6" />
+
+                      {/* MASC Geometric Emblem in Pure Golden Relief */}
+                      <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
+                        <path
+                          d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
+                          fill="url(#medallionRimGrad)"
+                          stroke="#ca8a04"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
+                          fill="url(#medallionRimGrad)"
+                          stroke="#ca8a04"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
+                          fill="url(#medallionRimGrad)"
+                          stroke="#ca8a04"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                        />
+                        <path
+                          d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
+                          fill="url(#medallionRimGrad)"
+                          stroke="#ca8a04"
+                          strokeWidth="1.2"
+                          strokeLinejoin="round"
+                        />
+                      </g>
+                    </svg>
+                  </div>
+
+                  {/* 6. TOP CERTIFICATE NUMBER & HORIZONTAL RULES */}
+                  <div className="relative z-10 pt-3.5 px-6 mr-[23%]">
+                    <div className="border-t border-b border-slate-300 py-1 flex items-center justify-center">
+                      <span className="text-[10px] sm:text-[11px] font-mono font-bold tracking-widest text-slate-700">
+                        - {getScreenshotDocNumber(activeCertificate)} -
+                      </span>
                     </div>
                   </div>
 
-                  {/* 6. BOTTOM-LEFT MASC CLUB PILL BADGE */}
-                  <div className="absolute left-6 sm:left-9 bottom-3.5 sm:bottom-5 z-20 flex items-center gap-2.5 px-3.5 py-1.5 rounded-xl bg-[#143963] border border-amber-400/40 shadow-lg">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 p-1 flex items-center justify-center text-slate-950 font-black text-xs">
-                      <span>M</span>
+                  {/* 7. TOP BANNER (FULL WIDTH TO RIBBON, DYNAMIC THEME COLOR) */}
+                  <div
+                    className="relative z-10 mt-1.5 ml-2 mr-[23%] px-4 py-2 flex items-center gap-3 shadow-sm"
+                    style={{ background: currentTheme.bannerGradient || currentTheme.bannerBg }}
+                  >
+                    {/* Dynamic MASC Emblem */}
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
+                      <svg viewBox="0 0 100 100" className="w-full h-full">
+                        <defs>
+                          <linearGradient id="topBannerLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" stopColor={currentTheme.bannerLogoGrad[0]} />
+                            <stop offset="50%" stopColor={currentTheme.bannerLogoGrad[1]} />
+                            <stop offset="100%" stopColor={currentTheme.bannerLogoGrad[2]} />
+                          </linearGradient>
+                        </defs>
+                        <path
+                          d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
+                          fill="url(#topBannerLogoGrad)"
+                        />
+                        <path
+                          d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
+                          fill="url(#topBannerLogoGrad)"
+                        />
+                        <path
+                          d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
+                          fill="url(#topBannerLogoGrad)"
+                        />
+                        <path
+                          d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
+                          fill="url(#topBannerLogoGrad)"
+                        />
+                      </svg>
                     </div>
-                    <div className="text-left leading-none">
-                      <div className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider text-amber-400">
+                    <div className="text-left leading-tight">
+                      <div
+                        className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider"
+                        style={{ color: currentTheme.bannerText }}
+                      >
                         MODERN AQUATIC
                       </div>
-                      <div className="text-[8px] sm:text-[9px] font-bold uppercase tracking-wider text-slate-300 mt-0.5">
+                      <div
+                        className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider"
+                        style={{ color: currentTheme.bannerSubText }}
+                      >
                         SWIMMING CLUB
                       </div>
                     </div>
                   </div>
 
-                  {/* 7. CERTIFICATE FOREGROUND CONTENT (ALL 100% NATIVE TYPOGRAPHY) */}
-                  <div className="relative z-20 pt-8 sm:pt-10 pl-7 sm:pl-10 pr-20 sm:pr-24 flex flex-col items-start text-left">
-                    {/* TOP HEADER */}
-                    <div className="space-y-0.5 sm:space-y-1">
-                      <h1 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-[0.12em] text-[#193d6e] uppercase font-sans leading-none">
-                        CERTIFICATE
-                      </h1>
-                      <div className="text-xl sm:text-2xl md:text-[28px] font-black tracking-[0.16em] uppercase bg-gradient-to-r from-amber-600 via-amber-400 to-amber-600 bg-clip-text text-transparent leading-tight">
-                        {certCategoryTitle}
+                  {/* 8. MAIN CERTIFICATE CONTENT (ALL 100% LEFT-ALIGNED / RATA KIRI) */}
+                  <div className="relative z-10 pt-4 sm:pt-5 pl-7 sm:pl-9 pr-[25%] flex flex-col items-start text-left">
+                    {/* TITLE ROW: CONDENSED DISPLAY CERTIFICATE + CATEGORY & LARGE 3D GOLD RANK NUMERAL */}
+                    <div className="w-full flex items-start justify-between gap-2">
+                      <div className="flex flex-col items-start text-left">
+                        <h1
+                          className="text-3xl sm:text-4xl md:text-[44px] font-bold uppercase leading-none"
+                          style={{
+                            fontFamily: "'Oswald', 'Bebas Neue', 'Arial Narrow', sans-serif",
+                            letterSpacing: "0.04em",
+                            color: currentTheme.titleColor,
+                          }}
+                        >
+                          CERTIFICATE
+                        </h1>
+                        <div
+                          className="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase mt-1 leading-none"
+                          style={{ color: currentTheme.categoryColor || currentTheme.titleColor }}
+                        >
+                          {certCategoryTitle}
+                        </div>
+                        <div className="h-[2px] w-36 sm:w-44 bg-gradient-to-r from-[#d4af37] via-[#facc15] to-[#ca8a04] mt-2 mb-2.5" />
                       </div>
-                      <div className="h-[2px] w-48 sm:w-64 bg-gradient-to-r from-[#d4af37] via-[#facc15] to-transparent my-1 sm:my-1.5" />
-                      <p className="text-[10px] sm:text-[11px] font-bold tracking-[0.2em] text-slate-500 uppercase pt-0.5">
-                        AS A MARK OF RECOGNITION FOR
-                      </p>
+
+                      {/* Giant 3D Gold Numeral (1, 2, 3) */}
+                      {activeCertificate.isChampion && (
+                        <div className="shrink-0 flex items-center justify-center">
+                          <svg viewBox="0 0 45 75" className="w-10 h-16 sm:w-13 sm:h-20 drop-shadow-sm">
+                            <defs>
+                              <linearGradient id="rankGoldNumGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                <stop offset="0%" stopColor="#fffdf0" />
+                                <stop offset="25%" stopColor="#fef08a" />
+                                <stop offset="60%" stopColor="#eab308" />
+                                <stop offset="100%" stopColor="#ca8a04" />
+                              </linearGradient>
+                            </defs>
+                            <text
+                              x="50%"
+                              y="66"
+                              textAnchor="middle"
+                              fill="url(#rankGoldNumGrad)"
+                              stroke="#a16207"
+                              strokeWidth="0.8"
+                              fontFamily="'Oswald', system-ui, sans-serif"
+                              fontWeight="900"
+                              fontSize="76"
+                            >
+                              {activeCertificate.rank && activeCertificate.rank <= 3 ? activeCertificate.rank : 1}
+                            </text>
+                          </svg>
+                        </div>
+                      )}
                     </div>
 
-                    {/* RECIPIENT REGION */}
-                    <div className="mt-5 sm:mt-6 md:mt-7 flex flex-col items-start text-left">
-                      <h2 className="text-2xl sm:text-3xl md:text-4xl font-serif font-black uppercase tracking-[0.08em] text-[#0f172a] leading-tight drop-shadow-xs">
-                        {activeCertificate.swimmerName}
-                      </h2>
-                      <div className="h-[2px] w-44 sm:w-64 bg-gradient-to-r from-[#c59e38] to-transparent my-1 sm:my-1.5" />
-                      <span className="text-xs sm:text-sm font-black uppercase tracking-[0.18em] text-[#9b7b2c]">
-                        {activeCertificate.club}
-                      </span>
-                      <p className="mt-1 text-[10.5px] sm:text-[11.5px] font-bold uppercase tracking-wider text-slate-700 leading-snug">
-                        {formatEventTitle(activeCertificate.eventName)} ({activeCertificate.gender} • {activeCertificate.ageGroup})
-                      </p>
+                    {/* RECOGNITION SUBTITLE */}
+                    <p className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] text-slate-500 uppercase mt-0.5 mb-3.5">
+                      AS A MARK OF RECOGNITION FOR
+                    </p>
 
-                      {/* Rank & Official Time Badge */}
-                      <div className="mt-2">
-                        {activeCertificate.isChampion ? (
-                          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-amber-50/95 border border-amber-400/90 shadow-2xs">
-                            <Trophy className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-amber-950 uppercase">
-                              {activeCertificate.rankBadge}
-                            </span>
-                            <span className="w-1 h-1 rounded-full bg-amber-400 shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-bold font-mono tracking-wide text-slate-800">
-                              WAKTU RESMI: {activeCertificate.timeResult || activeCertificate.timeSeed}
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-slate-100/95 border border-slate-300 shadow-2xs">
-                            <Medal className="w-3.5 h-3.5 text-sky-600 shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-black tracking-wider text-slate-800 uppercase">
-                              PESERTA RESMI
-                            </span>
-                            <span className="w-1 h-1 rounded-full bg-slate-400 shrink-0" />
-                            <span className="text-[10px] sm:text-[11px] font-bold font-mono tracking-wide text-slate-600">
-                              WAKTU: {activeCertificate.timeResult || activeCertificate.timeSeed}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                    {/* RECIPIENT NAME (BOLD, BLACK, LEFT-ALIGNED) */}
+                    <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-[#0f172a] leading-tight max-w-[320px]">
+                      {activeCertificate.swimmerName}
+                    </h2>
 
-                    {/* DYNAMIC TOURNAMENT BODY DESCRIPTION TEXT (NATURAL MIDDLE POSITIONING) */}
-                    <div className="mt-6 sm:mt-8 md:mt-10 space-y-2 text-left max-w-[420px]">
-                      <div className="space-y-0.5 sm:space-y-1 text-[9.5px] sm:text-[11px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
+                    {/* EVENT & RACE DETAILS (BOLD, LEFT-ALIGNED) */}
+                    <p className="text-xs sm:text-[13px] font-extrabold text-[#0f172a] mt-1.5 mb-3.5">
+                      {formatEventRaceLine(activeCertificate)}
+                    </p>
+
+                    {/* TOURNAMENT DETAILS DESCRIPTION (ALL LEFT-ALIGNED) */}
+                    <div className="space-y-2.5 text-[8.5px] sm:text-[9.5px] font-bold text-slate-700 uppercase tracking-wider leading-relaxed">
+                      <div className="space-y-0.5">
                         <p>{config.bodyPreText || "FOR PARTICIPATING IN THE"}</p>
                         <p className="font-extrabold text-[#0f172a]">
                           {config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}
@@ -997,69 +1166,33 @@ export default function CertificateManager({
                         <p>{config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}</p>
                       </div>
 
-                      <div className="pt-2 space-y-0.5 sm:space-y-1 text-[9.5px] sm:text-[11px] font-bold tracking-wider text-[#1e293b] uppercase leading-relaxed font-sans">
+                      <div className="space-y-0.5 pt-1">
                         <p className="font-extrabold text-[#0f172a]">
                           {config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
                         </p>
                         <p>{config.bodyLocationText || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}</p>
                       </div>
                     </div>
-                  </div>
 
-                  {/* 8. BOTTOM SIGNATURES & OFFICIAL VERIFICATION (EDITABLE IN WATERMARK/CONFIG) */}
-                  <div className="absolute bottom-[4.2rem] sm:bottom-[4.8rem] left-7 sm:left-10 right-[24%] z-20 flex items-end justify-between">
-                    {/* Signatory 1 (Technical Delegate / Executive Director) */}
-                    <div className="flex flex-col items-start text-left w-36 sm:w-44">
-                      <div className="h-7 sm:h-9 flex items-center">
-                        <span className="font-serif italic text-base sm:text-lg text-slate-800 opacity-90 select-none">
-                          {config.signatory1Name.split(" ")[0]}
-                        </span>
-                      </div>
-                      <div className="w-full border-b-2 border-slate-700/80 my-0.5" />
-                      <span className="text-[11px] sm:text-xs font-black text-slate-900 uppercase tracking-wide leading-tight">
-                        {config.signatory1Name}
-                      </span>
-                      <span className="text-[8.5px] sm:text-[9.5px] font-bold text-slate-600 uppercase tracking-wider mt-0.5">
-                        {config.signatory1Title}
-                      </span>
-                    </div>
-
-                    {/* Official Stamp / Seal Emblem Centerpiece */}
-                    <div className="hidden sm:flex flex-col items-center justify-center opacity-85 shrink-0 px-2">
-                      <div className="w-12 h-12 rounded-full border-2 border-amber-500/70 p-1 flex items-center justify-center">
-                        <div className="w-full h-full rounded-full border border-dashed border-amber-400 flex flex-col items-center justify-center text-[6px] font-black uppercase text-amber-900 text-center leading-tight">
-                          <span>OFFICIAL</span>
-                          <span>SEAL</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Official Barcode & QR Code Verification Box */}
-                    <div className="flex flex-col items-center p-1.5 sm:p-2 rounded-xl bg-white/95 border border-amber-400/80 shadow-md backdrop-blur-xs shrink-0">
+                    {/* BOTTOM LEFT: QR CODE & SIGNATORY (CLEAN, NO BORDER BOX, LEFT-ALIGNED) */}
+                    <div className="mt-4 sm:mt-5 flex flex-col items-start text-left">
                       {qrCodeUrl ? (
                         <img
                           src={qrCodeUrl}
                           alt="QR Code Verifikasi Resmi"
-                          className="w-11 h-11 sm:w-13 sm:h-13 object-contain rounded-md"
+                          className="w-13 h-13 sm:w-15 sm:h-15 object-contain"
                         />
                       ) : (
-                        <div className="w-11 h-11 sm:w-13 sm:h-13 bg-slate-100 rounded flex items-center justify-center text-[8px] text-slate-400">
+                        <div className="w-13 h-13 sm:w-15 sm:h-15 bg-slate-100 rounded flex items-center justify-center text-[7px] text-slate-400">
                           QR Code
                         </div>
                       )}
 
-                      {/* 1D Barcode Graphic Lines */}
-                      <div className="w-full flex items-center justify-between gap-[1.5px] h-2 my-0.5 px-0.5 opacity-90">
-                        {[3, 1, 4, 1, 3, 2, 4, 1, 3, 2, 4, 1, 2, 3, 1, 4, 2, 3, 1, 3].map((w, i) => (
-                          <div key={i} className="bg-slate-900 h-full" style={{ width: `${w * 0.7}px` }} />
-                        ))}
-                      </div>
-
-                      <span className="text-[7px] sm:text-[7.5px] font-black text-slate-900 tracking-wider font-mono uppercase text-center leading-none">
-                        VERIFIKASI RESMI
+                      <span className="text-xs sm:text-[13px] font-black text-slate-900 uppercase tracking-wide mt-2 leading-none">
+                        {config.signatory1Name}
                       </span>
-                      <span className="text-[6px] sm:text-[6.5px] font-bold text-slate-500 font-mono leading-none mt-0.5">
-                        {activeCertificate.docNumber}
+                      <span className="text-[8.5px] sm:text-[9px] font-semibold text-slate-500 uppercase tracking-wider mt-1 leading-none">
+                        {config.signatory1Title}
                       </span>
                     </div>
                   </div>
@@ -1457,6 +1590,8 @@ export default function CertificateManager({
 
       {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE A4 PORTRAIT) */}
       <style jsx global>{`
+        @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&display=swap');
+
         @media print {
           @page {
             size: A4 portrait;
@@ -1503,7 +1638,7 @@ export default function CertificateManager({
             margin: 0 !important;
             padding: 0 !important;
             box-sizing: border-box !important;
-            border: 12px solid #1e293b !important;
+            border: 14px solid ${currentTheme.outerBorder} !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             overflow: hidden !important;
