@@ -4,8 +4,8 @@ FROM base AS deps
 RUN apk add --no-cache libc6-compat
 WORKDIR /app
 
-COPY landing-web/package.json ./
-RUN npm install
+COPY landing-web/package.json landing-web/package-lock.json* ./
+RUN npm install --prefer-offline --no-audit
 
 FROM base AS builder
 WORKDIR /app
@@ -18,6 +18,7 @@ ARG NEXT_PUBLIC_API_KEY
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_KEY=$NEXT_PUBLIC_API_KEY
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=1536"
 RUN npm run build
 
 FROM base AS runner
