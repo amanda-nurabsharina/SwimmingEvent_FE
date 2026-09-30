@@ -183,6 +183,35 @@ export default function CertificateManager({
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const printAreaRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const [canvasScale, setCanvasScale] = useState<number>(1);
+
+  // Responsive scaling for 590x834 internal canvas
+  useEffect(() => {
+    const updateScale = () => {
+      if (viewportRef.current) {
+        const availableW = viewportRef.current.clientWidth;
+        if (availableW > 0) {
+          const scale = Math.min(1, Math.max(0.2, (availableW - 4) / 590));
+          setCanvasScale(scale);
+        }
+      }
+    };
+    updateScale();
+
+    const ro = new ResizeObserver(() => {
+      updateScale();
+    });
+    if (viewportRef.current) {
+      ro.observe(viewportRef.current);
+    }
+
+    window.addEventListener("resize", updateScale);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", updateScale);
+    };
+  }, []);
 
   // 1. Load persistent config from localStorage
   useEffect(() => {
@@ -444,60 +473,87 @@ export default function CertificateManager({
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
-  // Theme Color Presets for Blue (Winner), Gold (Best Swimmer), and Red (Participant)
+  // Theme Color Presets for Blue (Winner), Gold (Best Swimmer), and Maroon (Participant)
   const THEME_CONFIG = {
     winner: {
       key: "winner",
-      outerBorder: "#142236",
-      bannerBg: "#142236",
-      bannerGradient: "linear-gradient(90deg, #0f172a 0%, #1e293b 50%, #0f172a 100%)",
-      bannerText: "#facc15",
-      bannerSubText: "#fef08a",
-      bannerLogoGrad: ["#fef08a", "#facc15", "#ca8a04"],
-      ribbonBg: "#142236",
-      ribbonGradient: "linear-gradient(180deg, #0f172a 0%, #1e293b 40%, #0f172a 100%)",
-      stripeColor: "#142236",
-      stripeGold: "#eab308",
-      titleColor: "#142236",
-      categoryColor: "#1e3a8a",
-      wavePrimary: "#142236",
-      waveGold: "#d4af37",
+      bgSvgUrl: "/certificate/certificate-bg.svg",
+      outerBorder: "#172237",
+      bannerBg: "#172238",
+      bannerGradient: "linear-gradient(90deg, #131b2c 0%, #1d2940 55%, #172237 100%)",
+      bannerText: "#e5b74b",
+      bannerSubText: "#fae89f",
+      bannerLogoGrad: ["#fffdf2", "#fae89f", "#caa048"],
+      ribbonBg: "#172237",
+      ribbonGradient: "linear-gradient(180deg, #131b2c 0%, #1d2940 45%, #172237 100%)",
+      stripeColor: "#172237",
+      stripeGoldStart: "#b8860b",
+      stripeGoldMid: "#eed87e",
+      stripeGoldEnd: "#caa048",
+      titleColor: "#172237",
+      categoryColor: "#1d2940",
+      wavePrimary: "#172237",
+      wavePrimaryMid: "#1d2940",
+      waveGold: "#d4a72c",
+      waveGoldLight: "#eed87e",
+      waveGoldDeep: "#b8860b",
+      goldAccentLine: "linear-gradient(90deg, #b8860b 0%, #eed87e 50%, #d4a72c 100%)",
+      numeralGrad: ["#fffdf0", "#eed87e", "#f5c94c", "#d4a72c", "#996515"],
+      numeralStroke: "#a16207",
       titleCategory: "OF CHAMPION",
     },
     best_swimmer: {
       key: "best_swimmer",
-      outerBorder: "#ca8a04", // Bright Championship Gold Border (No brown)
-      bannerBg: "#eab308",
-      bannerGradient: "linear-gradient(90deg, #ca8a04 0%, #eab308 25%, #fef08a 50%, #eab308 75%, #ca8a04 100%)",
-      bannerText: "#0f172a", // Dark charcoal high-contrast text on metallic gold banner
-      bannerSubText: "#1e293b",
-      bannerLogoGrad: ["#0f172a", "#1e293b", "#0f172a"],
-      ribbonBg: "#eab308",
-      ribbonGradient: "linear-gradient(180deg, #ca8a04 0%, #facc15 25%, #fef08a 50%, #eab308 75%, #b8860b 100%)",
-      stripeColor: "#ca8a04", // Bright Metallic Gold stripes (NOT BROWN)
-      stripeGold: "#fef9c3", // Shimmering light pale gold highlight
-      titleColor: "#0f172a", // Deep Charcoal for CERTIFICATE title (Left-aligned & ultra sharp)
-      categoryColor: "#b45309", // Warm Golden Amber for category subtitle
-      wavePrimary: "#eab308", // Vivid Yellow Gold wave
-      waveGold: "#facc15", // Brilliant Light Gold contour
+      bgSvgUrl: "/certificate/certificate-bg-gold.svg",
+      outerBorder: "#ca8a04",
+      bannerBg: "#b48306",
+      bannerGradient: "linear-gradient(90deg, #946804 0%, #ca8a04 35%, #eab308 55%, #facc15 65%, #ca8a04 85%, #946804 100%)",
+      bannerText: "#ffffff",
+      bannerSubText: "#fef9c3",
+      bannerLogoGrad: ["#ffffff", "#fef08a", "#fde047"],
+      ribbonBg: "#b48306",
+      ribbonGradient: "linear-gradient(180deg, #946804 0%, #ca8a04 50%, #eab308 100%)",
+      stripeColor: "#ca8a04",
+      stripeGoldStart: "#facc15",
+      stripeGoldMid: "#ffffff",
+      stripeGoldEnd: "#ca8a04",
+      titleColor: "#6b4902",
+      categoryColor: "#9e6d03",
+      wavePrimary: "#ca8a04",
+      wavePrimaryMid: "#eab308",
+      waveGold: "#facc15",
+      waveGoldLight: "#fef08a",
+      waveGoldDeep: "#946804",
+      goldAccentLine: "linear-gradient(90deg, #ca8a04 0%, #fef08a 50%, #eab308 100%)",
+      numeralGrad: ["#ffffff", "#fef08a", "#fde047", "#facc15", "#ca8a04"],
+      numeralStroke: "#946804",
       titleCategory: "OF BEST SWIMMER",
     },
     participant: {
       key: "participant",
-      outerBorder: "#881337",
-      bannerBg: "#881337",
-      bannerGradient: "linear-gradient(90deg, #700c28 0%, #9f1239 50%, #700c28 100%)",
-      bannerText: "#fef08a",
-      bannerSubText: "#facc15",
-      bannerLogoGrad: ["#fef08a", "#facc15", "#ca8a04"],
-      ribbonBg: "#881337",
-      ribbonGradient: "linear-gradient(180deg, #700c28 0%, #9f1239 40%, #700c28 100%)",
-      stripeColor: "#4c0519",
-      stripeGold: "#facc15",
-      titleColor: "#881337",
-      categoryColor: "#be123c",
-      wavePrimary: "#881337",
-      waveGold: "#f43f5e",
+      bgSvgUrl: "/certificate/certificate-bg-maroon.svg",
+      outerBorder: "#580818",
+      bannerBg: "#580818",
+      bannerGradient: "linear-gradient(90deg, #420511 0%, #6e0e22 55%, #580818 100%)",
+      bannerText: "#fffdf2",
+      bannerSubText: "#fae89f",
+      bannerLogoGrad: ["#fffdf2", "#fae89f", "#d4af37"],
+      ribbonBg: "#580818",
+      ribbonGradient: "linear-gradient(180deg, #420511 0%, #6e0e22 45%, #580818 100%)",
+      stripeColor: "#580818",
+      stripeGoldStart: "#c59b27",
+      stripeGoldMid: "#fae89f",
+      stripeGoldEnd: "#d4af37",
+      titleColor: "#420511",
+      categoryColor: "#580818",
+      wavePrimary: "#580818",
+      wavePrimaryMid: "#6e0e22",
+      waveGold: "#c59b27",
+      waveGoldLight: "#fae89f",
+      waveGoldDeep: "#420511",
+      goldAccentLine: "linear-gradient(90deg, #580818 0%, #d4af37 50%, #580818 100%)",
+      numeralGrad: ["#fffdf0", "#fae89f", "#d4af37", "#a6192e", "#580818"],
+      numeralStroke: "#580818",
       titleCategory: "OF PARTICIPANT",
     },
   };
@@ -817,7 +873,7 @@ export default function CertificateManager({
                     onClick={() => setSelectedTemplateMode("participant")}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "participant"
-                        ? "bg-[#881337] text-white font-black shadow-sm ring-2 ring-rose-600/40"
+                        ? "bg-[#580818] text-white font-black shadow-sm ring-2 ring-[#580818]/60"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
@@ -827,373 +883,519 @@ export default function CertificateManager({
                 </div>
               </div>
 
-              {/* THE OFFICIAL CERTIFICATE SHEET (A4 PORTRAIT NATIVE CUSTOM DESIGN) */}
+              {/* THE OFFICIAL CERTIFICATE SHEET (590x834 FIXED INTERNAL CANVAS WITH RESPONSIVE SCALING) */}
               <div className="bg-slate-200/60 p-3 sm:p-6 rounded-3xl border border-slate-200 shadow-inner flex justify-center print:bg-transparent print:p-0 print:border-none">
                 <div
-                  ref={printAreaRef}
-                  id="certificate-print-area"
-                  className="relative w-full max-w-[590px] aspect-[210/297] bg-[#f8f9fa] text-slate-900 shadow-2xl overflow-hidden select-none print:shadow-none print:rounded-none print:w-full print:h-full print:max-w-none print:m-0"
-                  style={{
-                    borderWidth: "14px",
-                    borderStyle: "solid",
-                    borderColor: currentTheme.outerBorder,
-                    boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-                  }}
+                  ref={viewportRef}
+                  className="certificateViewport w-full max-w-[590px] mx-auto flex justify-center overflow-visible print:w-full print:max-w-none print:overflow-visible"
                 >
-                  {/* 1. INNER MARGIN BORDER LINE */}
-                  <div className="absolute inset-2 border-[1.5px] border-[#cbd5e1] pointer-events-none z-30" />
-
-                  {/* 2. LAYERED BACKGROUND CURVED WAVES (DYNAMICALLY ADAPT TO THEME COLORS) */}
-                  <svg
-                    className="absolute inset-0 w-full h-full pointer-events-none z-0"
-                    viewBox="0 0 590 834"
-                    fill="none"
-                    preserveAspectRatio="none"
-                  >
-                    <defs>
-                      <linearGradient id="themeWaveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor={currentTheme.waveGold} stopOpacity="0.65" />
-                        <stop offset="40%" stopColor="#fef08a" stopOpacity="0.5" />
-                        <stop offset="80%" stopColor={currentTheme.waveGold} stopOpacity="0.2" />
-                        <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-                      </linearGradient>
-                      <linearGradient id="themeNavyGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor={currentTheme.wavePrimary} stopOpacity="0.9" />
-                        <stop offset="60%" stopColor={currentTheme.wavePrimary} stopOpacity="0.5" />
-                        <stop offset="100%" stopColor="#334155" stopOpacity="0.1" />
-                      </linearGradient>
-                      <linearGradient id="softBaseWave" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
-                        <stop offset="50%" stopColor="#f1f5f9" stopOpacity="0.85" />
-                        <stop offset="100%" stopColor="#e2e8f0" stopOpacity="0.4" />
-                      </linearGradient>
-                    </defs>
-
-                    {/* Soft ambient wave base */}
-                    <path
-                      d="M0,280 C120,240 240,320 340,460 C420,580 440,700 380,834 L0,834 Z"
-                      fill="url(#softBaseWave)"
-                    />
-
-                    {/* Deep Ribbon Curves on Left Edge & Bottom Left */}
-                    <path
-                      d="M0,430 C45,390 75,430 95,510 C120,610 90,720 0,810 Z"
-                      fill="url(#themeNavyGrad)"
-                    />
-                    <path
-                      d="M0,610 C60,570 120,620 140,700 C155,765 130,810 60,834 L0,834 Z"
-                      fill={currentTheme.wavePrimary}
-                      opacity="0.85"
-                    />
-
-                    {/* Flowing Champagne & Gold Waves */}
-                    <path
-                      d="M0,320 C85,290 165,360 235,480 C305,600 335,720 270,834 L210,834 C260,735 240,625 180,515 C130,425 70,385 0,390 Z"
-                      fill="url(#themeWaveGrad)"
-                    />
-                    <path
-                      d="M0,170 C55,200 105,270 155,390 C215,530 275,650 385,730 C435,765 465,790 480,834 L450,834 C425,795 395,770 350,740 C250,660 190,540 135,410 C90,300 50,235 0,215 Z"
-                      fill="url(#themeWaveGrad)"
-                      opacity="0.6"
-                    />
-                    <path
-                      d="M0,510 C95,460 185,520 265,640 C325,730 375,790 420,834 L380,834 C335,790 290,735 235,655 C170,555 100,510 0,545 Z"
-                      fill="url(#themeWaveGrad)"
-                      opacity="0.7"
-                    />
-
-                    {/* Subtle Contour Wave Strokes */}
-                    <path
-                      d="M0,335 C85,305 165,375 235,495 C305,615 335,735 270,834"
-                      stroke={currentTheme.waveGold}
-                      strokeWidth="1.5"
-                      strokeOpacity="0.4"
-                      fill="none"
-                    />
-                    <path
-                      d="M0,185 C55,215 105,285 155,405 C215,545 275,665 385,745"
-                      stroke={currentTheme.waveGold}
-                      strokeWidth="1"
-                      strokeOpacity="0.3"
-                      fill="none"
-                    />
-                  </svg>
-
-                  {/* 3. OPTIONAL WATERMARK LAYER */}
-                  {config.enabled && (
-                    <div
-                      className="absolute inset-0 z-5 flex items-center justify-center pointer-events-none"
-                      style={{ opacity: config.opacity || 0.12 }}
-                    >
-                      {(config.type === "both" || config.type === "logo") && config.logoUrl && (
-                        <img
-                          src={config.logoUrl}
-                          alt="Watermark"
-                          className="w-48 h-48 object-contain"
-                        />
-                      )}
-                      {(config.type === "both" || config.type === "text") && config.text && (
-                        <div className="absolute text-2xl sm:text-3xl font-black uppercase text-slate-400 -rotate-45 tracking-widest select-none">
-                          {config.text}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 4. RIGHT VERTICAL RIBBON */}
                   <div
-                    className="absolute top-2 bottom-2 right-2 w-[23%] z-20 overflow-hidden flex flex-col border-l border-black/20 shadow-md pointer-events-none"
-                    style={{ background: currentTheme.ribbonGradient || currentTheme.ribbonBg }}
+                    className="certificateScaleWrapper"
+                    style={{
+                      width: `${590 * canvasScale}px`,
+                      height: `${834 * canvasScale}px`,
+                      position: "relative",
+                      margin: "0 auto",
+                    }}
                   >
-                    {/* Lower Section: Diagonal Gold Stripes (Angled Top-Right to Bottom-Left) */}
                     <div
-                      className="absolute bottom-0 left-0 right-0 h-[50%] pointer-events-none"
+                      ref={printAreaRef}
+                      id="certificate-print-area"
+                      className="certificateCanvas select-none"
                       style={{
-                        background: `repeating-linear-gradient(-45deg, ${currentTheme.stripeGold} 0px, ${currentTheme.stripeGold} 12px, ${currentTheme.stripeColor} 12px, ${currentTheme.stripeColor} 24px)`,
-                        boxShadow: "inset 0 4px 14px rgba(0,0,0,0.25)",
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        width: "590px",
+                        height: "834px",
+                        overflow: "hidden",
+                        background: "#f8f5ee",
+                        transformOrigin: "top left",
+                        transform: `scale(${canvasScale})`,
+                        boxShadow: "0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.12)",
                       }}
-                    />
-                  </div>
-
-                  {/* 5. 3D GOLD MEDALLION ROSETTE SEAL (CENTERED PRECISELY OVER SEAM LINE) */}
-                  <div className="absolute top-[18%] right-[14%] sm:right-[14.5%] w-22 h-22 sm:w-26 sm:h-26 z-25 pointer-events-none drop-shadow-[0_10px_22px_rgba(0,0,0,0.45)]">
-                    <svg viewBox="0 0 100 100" className="w-full h-full">
-                      <defs>
-                        <radialGradient id="medallionSunburst" cx="38%" cy="32%" r="68%">
-                          <stop offset="0%" stopColor="#fffdf0" />
-                          <stop offset="25%" stopColor="#fef08a" />
-                          <stop offset="55%" stopColor="#f5c94c" />
-                          <stop offset="85%" stopColor="#d8a11e" />
-                          <stop offset="100%" stopColor="#be8513" />
-                        </radialGradient>
-                        <linearGradient id="medallionRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor="#fffbeb" />
-                          <stop offset="20%" stopColor="#fde047" />
-                          <stop offset="50%" stopColor="#eab308" />
-                          <stop offset="80%" stopColor="#ca8a04" />
-                          <stop offset="100%" stopColor="#fff9c4" />
-                        </linearGradient>
-                      </defs>
-
-                      {/* 16-Scallop Rosette Fluted Outer Medallion Border */}
-                      <path
-                        d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
-                        fill="url(#medallionRimGrad)"
-                        stroke="#ca8a04"
-                        strokeWidth="0.8"
+                    >
+                      {/* 1. MASTER BACKGROUND SVG (DYNAMICALLY ADAPTED BY SELECTED THEME: BLUE, GOLD, MAROON) */}
+                      <img
+                        src={currentTheme.bgSvgUrl || "/certificate/certificate-bg.svg"}
+                        alt="Certificate Background"
+                        className="absolute inset-0 w-full h-full pointer-events-none select-none"
+                        style={{ zIndex: 0 }}
                       />
 
-                      {/* Inner Scallop Shadow Ring */}
-                      <circle cx="50" cy="50" r="42.5" fill="url(#medallionRimGrad)" stroke="#c28e18" strokeWidth="0.6" />
-
-                      {/* Polished Inner Ring Ridge */}
-                      <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fff9c4" strokeWidth="1.2" strokeOpacity="0.9" />
-                      <circle cx="50" cy="50" r="38" fill="none" stroke="#b8860b" strokeWidth="0.6" strokeOpacity="0.7" />
-
-                      {/* Center Gold Face */}
-                      <circle cx="50" cy="50" r="36.5" fill="url(#medallionSunburst)" stroke="#eab308" strokeWidth="0.8" />
-                      <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf0" strokeWidth="0.75" strokeOpacity="0.6" />
-
-                      {/* MASC Geometric Emblem in Pure Golden Relief */}
-                      <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
-                        <path
-                          d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
-                          fill="url(#medallionRimGrad)"
-                          stroke="#ca8a04"
-                          strokeWidth="1.2"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
-                          fill="url(#medallionRimGrad)"
-                          stroke="#ca8a04"
-                          strokeWidth="1.2"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
-                          fill="url(#medallionRimGrad)"
-                          stroke="#ca8a04"
-                          strokeWidth="1.2"
-                          strokeLinejoin="round"
-                        />
-                        <path
-                          d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
-                          fill="url(#medallionRimGrad)"
-                          stroke="#ca8a04"
-                          strokeWidth="1.2"
-                          strokeLinejoin="round"
-                        />
-                      </g>
-                    </svg>
-                  </div>
-
-                  {/* 6. TOP CERTIFICATE NUMBER & HORIZONTAL RULES */}
-                  <div className="relative z-10 pt-3.5 px-6 mr-[23%]">
-                    <div className="border-t border-b border-slate-300 py-1 flex items-center justify-center">
-                      <span className="text-[10px] sm:text-[11px] font-mono font-bold tracking-widest text-slate-700">
-                        - {getScreenshotDocNumber(activeCertificate)} -
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 7. TOP BANNER (FULL WIDTH TO RIBBON, DYNAMIC THEME COLOR) */}
-                  <div
-                    className="relative z-10 mt-1.5 ml-2 mr-[23%] px-4 py-2 flex items-center gap-3 shadow-sm"
-                    style={{ background: currentTheme.bannerGradient || currentTheme.bannerBg }}
-                  >
-                    {/* Dynamic MASC Emblem */}
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 shrink-0 flex items-center justify-center">
-                      <svg viewBox="0 0 100 100" className="w-full h-full">
-                        <defs>
-                          <linearGradient id="topBannerLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                            <stop offset="0%" stopColor={currentTheme.bannerLogoGrad[0]} />
-                            <stop offset="50%" stopColor={currentTheme.bannerLogoGrad[1]} />
-                            <stop offset="100%" stopColor={currentTheme.bannerLogoGrad[2]} />
-                          </linearGradient>
-                        </defs>
-                        <path
-                          d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
-                          fill="url(#topBannerLogoGrad)"
-                        />
-                        <path
-                          d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
-                          fill="url(#topBannerLogoGrad)"
-                        />
-                        <path
-                          d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
-                          fill="url(#topBannerLogoGrad)"
-                        />
-                        <path
-                          d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
-                          fill="url(#topBannerLogoGrad)"
-                        />
-                      </svg>
-                    </div>
-                    <div className="text-left leading-tight">
-                      <div
-                        className="text-[10px] sm:text-[11px] font-black uppercase tracking-wider"
-                        style={{ color: currentTheme.bannerText }}
-                      >
-                        MODERN AQUATIC
-                      </div>
-                      <div
-                        className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider"
-                        style={{ color: currentTheme.bannerSubText }}
-                      >
-                        SWIMMING CLUB
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 8. MAIN CERTIFICATE CONTENT (ALL 100% LEFT-ALIGNED / RATA KIRI) */}
-                  <div className="relative z-10 pt-4 sm:pt-5 pl-7 sm:pl-9 pr-[25%] flex flex-col items-start text-left">
-                    {/* TITLE ROW: CONDENSED DISPLAY CERTIFICATE + CATEGORY & LARGE 3D GOLD RANK NUMERAL */}
-                    <div className="w-full flex items-start justify-between gap-2">
-                      <div className="flex flex-col items-start text-left">
-                        <h1
-                          className="text-3xl sm:text-4xl md:text-[44px] font-bold uppercase leading-none"
+                      {/* 2. OPTIONAL WATERMARK LAYER (WHEN ENABLED, Z-INDEX: 5) */}
+                      {config.enabled && (
+                        <div
                           style={{
-                            fontFamily: "'Oswald', 'Bebas Neue', 'Arial Narrow', sans-serif",
-                            letterSpacing: "0.04em",
-                            color: currentTheme.titleColor,
+                            position: "absolute",
+                            left: 0,
+                            top: 0,
+                            width: "590px",
+                            height: "834px",
+                            zIndex: 5,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            pointerEvents: "none",
+                            opacity: config.opacity || 0.12,
                           }}
                         >
-                          CERTIFICATE
-                        </h1>
-                        <div
-                          className="text-xs sm:text-sm font-bold tracking-[0.18em] uppercase mt-1 leading-none"
-                          style={{ color: currentTheme.categoryColor || currentTheme.titleColor }}
-                        >
-                          {certCategoryTitle}
+                          {(config.type === "both" || config.type === "logo") && config.logoUrl && (
+                            <img
+                              src={config.logoUrl}
+                              alt="Watermark"
+                              style={{ width: "160px", height: "160px", objectFit: "contain" }}
+                            />
+                          )}
+                          {(config.type === "both" || config.type === "text") && config.text && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                fontSize: "20px",
+                                fontWeight: 900,
+                                textTransform: "uppercase",
+                                color: "#94a3b8",
+                                transform: "rotate(-45deg)",
+                                letterSpacing: "4px",
+                                userSelect: "none",
+                              }}
+                            >
+                              {config.text}
+                            </div>
+                          )}
                         </div>
-                        <div className="h-[2px] w-36 sm:w-44 bg-gradient-to-r from-[#d4af37] via-[#facc15] to-[#ca8a04] mt-2 mb-2.5" />
+                      )}
+
+                      {/* 3. DOCUMENT NUMBER (DYNAMIC, TOP-CENTERED, Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "140px",
+                          top: "42px",
+                          width: "240px",
+                          textAlign: "center",
+                          fontSize: "7px",
+                          fontWeight: 600,
+                          letterSpacing: "1.4px",
+                          color: "#364153",
+                          fontFamily: "monospace",
+                          zIndex: 10,
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {getScreenshotDocNumber(activeCertificate)}
                       </div>
 
-                      {/* Giant 3D Gold Numeral (1, 2, 3) */}
-                      {activeCertificate.isChampion && (
-                        <div className="shrink-0 flex items-center justify-center">
-                          <svg viewBox="0 0 45 75" className="w-10 h-16 sm:w-13 sm:h-20 drop-shadow-sm">
+                      {/* 4. ORGANIZATION HEADER (CLEAN DARK NAVY BAND, INTEGRATED, Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "45px",
+                          top: "72px",
+                          width: "380px",
+                          height: "42px",
+                          background: currentTheme.bannerBg || "#172238",
+                          borderRadius: 0,
+                          boxShadow: "none",
+                          zIndex: 10,
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                      >
+                        {/* Logo: left approx 18px */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "18px",
+                            width: "24px",
+                            height: "24px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          <svg viewBox="0 0 100 100" className="w-full h-full">
                             <defs>
-                              <linearGradient id="rankGoldNumGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                              <linearGradient id="topBannerLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" stopColor={currentTheme.bannerLogoGrad[0]} />
+                                <stop offset="50%" stopColor={currentTheme.bannerLogoGrad[1]} />
+                                <stop offset="100%" stopColor={currentTheme.bannerLogoGrad[2]} />
+                              </linearGradient>
+                            </defs>
+                            <path d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z" fill="url(#topBannerLogoGrad)" />
+                            <path d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z" fill="url(#topBannerLogoGrad)" />
+                            <path d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z" fill="url(#topBannerLogoGrad)" />
+                            <path d="M 50 61 L 64 71 L 50 82 L 36 71 Z" fill="url(#topBannerLogoGrad)" />
+                          </svg>
+                        </div>
+
+                        {/* Org Text: left approx 48px */}
+                        <div style={{ position: "absolute", left: "48px", textAlign: "left", lineHeight: 1.15 }}>
+                          <div
+                            style={{
+                              fontSize: "10.5px",
+                              fontWeight: 900,
+                              textTransform: "uppercase",
+                              letterSpacing: "1.2px",
+                              color: currentTheme.bannerText,
+                            }}
+                          >
+                            MODERN AQUATIC
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "9px",
+                              fontWeight: 700,
+                              textTransform: "uppercase",
+                              letterSpacing: "1px",
+                              color: currentTheme.bannerSubText,
+                            }}
+                          >
+                            SWIMMING CLUB
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 5. MAIN TITLE (CERTIFICATE, CONDENSED, Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "73px",
+                          top: "150px",
+                          fontFamily: "'Oswald', 'Roboto Condensed', 'Arial Narrow', sans-serif",
+                          fontSize: "31.5px",
+                          fontWeight: 700,
+                          lineHeight: 0.95,
+                          letterSpacing: "0.5px",
+                          color: "#263047",
+                          textTransform: "uppercase",
+                          zIndex: 10,
+                        }}
+                      >
+                        CERTIFICATE
+                      </div>
+
+                      {/* 6. CATEGORY (Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "73px",
+                          top: "188px",
+                          fontSize: "9px",
+                          fontWeight: 600,
+                          letterSpacing: "2px",
+                          color: "#263047",
+                          textTransform: "uppercase",
+                          zIndex: 10,
+                        }}
+                      >
+                        {certCategoryTitle}
+                      </div>
+
+                      {/* 7. GOLD UNDERLINE (Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "73px",
+                          top: "206px",
+                          width: "120px",
+                          height: "2px",
+                          background: "#d6a81f",
+                          zIndex: 10,
+                        }}
+                      />
+
+                      {/* 8. RANK NUMBER (MOVED 7PX RIGHT TO 347PX, DYNAMIC, Z-INDEX: 15) */}
+                      {activeCertificate.isChampion && (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "347px",
+                            top: "148px",
+                            width: "55px",
+                            textAlign: "center",
+                            zIndex: 15,
+                            pointerEvents: "none",
+                            filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18))",
+                          }}
+                        >
+                          <svg viewBox="0 0 55 64" className="w-[55px] h-[64px]">
+                            <defs>
+                              <linearGradient id="rankGoldNumGrad" x1="20%" y1="0%" x2="80%" y2="100%">
                                 <stop offset="0%" stopColor="#fffdf0" />
-                                <stop offset="25%" stopColor="#fef08a" />
-                                <stop offset="60%" stopColor="#eab308" />
-                                <stop offset="100%" stopColor="#ca8a04" />
+                                <stop offset="25%" stopColor="#fae89f" />
+                                <stop offset="60%" stopColor="#d4a72c" />
+                                <stop offset="100%" stopColor="#996515" />
                               </linearGradient>
                             </defs>
                             <text
                               x="50%"
-                              y="66"
+                              y="54"
                               textAnchor="middle"
                               fill="url(#rankGoldNumGrad)"
-                              stroke="#a16207"
+                              stroke={currentTheme.numeralStroke || "#a16207"}
                               strokeWidth="0.8"
-                              fontFamily="'Oswald', system-ui, sans-serif"
-                              fontWeight="900"
-                              fontSize="76"
+                              fontFamily="'Oswald', 'Arial Narrow', sans-serif"
+                              fontWeight="700"
+                              fontSize="56"
                             >
                               {activeCertificate.rank && activeCertificate.rank <= 3 ? activeCertificate.rank : 1}
                             </text>
                           </svg>
                         </div>
                       )}
-                    </div>
 
-                    {/* RECOGNITION SUBTITLE */}
-                    <p className="text-[9px] sm:text-[10px] font-bold tracking-[0.2em] text-slate-500 uppercase mt-0.5 mb-3.5">
-                      AS A MARK OF RECOGNITION FOR
-                    </p>
+                      {/* 9. MEDAL (ROSETTE, INTEGRATED SOFT SHADOW, Z-INDEX: 30) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "445px",
+                          top: "175px",
+                          width: "74px",
+                          height: "74px",
+                          zIndex: 30,
+                          pointerEvents: "none",
+                          filter: "drop-shadow(0 4px 8px rgba(0, 0, 0, 0.22)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12))",
+                        }}
+                      >
+                        <svg viewBox="0 0 100 100" className="w-full h-full">
+                          <defs>
+                            <radialGradient id="medallionSunburst" cx="38%" cy="32%" r="68%">
+                              <stop offset="0%" stopColor="#fffdf2" />
+                              <stop offset="22%" stopColor="#fae896" />
+                              <stop offset="52%" stopColor="#e5b73e" />
+                              <stop offset="82%" stopColor="#b8860b" />
+                              <stop offset="100%" stopColor="#8c5e07" />
+                            </radialGradient>
+                            <linearGradient id="medallionRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                              <stop offset="0%" stopColor="#fffdf0" />
+                              <stop offset="20%" stopColor="#fae89f" />
+                              <stop offset="50%" stopColor="#e5b74b" />
+                              <stop offset="80%" stopColor="#ca8a04" />
+                              <stop offset="100%" stopColor="#996515" />
+                            </linearGradient>
+                          </defs>
 
-                    {/* RECIPIENT NAME (BOLD, BLACK, LEFT-ALIGNED) */}
-                    <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-[#0f172a] leading-tight max-w-[320px]">
-                      {activeCertificate.swimmerName}
-                    </h2>
+                          {/* 16-Scallop Rosette Fluted Outer Medallion Border */}
+                          <path
+                            d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
+                            fill="url(#medallionRimGrad)"
+                            stroke="#b8860b"
+                            strokeWidth="0.8"
+                          />
 
-                    {/* EVENT & RACE DETAILS (BOLD, LEFT-ALIGNED) */}
-                    <p className="text-xs sm:text-[13px] font-extrabold text-[#0f172a] mt-1.5 mb-3.5">
-                      {formatEventRaceLine(activeCertificate)}
-                    </p>
+                          {/* Inner Scallop Shadow Ring */}
+                          <circle cx="50" cy="50" r="42.5" fill="url(#medallionRimGrad)" stroke="#a16207" strokeWidth="0.6" />
 
-                    {/* TOURNAMENT DETAILS DESCRIPTION (ALL LEFT-ALIGNED) */}
-                    <div className="space-y-2.5 text-[8.5px] sm:text-[9.5px] font-bold text-slate-700 uppercase tracking-wider leading-relaxed">
-                      <div className="space-y-0.5">
-                        <p>{config.bodyPreText || "FOR PARTICIPATING IN THE"}</p>
-                        <p className="font-extrabold text-[#0f172a]">
-                          {config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}
-                        </p>
-                        <p>{config.bodyOrganizerName || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}</p>
-                        <p>{config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}</p>
+                          {/* Polished Inner Ring Ridge */}
+                          <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fffdf2" strokeWidth="1.2" strokeOpacity="0.95" />
+                          <circle cx="50" cy="50" r="38" fill="none" stroke="#8c5e07" strokeWidth="0.65" strokeOpacity="0.75" />
+
+                          {/* Center Gold Face */}
+                          <circle cx="50" cy="50" r="36.5" fill="url(#medallionSunburst)" stroke="#e5b74b" strokeWidth="0.8" />
+                          <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf2" strokeWidth="0.8" strokeOpacity="0.7" />
+
+                          {/* MASC Geometric Emblem in Pure Golden Relief */}
+                          <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
+                            <path
+                              d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
+                              fill="url(#medallionRimGrad)"
+                              stroke="#b8860b"
+                              strokeWidth="1.2"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
+                              fill="url(#medallionRimGrad)"
+                              stroke="#b8860b"
+                              strokeWidth="1.2"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
+                              fill="url(#medallionRimGrad)"
+                              stroke="#b8860b"
+                              strokeWidth="1.2"
+                              strokeLinejoin="round"
+                            />
+                            <path
+                              d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
+                              fill="url(#medallionRimGrad)"
+                              stroke="#b8860b"
+                              strokeWidth="1.2"
+                              strokeLinejoin="round"
+                            />
+                          </g>
+                        </svg>
                       </div>
 
-                      <div className="space-y-0.5 pt-1">
-                        <p className="font-extrabold text-[#0f172a]">
-                          {config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
-                        </p>
-                        <p>{config.bodyLocationText || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}</p>
-                      </div>
-                    </div>
-
-                    {/* BOTTOM LEFT: QR CODE & SIGNATORY (CLEAN, NO BORDER BOX, LEFT-ALIGNED) */}
-                    <div className="mt-4 sm:mt-5 flex flex-col items-start text-left">
-                      {qrCodeUrl ? (
-                        <img
-                          src={qrCodeUrl}
-                          alt="QR Code Verifikasi Resmi"
-                          className="w-13 h-13 sm:w-15 sm:h-15 object-contain"
-                        />
-                      ) : (
-                        <div className="w-13 h-13 sm:w-15 sm:h-15 bg-slate-100 rounded flex items-center justify-center text-[7px] text-slate-400">
-                          QR Code
+                      {/* BODY CONTENT CONTAINER (FLEX COLUMN FOR DYNAMIC SPACING SAFETY, LEFT: 73PX, Z-INDEX: 10) */}
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: "73px",
+                          top: "236px",
+                          width: "320px",
+                          display: "flex",
+                          flexDirection: "column",
+                          alignItems: "flex-start",
+                          zIndex: 10,
+                        }}
+                      >
+                        {/* 10. RECOGNITION TEXT (+8%, READABILITY) */}
+                        <div
+                          style={{
+                            fontSize: "9.2px",
+                            fontWeight: 600,
+                            letterSpacing: "1.5px",
+                            color: "#5b6b80",
+                            textTransform: "uppercase",
+                            lineHeight: "11px",
+                          }}
+                        >
+                          AS A MARK OF RECOGNITION FOR
                         </div>
-                      )}
 
-                      <span className="text-xs sm:text-[13px] font-black text-slate-900 uppercase tracking-wide mt-2 leading-none">
-                        {config.signatory1Name}
-                      </span>
-                      <span className="text-[8.5px] sm:text-[9px] font-semibold text-slate-500 uppercase tracking-wider mt-1 leading-none">
-                        {config.signatory1Title}
-                      </span>
+                        {/* 11. RECIPIENT NAME (BOLD, GAP 20PX, MAX 2 LINES) */}
+                        <div
+                          style={{
+                            marginTop: "20px",
+                            maxWidth: "310px",
+                            fontSize: "16.5px",
+                            fontWeight: 800,
+                            lineHeight: "19px",
+                            color: "#101827",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          {activeCertificate.swimmerName}
+                        </div>
+
+                        {/* 12. EVENT (+8%, GAP 13PX, MAX 2 LINES) */}
+                        <div
+                          style={{
+                            marginTop: "13px",
+                            maxWidth: "320px",
+                            fontSize: "10.3px",
+                            fontWeight: 600,
+                            lineHeight: "14px",
+                            color: "#1e293b",
+                          }}
+                        >
+                          {formatEventRaceLine(activeCertificate)}
+                        </div>
+
+                        {/* 13. PARTICIPATION DETAILS (+10%, GAP 30PX, LINE-HEIGHT ~1.45) */}
+                        <div
+                          style={{
+                            marginTop: "30px",
+                            width: "320px",
+                            fontSize: "8.8px",
+                            lineHeight: "12.8px",
+                            color: "#475569",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          <div style={{ marginBottom: "2px", fontWeight: 500 }}>
+                            {config.bodyPreText || "FOR PARTICIPATING IN THE"}
+                          </div>
+                          <div style={{ fontWeight: 800, color: "#101827", marginBottom: "2px" }}>
+                            {config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}
+                          </div>
+                          <div style={{ marginBottom: "2px", fontWeight: 500 }}>
+                            {config.bodyOrganizerName || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
+                          </div>
+                          <div style={{ fontWeight: 500 }}>
+                            {config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}
+                          </div>
+                        </div>
+
+                        {/* 14. VENUE (+10%, GAP 26PX, CLEAR SEPARATION) */}
+                        <div
+                          style={{
+                            marginTop: "26px",
+                            width: "320px",
+                            fontSize: "8.8px",
+                            lineHeight: "12.8px",
+                            textTransform: "uppercase",
+                          }}
+                        >
+                          <div style={{ fontWeight: 700, color: "#101827", marginBottom: "2px" }}>
+                            {config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
+                          </div>
+                          <div style={{ color: "#475569", fontWeight: 400 }}>
+                            {config.bodyLocationText || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}
+                          </div>
+                        </div>
+
+                        {/* 15 & 16. QR + SIGNATORY GROUP (ONE VISUAL GROUP, GAP 42PX, STRICTLY ALIGNED LEFT 73PX) */}
+                        <div
+                          style={{
+                            marginTop: "42px",
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "flex-start",
+                          }}
+                        >
+                          {/* QR CODE (+5% TO 50PX) */}
+                          <div
+                            style={{
+                              width: "50px",
+                              height: "50px",
+                            }}
+                          >
+                            {qrCodeUrl ? (
+                              <img
+                                src={qrCodeUrl}
+                                alt="QR Code"
+                                style={{ width: "50px", height: "50px", objectFit: "contain", display: "block" }}
+                              />
+                            ) : (
+                              <div
+                                style={{
+                                  width: "50px",
+                                  height: "50px",
+                                  background: "#f1f5f9",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  fontSize: "7px",
+                                  color: "#94a3b8",
+                                }}
+                              >
+                                QR
+                              </div>
+                            )}
+                          </div>
+
+                          {/* SIGNATORY NAME & TITLE (QR ↓ 9PX, NAME ↓ 2.5PX TITLE) */}
+                          <div style={{ marginTop: "9px" }}>
+                            <div
+                              style={{
+                                fontSize: "8.5px",
+                                fontWeight: 800,
+                                lineHeight: "11px",
+                                color: "#101827",
+                                textTransform: "uppercase",
+                              }}
+                            >
+                              {config.signatory1Name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "6.7px",
+                                fontWeight: 500,
+                                color: "#68768a",
+                                textTransform: "uppercase",
+                                marginTop: "2.5px",
+                                lineHeight: "9px",
+                              }}
+                            >
+                              {config.signatory1Title}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -1595,7 +1797,7 @@ export default function CertificateManager({
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0mm;
+            margin: 0mm !important;
           }
           html,
           body {
@@ -1615,8 +1817,25 @@ export default function CertificateManager({
           header,
           aside,
           footer,
-          .print\:hidden {
+          .print\:hidden,
+          .no-print {
             display: none !important;
+          }
+          /* Neutralize dashboard layout, cards, and wrappers so they have no offset or transform */
+          main,
+          main > div,
+          .certificateViewport,
+          .certificateScaleWrapper {
+            position: static !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+            filter: none !important;
+            perspective: none !important;
+            width: 100% !important;
+            max-width: none !important;
           }
           body * {
             visibility: hidden;
@@ -1626,7 +1845,7 @@ export default function CertificateManager({
             visibility: visible;
           }
           #certificate-print-area {
-            position: absolute !important;
+            position: fixed !important;
             left: 0 !important;
             top: 0 !important;
             width: 590px !important;
@@ -1638,13 +1857,15 @@ export default function CertificateManager({
             margin: 0 !important;
             padding: 0 !important;
             box-sizing: border-box !important;
-            border: 14px solid ${currentTheme.outerBorder} !important;
+            border: none !important;
             border-radius: 0 !important;
             box-shadow: none !important;
             overflow: hidden !important;
             transform-origin: 0 0 !important;
+            -webkit-transform-origin: 0 0 !important;
             transform: scale(1.342) !important;
             -webkit-transform: scale(1.342) !important;
+            z-index: 999999 !important;
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
             page-break-before: avoid !important;

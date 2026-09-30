@@ -1,0 +1,181 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 590 834" width="590" height="834" fill="none">
+  <defs>
+    <!-- Refined Gold Ribbon Gradients -->
+    <linearGradient id="goldRibbonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffdf0" />
+      <stop offset="25%" stop-color="#fae89f" />
+      <stop offset="55%" stop-color="#e5b73e" />
+      <stop offset="80%" stop-color="#c59b27" />
+      <stop offset="100%" stop-color="#8c6514" />
+    </linearGradient>
+
+    <linearGradient id="goldLightGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbee" />
+      <stop offset="50%" stop-color="#fae89f" />
+      <stop offset="100%" stop-color="#d4af37" />
+    </linearGradient>
+
+    <!-- Pure Royal Maroon Gradients -->
+    <linearGradient id="deepMaroonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6e0e22" />
+      <stop offset="50%" stop-color="#580818" />
+      <stop offset="100%" stop-color="#420511" />
+    </linearGradient>
+
+    <linearGradient id="midMaroonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8a1a32" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#580818" stop-opacity="0.8" />
+    </linearGradient>
+
+    <linearGradient id="maroonCreamGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5e6e8" stop-opacity="0.22" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.06" />
+    </linearGradient>
+
+    <!-- Subtle Low-Opacity Background Texture Waves -->
+    <linearGradient id="waveMaroonGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f5e6e8" stop-opacity="0.20" />
+      <stop offset="100%" stop-color="#eed5d8" stop-opacity="0.07" />
+    </linearGradient>
+
+    <linearGradient id="waveMaroonGrad2" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#eed5d8" stop-opacity="0.18" />
+      <stop offset="100%" stop-color="#f8f5ee" stop-opacity="0.04" />
+    </linearGradient>
+
+    <linearGradient id="waveCreamGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f1e8d3" stop-opacity="0.24" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.04" />
+    </linearGradient>
+
+    <linearGradient id="waveCreamGrad2" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#f1e8d3" stop-opacity="0.20" />
+      <stop offset="100%" stop-color="#eed5d8" stop-opacity="0.06" />
+    </linearGradient>
+
+    <linearGradient id="waveGoldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e6d39a" stop-opacity="0.16" />
+      <stop offset="100%" stop-color="#d4af37" stop-opacity="0.04" />
+    </linearGradient>
+  </defs>
+
+  <!-- 1. BASE BACKGROUND SURFACE -->
+  <rect width="590" height="834" fill="#f8f5ee" />
+
+  <!-- 2. OUTER MAROON FRAME (10px margin around composition) -->
+  <rect x="10" y="10" width="570" height="814" fill="none" stroke="#580818" stroke-width="8" />
+
+  <!-- 3. INNER DELICATE RECTANGULAR BORDER -->
+  <rect x="34" y="30" width="442" height="774" fill="none" stroke="#6e0e22" stroke-width="1" stroke-opacity="0.25" />
+
+  <!-- Document Number Horizontal Divider Lines -->
+  <line x1="34" y1="36" x2="476" y2="36" stroke="#c59b27" stroke-width="0.8" stroke-opacity="0.5" />
+  <line x1="34" y1="56" x2="476" y2="56" stroke="#c59b27" stroke-width="0.8" stroke-opacity="0.5" />
+
+  <!-- 4. TOP ARTWORK (Maroon flowing curves with clear document number contrast) -->
+  <path d="M10,10 C120,38 260,24 476,10 L476,20 C270,42 130,54 10,18 Z" fill="#580818" opacity="0.6" />
+  <path d="M10,18 C140,48 280,34 476,14 L476,24 C280,48 140,62 10,26 Z" fill="#6e0e22" opacity="0.45" />
+  <path d="M10,24 C135,54 290,40 476,20 L476,28 C290,52 140,68 10,32 Z" fill="#f5e6e8" opacity="0.25" />
+  <path d="M10,30 C150,60 300,44 476,24 L476,32 C300,54 150,72 10,36 Z" fill="#f1e8d3" opacity="0.35" />
+  <path d="M10,34 C155,66 310,50 476,28 L476,34 C310,60 155,76 10,40 Z" fill="url(#goldLightGrad)" opacity="0.55" />
+  <path d="M10,40 C165,74 320,58 476,32" stroke="#d4af37" stroke-width="0.9" stroke-opacity="0.35" fill="none" />
+
+  <!-- 5. CENTER & BACKGROUND SILK/WATER FLOWING WAVES (Subtle Texture 0.08 - 0.20 Opacity) -->
+  <path d="M10,120 C130,80 280,180 470,140 L470,170 C280,210 130,110 10,150 Z" fill="url(#waveCreamGrad1)" />
+  <path d="M10,135 C130,95 280,195 470,155" stroke="#d4af37" stroke-width="0.75" stroke-opacity="0.20" fill="none" />
+
+  <path d="M30,170 C160,230 320,160 480,240 L480,270 C320,190 160,260 30,200 Z" fill="url(#waveMaroonGrad1)" />
+  <path d="M40,185 C170,245 330,175 480,255" stroke="#eed5d8" stroke-width="0.7" stroke-opacity="0.22" fill="none" />
+
+  <path d="M10,230 C120,270 260,240 360,290 L350,315 C250,270 120,295 10,260 Z" fill="url(#maroonCreamGrad)" />
+  <path d="M10,245 C120,285 250,255 355,302" stroke="#d4af37" stroke-width="0.65" stroke-opacity="0.18" fill="none" />
+
+  <path d="M60,280 C200,350 360,290 480,360 L480,395 C360,325 200,385 60,315 Z" fill="url(#waveCreamGrad2)" />
+  <path d="M70,298 C210,368 360,308 480,378" stroke="#d4af37" stroke-width="0.75" stroke-opacity="0.18" fill="none" />
+
+  <path d="M10,350 C150,420 300,340 480,410 L480,440 C300,370 150,450 10,380 Z" fill="url(#waveMaroonGrad2)" />
+  <path d="M10,365 C150,435 300,355 480,425" stroke="#eed5d8" stroke-width="0.75" stroke-opacity="0.22" fill="none" />
+
+  <path d="M480,430 C340,490 180,450 20,520 L20,550 C180,480 340,520 480,460 Z" fill="url(#waveGoldGrad)" />
+  <path d="M480,445 C340,505 180,465 30,535" stroke="#d4af37" stroke-width="0.75" stroke-opacity="0.22" fill="none" />
+
+  <path d="M10,490 C160,560 320,480 470,570 L470,605 C320,515 160,595 10,525 Z" fill="url(#waveCreamGrad1)" />
+  <path d="M10,508 C160,578 320,498 470,588" stroke="#eed5d8" stroke-width="0.7" stroke-opacity="0.20" fill="none" />
+
+  <path d="M10,580 C150,640 310,580 480,670 L480,705 C310,615 150,675 10,615 Z" fill="url(#waveMaroonGrad1)" />
+  <path d="M10,598 C150,658 310,598 480,688" stroke="#d4af37" stroke-width="0.75" stroke-opacity="0.18" fill="none" />
+
+  <path d="M20,720 C180,660 340,740 480,710 L480,740 C340,770 180,690 20,750 Z" fill="url(#waveCreamGrad2)" />
+  <path d="M30,735 C190,675 340,755 480,725" stroke="#eed5d8" stroke-width="0.75" stroke-opacity="0.20" fill="none" />
+
+  <path d="M10,750 C160,810 320,750 480,790 L480,816 L10,816 Z" fill="url(#waveMaroonGrad2)" opacity="0.3" />
+  <path d="M10,765 C160,825 320,765 480,805" stroke="#d4af37" stroke-width="0.75" stroke-opacity="0.20" fill="none" />
+
+  <!-- 7. RIGHT-SIDE ARTWORK & REFINED MAROON/GOLD LOWER DIAGONAL STRIPES -->
+  <rect x="480" y="10" width="96" height="814" fill="url(#deepMaroonGrad)" />
+
+  <path d="M480,10 C468,75 468,155 480,230 Z" fill="#6e0e22" opacity="0.5" />
+  <path d="M480,10 C468,75 468,155 480,230" stroke="#d4af37" stroke-width="0.8" stroke-opacity="0.3" fill="none" />
+
+  <g clip-path="url(#rightMaroonStripClip)">
+    <clipPath id="rightMaroonStripClip">
+      <rect x="480" y="430" width="96" height="394" />
+    </clipPath>
+
+    <!-- Base fill of lower strip is deep royal maroon -->
+    <rect x="480" y="430" width="96" height="394" fill="#420511" />
+
+    <!-- Thin Accent 1 -->
+    <polygon points="460,434 590,306 590,314 460,442" fill="#8a1a32" opacity="0.7" />
+
+    <!-- Diagonal Stripe 0 -->
+    <polygon points="460,450 590,326 590,346 460,470" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="450" x2="590" y2="326" stroke="#fffbee" stroke-width="1.1" />
+    <line x1="460" y1="470" x2="590" y2="346" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Thin Accent 2 -->
+    <polygon points="460,504 590,380 590,388 460,512" fill="#a6192e" opacity="0.65" />
+
+    <!-- Diagonal Stripe 1 -->
+    <polygon points="460,528 590,404 590,428 460,552" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="528" x2="590" y2="404" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="552" x2="590" y2="428" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Diagonal Stripe 2 -->
+    <polygon points="460,604 590,482 590,506 460,628" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="604" x2="590" y2="482" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="628" x2="590" y2="506" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Thin Accent 3 -->
+    <polygon points="460,658 590,538 590,546 460,666" fill="#8a1a32" opacity="0.7" />
+
+    <!-- Diagonal Stripe 3 -->
+    <polygon points="460,680 590,558 590,582 460,704" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="680" x2="590" y2="558" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="704" x2="590" y2="582" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Diagonal Stripe 4 -->
+    <polygon points="460,756 590,632 590,658 460,782" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="756" x2="590" y2="632" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="782" x2="590" y2="658" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Thin Accent 4 -->
+    <polygon points="460,812 590,690 590,698 460,820" fill="#a6192e" opacity="0.65" />
+
+    <!-- Diagonal Stripe 5 -->
+    <polygon points="460,832 590,708 590,734 460,858" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="832" x2="590" y2="708" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="858" x2="590" y2="734" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Diagonal Stripe 6 -->
+    <polygon points="460,908 590,784 590,808 460,932" fill="url(#goldRibbonGrad)" />
+    <line x1="460" y1="908" x2="590" y2="784" stroke="#fffbee" stroke-width="1.2" />
+    <line x1="460" y1="932" x2="590" y2="808" stroke="#8c6514" stroke-width="0.9" />
+
+    <!-- Left inner border of right strip -->
+    <line x1="480" y1="430" x2="480" y2="824" stroke="#d4af37" stroke-width="1" stroke-opacity="0.8" />
+  </g>
+
+  <!-- Left border of upper right strip -->
+  <line x1="480" y1="10" x2="480" y2="430" stroke="#d4af37" stroke-width="1" stroke-opacity="0.45" />
+</svg>
