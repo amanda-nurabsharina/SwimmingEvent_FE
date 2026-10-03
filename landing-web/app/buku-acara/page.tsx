@@ -563,6 +563,13 @@ function BukuAcaraContent() {
             ) : (
               <div className="space-y-8">
                 {filteredEvents.map((event) => {
+                  const isPutri =
+                    event.gender?.toUpperCase() === "PUTRI" ||
+                    event.gender?.toUpperCase() === "WANITA" ||
+                    event.gender?.toUpperCase() === "PEREMPUAN" ||
+                    event.gender?.toUpperCase() === "FEMALE" ||
+                    event.gender?.toUpperCase() === "W" ||
+                    event.gender?.toUpperCase() === "P";
                   const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
                   const heatGroups = groupHeatsByNumber(event.heats || []);
 
@@ -572,9 +579,17 @@ function BukuAcaraContent() {
                       className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
                     >
                       {/* Event Header Banner */}
-                      <div className="bg-slate-900 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b border-slate-800">
+                      <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b ${
+                        isPutri
+                          ? "bg-slate-900 border-rose-900/50"
+                          : "bg-slate-900 border-sky-900/50"
+                      }`}>
                         <div className="flex items-center gap-3 flex-wrap">
-                          <div className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl font-mono text-xs sm:text-sm font-black text-sky-400 shrink-0 shadow-inner">
+                          <div className={`px-3 py-1.5 rounded-xl font-mono text-xs sm:text-sm font-black shrink-0 shadow-inner border ${
+                            isPutri
+                              ? "bg-rose-950/60 border-rose-800/80 text-rose-400"
+                              : "bg-slate-800 border-slate-700 text-sky-400"
+                          }`}>
                             EVENT #{event.event_code}
                           </div>
                           <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-white">
@@ -590,13 +605,17 @@ function BukuAcaraContent() {
                               GROUP ABJAD
                             </span>
                           ) : (
-                            <span className="bg-sky-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs">
+                            <span className={`${isPutri ? "bg-rose-600" : "bg-sky-600"} text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs`}>
                               HEAT ANGKA
                             </span>
                           )}
                         </div>
                         <div className="flex items-center gap-2 text-xs font-black">
-                          <span className="px-3 py-1 bg-white/10 rounded-full border border-white/20 uppercase">
+                          <span className={`px-3.5 py-1 rounded-full border font-black uppercase tracking-wider ${
+                            isPutri
+                              ? "bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-xs"
+                              : "bg-sky-600/30 text-sky-300 border-sky-500/50 shadow-xs"
+                          }`}>
                             {event.gender}
                           </span>
                         </div>
@@ -613,25 +632,37 @@ function BukuAcaraContent() {
                           return (
                             <div
                               key={group.heatNum}
-                              className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden print:rounded-none print:border-none print:shadow-none"
+                              className={`bg-white rounded-2xl border shadow-xs overflow-hidden print:rounded-none print:border-none print:shadow-none ${
+                                isPutri ? "border-rose-100" : "border-slate-200/90"
+                              }`}
                             >
                               {/* Subheader */}
-                              <div className="px-4 py-2.5 bg-slate-100/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 print:bg-slate-200">
+                              <div className={`px-4 py-2.5 border-b flex flex-wrap items-center justify-between gap-2 print:bg-slate-200 ${
+                                isPutri
+                                  ? "bg-rose-50/80 border-rose-200/70"
+                                  : "bg-slate-100/90 border-slate-200"
+                              }`}>
                                 <div className="flex items-center gap-2.5">
                                   <span
                                     className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider ${
-                                      isGroup ? "bg-purple-600 text-white shadow-xs" : "bg-sky-600 text-white shadow-xs"
+                                      isGroup
+                                        ? "bg-purple-600 text-white shadow-xs"
+                                        : isPutri
+                                        ? "bg-rose-600 text-white shadow-xs"
+                                        : "bg-sky-600 text-white shadow-xs"
                                     }`}
                                   >
                                     {isGroup ? `GROUP ${labelDisplay}` : `SERI (HEAT) ${group.heatNum}`}
                                   </span>
-                                  <span className="text-xs font-bold text-slate-700">
+                                  <span className={`text-xs font-bold ${isPutri ? "text-rose-950" : "text-slate-700"}`}>
                                     {isGroup ? `Kelompok Group ${labelDisplay}` : `Seri ${group.heatNum}`}
                                     <span className="mx-1.5 text-slate-300">•</span>
-                                    <span className="text-slate-500 font-medium">{activeSwimmers.length} Atlet Terdaftar</span>
+                                    <span className={`font-medium ${isPutri ? "text-rose-700/80" : "text-slate-500"}`}>{activeSwimmers.length} Atlet Terdaftar</span>
                                   </span>
                                 </div>
-                                <span className="text-[11px] font-bold text-slate-500 bg-white px-2.5 py-1 rounded-lg border border-slate-200 print:hidden">
+                                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white print:hidden ${
+                                  isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
+                                }`}>
                                   Kapasitas {event.max_lanes || 3} Lintasan
                                 </span>
                               </div>
@@ -640,16 +671,20 @@ function BukuAcaraContent() {
                               <div className="overflow-x-auto">
                                 <table className="w-full text-left text-xs border-collapse">
                                   <thead>
-                                    <tr className="bg-slate-50 font-black text-slate-600 uppercase tracking-wider border-b border-slate-200 text-[10px]">
-                                      <th className="py-2.5 px-3 w-16 text-center border-r border-slate-200">
+                                    <tr className={`font-black uppercase tracking-wider border-b text-[10px] ${
+                                      isPutri
+                                        ? "bg-rose-50/90 text-rose-900 border-rose-200/80"
+                                        : "bg-sky-50/80 text-sky-950 border-sky-200/80"
+                                    }`}>
+                                      <th className={`py-2.5 px-3 w-16 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
                                         {isGroup ? "GROUP" : "SERI"}
                                       </th>
-                                      <th className="py-2.5 px-3 w-14 text-center border-r border-slate-200">LINE</th>
-                                      <th className="py-2.5 px-4 border-r border-slate-200">NAMA PERENANG</th>
-                                      <th className="py-2.5 px-3 w-28 text-center border-r border-slate-200">JENIS KELAMIN</th>
-                                      <th className="py-2.5 px-4 border-r border-slate-200">CLUB</th>
-                                      <th className="py-2.5 px-3 w-28 text-center border-r border-slate-200">TIME SEED</th>
-                                      <th className="py-2.5 px-4 w-32 text-center border-r border-slate-200">WAKTU HASIL</th>
+                                      <th className={`py-2.5 px-3 w-14 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>LINE</th>
+                                      <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>NAMA PERENANG</th>
+                                      <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>JENIS KELAMIN</th>
+                                      <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>CLUB</th>
+                                      <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>TIME SEED</th>
+                                      <th className={`py-2.5 px-4 w-32 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>WAKTU HASIL</th>
                                       <th className="py-2.5 px-4 w-36 text-center">PERINGKAT</th>
                                     </tr>
                                   </thead>

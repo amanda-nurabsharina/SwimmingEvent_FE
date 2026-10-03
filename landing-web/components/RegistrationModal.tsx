@@ -436,11 +436,64 @@ export default function RegistrationModal({
       onClick={(e) => {
         if (e.target === modalOuterRef.current) handleCloseAndReset();
       }}
-      className="fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
+      className="modal-root-wrapper fixed inset-0 z-50 bg-slate-900/75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto"
     >
-      <div className="bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
+      {/* Dedicate Print CSS for Receipt */}
+      <style>{`
+        @media print {
+          body {
+            background: white !important;
+            visibility: hidden !important;
+          }
+          header, main, footer, nav {
+            display: none !important;
+          }
+          .modal-root-wrapper {
+            position: static !important;
+            background: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            visibility: visible !important;
+          }
+          .modal-card-box {
+            position: static !important;
+            border: none !important;
+            box-shadow: none !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            overflow: visible !important;
+            max-height: none !important;
+            visibility: visible !important;
+          }
+          .receipt-print-only,
+          .receipt-print-only * {
+            visibility: visible !important;
+          }
+          .receipt-print-only {
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 24px !important;
+            border: 2px solid #000 !important;
+            border-radius: 0 !important;
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+            display: block !important;
+            background: white !important;
+          }
+          .no-print-area {
+            display: none !important;
+          }
+        }
+      `}</style>
+      <div className="modal-card-box bg-white rounded-3xl max-w-2xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
         {/* MODAL HEADER BANNER (STEPS 1-4) */}
-        <div className="bg-gradient-to-r from-sky-600 via-blue-600 to-blue-800 text-white p-5 sm:p-6 relative flex-shrink-0">
+        <div className="no-print-area bg-gradient-to-r from-sky-600 via-blue-600 to-blue-800 text-white p-5 sm:p-6 relative flex-shrink-0">
           <button
             onClick={handleCloseAndReset}
             className="absolute top-4 right-4 p-1.5 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all cursor-pointer"
@@ -1291,11 +1344,11 @@ export default function RegistrationModal({
           {step === 4 && receiptData && (
             <div className="space-y-6 text-center py-2">
               {/* Success Check Icon */}
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
+              <div className="no-print-area w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-sm">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
 
-              <div className="space-y-1">
+              <div className="no-print-area space-y-1">
                 <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-black border border-emerald-200">
                   Pendaftaran Berhasil Dikirim
                 </span>
@@ -1309,48 +1362,59 @@ export default function RegistrationModal({
               </div>
 
               {/* Receipt Card Container */}
-              <div className="p-6 bg-white border-2 border-dashed border-sky-200 rounded-3xl text-left space-y-4 shadow-sm max-w-lg mx-auto">
-                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="receipt-print-only p-6 bg-white border-2 border-dashed border-sky-200 rounded-3xl text-left space-y-4 shadow-sm max-w-lg mx-auto print:max-w-none print:border-black print:rounded-none">
+                {/* Official Printable Header */}
+                <div className="hidden print:block pb-3 mb-3 border-b-2 border-black text-center">
+                  <h1 className="text-xl font-black uppercase tracking-wider text-black">
+                    {compName}
+                  </h1>
+                  <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800 mt-1">
+                    BUKTI PENDAFTARAN RESMI PESERTA
+                  </h2>
+                  <p className="text-[11px] text-slate-600 mt-0.5">{compLoc}</p>
+                </div>
+
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100 print:border-black">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold uppercase block">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase block print:text-slate-600">
                       KODE RESI PENDAFTARAN
                     </span>
-                    <span className="text-lg font-black text-blue-700 tracking-wider">
+                    <span className="text-lg font-black text-blue-700 tracking-wider print:text-black">
                       {receiptData.registration_code}
                     </span>
                   </div>
-                  <span className="px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-black rounded-full border border-amber-200">
+                  <span className="px-3 py-1 bg-amber-100 text-amber-800 text-[11px] font-black rounded-full border border-amber-200 print:bg-transparent print:border-black print:text-black">
                     Menunggu Verifikasi
                   </span>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 text-xs">
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Nama Atlet:</span>
-                    <span className="font-black text-slate-900">{name.toUpperCase()}</span>
+                    <span className="text-[10px] text-slate-400 font-bold block print:text-slate-600">Nama Atlet:</span>
+                    <span className="font-black text-slate-900 print:text-black">{name.toUpperCase()}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Kategori & KU:</span>
-                    <span className="font-black text-sky-600">
+                    <span className="text-[10px] text-slate-400 font-bold block print:text-slate-600">Kategori & KU:</span>
+                    <span className="font-black text-sky-600 print:text-black">
                       {detectedKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
                     </span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Klub / Sekolah:</span>
-                    <span className="font-bold text-slate-700">{club}</span>
+                    <span className="text-[10px] text-slate-400 font-bold block print:text-slate-600">Klub / Sekolah:</span>
+                    <span className="font-bold text-slate-700 print:text-black">{club}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-400 font-bold block">Total Biaya:</span>
-                    <span className="font-black text-emerald-600">
+                    <span className="text-[10px] text-slate-400 font-bold block print:text-slate-600">Total Biaya:</span>
+                    <span className="font-black text-emerald-600 print:text-black">
                       Rp {totalFee.toLocaleString("id-ID")}
                     </span>
                   </div>
                 </div>
 
                 {/* Registered Events Summary List */}
-                <div className="pt-3 border-t border-slate-100 space-y-2">
-                  <span className="text-[10px] font-bold text-slate-500 uppercase block">
-                    Nomor Acara Terdaftar:
+                <div className="pt-3 border-t border-slate-100 space-y-2 print:border-black">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase block print:text-black">
+                    Nomor Acara Terdaftar ({checkedEventEntries.length} Nomor Lomba):
                   </span>
                   <div className="space-y-1.5">
                     {checkedEventEntries.map(([idStr, val]) => {
@@ -1358,12 +1422,12 @@ export default function RegistrationModal({
                       return (
                         <div
                           key={idStr}
-                          className="p-2.5 bg-slate-50 rounded-xl flex items-center justify-between text-xs"
+                          className="p-2.5 bg-slate-50 rounded-xl flex items-center justify-between text-xs print:bg-transparent print:border print:border-slate-300 print:rounded-md"
                         >
-                          <span className="font-bold text-slate-800">
+                          <span className="font-bold text-slate-800 print:text-black">
                             #{evt?.event_code} {evt?.event_name} ({gender === "PUTRA" ? "Putra" : "Putri"})
                           </span>
-                          <span className="font-mono text-[11px] font-black text-sky-600">
+                          <span className="font-mono text-[11px] font-black text-sky-600 print:text-black">
                             Seed: {val.isNoTime || val.timeSeed === "NT" ? "99:99.99" : (val.timeSeed || "99:99.99")}
                           </span>
                         </div>
@@ -1371,10 +1435,23 @@ export default function RegistrationModal({
                     })}
                   </div>
                 </div>
+
+                {/* Printable Footer / Verification Stamp Outline */}
+                <div className="hidden print:flex items-center justify-between pt-6 mt-4 border-t border-slate-300 text-[10px] text-slate-700">
+                  <div>
+                    <p className="font-bold">Tanggal Cetak: {new Date().toLocaleDateString("id-ID", { dateStyle: "full" })}</p>
+                    <p className="text-slate-500 mt-0.5">Harap simpan bukti pendaftaran ini untuk ditunjukkan saat technical meeting.</p>
+                  </div>
+                  <div className="text-center w-36 border border-slate-400 p-2 rounded">
+                    <p className="text-[9px] uppercase font-bold text-slate-500">Cap / Tanda Tangan</p>
+                    <div className="h-10"></div>
+                    <p className="font-bold text-slate-800">Panitia Pelaksana</p>
+                  </div>
+                </div>
               </div>
 
               {/* Final Actions */}
-              <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
+              <div className="no-print-area flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">
                 <a
                   href={getWAUrl()}
                   target="_blank"
@@ -1387,7 +1464,7 @@ export default function RegistrationModal({
                 <button
                   type="button"
                   onClick={() => window.print()}
-                  className="w-full sm:w-auto px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                  className="w-full sm:w-auto px-5 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-2xl font-black text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
                 >
                   <Printer className="w-4 h-4" />
                   <span>Cetak Resi (A4 / PDF)</span>

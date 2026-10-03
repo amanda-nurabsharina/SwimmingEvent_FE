@@ -196,13 +196,13 @@ export default function EventInfoSection({
           {/* TOURNAMENT METADATA DETAILS BAR */}
           {currentTourney && (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs font-bold text-slate-700 bg-slate-50 p-5 rounded-2xl border border-slate-200">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-rose-100 rounded-xl text-rose-600 shrink-0">
+              <div className="flex items-start gap-3 min-w-0">
+                <div className="p-2.5 bg-rose-100 rounded-xl text-rose-600 shrink-0 mt-0.5">
                   <MapPin className="w-4 h-4" />
                 </div>
-                <div>
+                <div className="min-w-0 flex-1">
                   <span className="text-[10px] text-slate-400 block font-bold">LOKASI VENUE:</span>
-                  <span className="font-black text-slate-900 truncate block">
+                  <span className="font-black text-slate-900 break-words block leading-snug" title={currentTourney.location}>
                     {currentTourney.location || "Kolam Renang Gelanggang Tangerang"}
                   </span>
                 </div>

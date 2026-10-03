@@ -38,15 +38,15 @@ export default function SwimmingTimeInput({
     const parts = clean.split(".");
     if (parts.length >= 3) {
       return {
-        mm: parts[0].replace(/\D/g, "").padStart(2, "0").slice(-2),
-        ss: parts[1].replace(/\D/g, "").padStart(2, "0").slice(-2),
-        ms: parts[2].replace(/\D/g, "").padStart(2, "0").slice(-2),
+        mm: parts[0].replace(/\D/g, "").slice(0, 2),
+        ss: parts[1].replace(/\D/g, "").slice(0, 2),
+        ms: parts[2].replace(/\D/g, "").slice(0, 2),
       };
     } else if (parts.length === 2) {
       return {
         mm: "00",
-        ss: parts[0].replace(/\D/g, "").padStart(2, "0").slice(-2),
-        ms: parts[1].replace(/\D/g, "").padStart(2, "0").slice(-2),
+        ss: parts[0].replace(/\D/g, "").slice(0, 2),
+        ms: parts[1].replace(/\D/g, "").slice(0, 2),
       };
     }
     return { mm: "00", ss: "00", ms: "00" };
@@ -58,13 +58,14 @@ export default function SwimmingTimeInput({
   const [ms, setMs] = useState<string>(initial.ms);
   const [isFocused, setIsFocused] = useState<boolean>(false);
 
-  // Sync state if external value changes significantly
+  // Sync state if external value changes while NOT focused
   useEffect(() => {
+    if (isFocused) return;
     const parsed = parseVal(value);
     setMm(parsed.mm);
     setSs(parsed.ss);
     setMs(parsed.ms);
-  }, [value]);
+  }, [value, isFocused]);
 
   // Autofocus on mount if requested
   useEffect(() => {
@@ -81,29 +82,21 @@ export default function SwimmingTimeInput({
   };
 
   const handleMmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setMm(digits);
-    emitChange(digits, ss, ms);
-    if (digits.length === 2 && ssRef.current) {
-      ssRef.current.focus();
-      ssRef.current.select();
-    }
+    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setMm(val);
+    emitChange(val, ss, ms);
   };
 
   const handleSsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setSs(digits);
-    emitChange(mm, digits, ms);
-    if (digits.length === 2 && msRef.current) {
-      msRef.current.focus();
-      msRef.current.select();
-    }
+    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setSs(val);
+    emitChange(mm, val, ms);
   };
 
   const handleMsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const digits = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setMs(digits);
-    emitChange(mm, ss, digits);
+    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
+    setMs(val);
+    emitChange(mm, ss, val);
   };
 
   const handleBlur = () => {
@@ -222,7 +215,7 @@ export default function SwimmingTimeInput({
   // Dimensions & font sizing based on prop
   const isSm = size === "sm";
   const boxHeight = isSm ? "h-8" : "h-10";
-  const inputWidth = isSm ? "w-6" : "w-8";
+  const inputWidth = isSm ? "w-7" : "w-9";
   const textSize = isSm ? "text-xs" : "text-sm";
 
   return (
@@ -246,7 +239,10 @@ export default function SwimmingTimeInput({
           maxLength={2}
           disabled={disabled}
           value={mm}
-          onFocus={() => setIsFocused(true)}
+          onFocus={(e) => {
+            setIsFocused(true);
+            e.target.select();
+          }}
           onBlur={handleBlur}
           onChange={handleMmChange}
           onKeyDown={(e) => handleKeyDown(e, "mm")}
@@ -268,7 +264,10 @@ export default function SwimmingTimeInput({
           maxLength={2}
           disabled={disabled}
           value={ss}
-          onFocus={() => setIsFocused(true)}
+          onFocus={(e) => {
+            setIsFocused(true);
+            e.target.select();
+          }}
           onBlur={handleBlur}
           onChange={handleSsChange}
           onKeyDown={(e) => handleKeyDown(e, "ss")}
@@ -290,7 +289,10 @@ export default function SwimmingTimeInput({
           maxLength={2}
           disabled={disabled}
           value={ms}
-          onFocus={() => setIsFocused(true)}
+          onFocus={(e) => {
+            setIsFocused(true);
+            e.target.select();
+          }}
           onBlur={handleBlur}
           onChange={handleMsChange}
           onKeyDown={(e) => handleKeyDown(e, "ms")}

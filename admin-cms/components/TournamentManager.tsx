@@ -349,25 +349,36 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                 </div>
 
                 {/* DETAILS METADATA */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs font-bold text-slate-700 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0" />
-                    <span className="truncate">{t.location || "Lokasi Belum Diset"}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
-                    <span>
-                      Batas:{" "}
-                      <span className={isExpired ? "text-red-600 font-black" : "text-emerald-700 font-black"}>
-                        {t.registration_end_date || "-"}
+                <div className="space-y-2.5 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80 text-xs font-bold">
+                  {/* Lokasi Venue - Menyesuaikan Posisi Tanpa Bertabrakan */}
+                  <div className="flex items-start gap-2 text-slate-700 min-w-0">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500 shrink-0 mt-0.5" />
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] text-slate-400 font-extrabold uppercase block mb-0.5">
+                        Lokasi Venue:
                       </span>
-                    </span>
+                      <span className="break-words font-black text-slate-800 leading-snug block" title={t.location}>
+                        {t.location || "Lokasi Belum Diset"}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2 text-slate-600">
-                    <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>
-                      Lomba: {t.event_start_date || "-"}
-                    </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-slate-200/60 text-slate-600">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                      <span>
+                        Batas:{" "}
+                        <span className={isExpired ? "text-red-600 font-black" : "text-emerald-700 font-black"}>
+                          {t.registration_end_date || "-"}
+                        </span>
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span>
+                        Lomba: <span className="font-black text-slate-800">{t.event_start_date || "-"}</span>
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>

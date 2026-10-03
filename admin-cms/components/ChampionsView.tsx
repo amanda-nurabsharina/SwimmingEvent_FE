@@ -97,6 +97,13 @@ export default function ChampionsView({
         {events.map((event) => {
           const champ = calculateEventChampions(event);
           const isExpanded = Boolean(expandedEventMap[event.event_code]);
+          const isPutri =
+            event.gender?.toUpperCase() === "PUTRI" ||
+            event.gender?.toUpperCase() === "WANITA" ||
+            event.gender?.toUpperCase() === "PEREMPUAN" ||
+            event.gender?.toUpperCase() === "FEMALE" ||
+            event.gender?.toUpperCase() === "W" ||
+            event.gender?.toUpperCase() === "P";
 
           return (
             <div
@@ -104,9 +111,17 @@ export default function ChampionsView({
               className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
             >
               {/* Event Header Banner */}
-              <div className="bg-slate-900 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b border-slate-800">
+              <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b ${
+                isPutri
+                  ? "bg-slate-900 border-rose-900/50"
+                  : "bg-slate-900 border-sky-900/50"
+              }`}>
                 <div className="flex items-center gap-3 flex-wrap">
-                  <div className="px-3 py-1.5 bg-slate-800 border border-slate-700 rounded-xl font-mono text-xs sm:text-sm font-black text-sky-400 shrink-0 shadow-inner">
+                  <div className={`px-3 py-1.5 rounded-xl font-mono text-xs sm:text-sm font-black shrink-0 shadow-inner border ${
+                    isPutri
+                      ? "bg-rose-950/60 border-rose-800/80 text-rose-400"
+                      : "bg-slate-800 border-slate-700 text-sky-400"
+                  }`}>
                     EVENT #{event.event_code}
                   </div>
                   <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-white">
@@ -122,14 +137,20 @@ export default function ChampionsView({
                       GROUP ABJAD (SEMUA GROUP BERPELUANG JUARA)
                     </span>
                   ) : (
-                    <span className="bg-sky-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs">
+                    <span className={`${
+                      isPutri ? "bg-rose-600" : "bg-sky-600"
+                    } text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs`}>
                       HEAT ANGKA (TIMED FINAL JUARA 1-3)
                     </span>
                   )}
                 </div>
 
                 <div className="flex items-center gap-2 text-xs font-black">
-                  <span className="px-3 py-1 bg-white/10 rounded-full border border-white/20 uppercase">
+                  <span className={`px-3.5 py-1 rounded-full border font-black uppercase tracking-wider ${
+                    isPutri
+                      ? "bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-xs"
+                      : "bg-sky-600/30 text-sky-300 border-sky-500/50 shadow-xs"
+                  }`}>
                     {event.gender}
                   </span>
                   <span className="text-[11px] text-slate-400 font-bold hidden sm:inline">
@@ -324,13 +345,17 @@ export default function ChampionsView({
                         <div className="overflow-x-auto">
                           <table className="w-full text-left text-xs border-collapse">
                             <thead>
-                              <tr className="bg-slate-100 font-black text-slate-700 uppercase tracking-wider text-[10px] border-b border-slate-200">
-                                <th className="py-2.5 px-3 w-16 text-center">RANK</th>
-                                <th className="py-2.5 px-4">NAMA PERENANG</th>
-                                <th className="py-2.5 px-3 w-28 text-center">SERI & LINTASAN</th>
-                                <th className="py-2.5 px-4">CLUB</th>
-                                <th className="py-2.5 px-3 w-28 text-center">TIME SEED</th>
-                                <th className="py-2.5 px-3 w-32 text-center">HASIL RESMI</th>
+                              <tr className={`font-black uppercase tracking-wider text-[10px] border-b ${
+                                isPutri
+                                  ? "bg-rose-50/90 text-rose-900 border-rose-200/80"
+                                  : "bg-sky-50/80 text-sky-950 border-sky-200/80"
+                              }`}>
+                                <th className={`py-2.5 px-3 w-16 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>RANK</th>
+                                <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>NAMA PERENANG</th>
+                                <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>SERI & LINTASAN</th>
+                                <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>CLUB</th>
+                                <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>TIME SEED</th>
+                                <th className={`py-2.5 px-3 w-32 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>HASIL RESMI</th>
                                 <th className="py-2.5 px-3 w-28 text-center">SELISIH WAKTU</th>
                               </tr>
                             </thead>
