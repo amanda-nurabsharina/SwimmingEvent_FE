@@ -7,6 +7,7 @@ import {
   deleteAdminEvent,
   fetchAdminTournaments,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 import {
   ListOrdered,
   Plus,
@@ -101,7 +102,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
   const handleSaveEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formEventName.trim()) {
-      alert("Nama acara lomba wajib diisi");
+      toast.warning("Nama acara lomba wajib diisi", { title: "Validasi Form" });
       return;
     }
 
@@ -124,22 +125,32 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
     const res = await saveAdminEvent(payload);
     setSaving(false);
     if (res.success) {
+      toast.success(editingEvent ? "Nomor lomba berhasil diperbarui!" : "Nomor lomba baru berhasil ditambahkan!");
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan data nomor lomba: " + res.message);
+      toast.error("Gagal menyimpan data nomor lomba: " + res.message);
     }
   };
 
   const handleDeleteEvent = async (id: number, code: number, name: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus Acara #${code} "${name}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Nomor Lomba",
+      message: `Apakah Anda yakin ingin menghapus Acara #${code} "${name}"?`,
+      confirmText: "Ya, Hapus",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminEvent(id);
     if (res.success) {
+      toast.success(`Acara #${code} "${name}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus: " + res.message);
+      toast.error("Gagal menghapus: " + res.message);
     }
   };
 
@@ -582,10 +593,25 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                   </label>
                   <select
                     value={formStroke}
-                    onChange={(e) => setFormStroke(e.target.value)}
+                    onChange={(e) => {
+                      const newStroke = e.target.value;
+                      setFormStroke(newStroke);
+                      const distNum = formDistance ? formDistance.replace(/\D/g, "") : "50";
+                      if (!editingEvent || formEventName === "50m Gaya Bebas" || formEventName === `${distNum}m Gaya Bebas`) {
+                        if (newStroke === "FREESTYLE_FIN") setFormEventName(`${distNum}m Freestyle FIN`);
+                        else if (newStroke === "KICKING_BOARD") setFormEventName(`${distNum}m Kicking Board`);
+                        else if (newStroke === "FREESTYLE") setFormEventName(`${distNum}m Gaya Bebas`);
+                        else if (newStroke === "BREASTSTROKE") setFormEventName(`${distNum}m Gaya Dada`);
+                        else if (newStroke === "BACKSTROKE") setFormEventName(`${distNum}m Gaya Punggung`);
+                        else if (newStroke === "BUTTERFLY") setFormEventName(`${distNum}m Gaya Kupu-kupu`);
+                        else if (newStroke === "INDIVIDUALMEDLEY") setFormEventName(`${distNum}m Gaya Ganti Perorangan`);
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+                    <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                    <option value="KICKING_BOARD">Kicking Board</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                     <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
                     <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
@@ -605,11 +631,12 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                     onChange={(e) => setFormAgeGroup(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 4">KU 4 (≤ 10 Tahun)</option>
-                    <option value="KU 3">KU 3 (11 - 12 Tahun)</option>
-                    <option value="KU 2">KU 2 (13 - 14 Tahun)</option>
-                    <option value="KU 1">KU 1 (15 - 17 Tahun)</option>
-                    <option value="Senior">Senior (≥ 18 Tahun)</option>
+                    <option value="KU 5">KU 5 (≤ 9 Tahun / Pemula)</option>
+                    <option value="KU 4">KU 4 (10 - 11 Tahun)</option>
+                    <option value="KU 3">KU 3 (12 - 13 Tahun)</option>
+                    <option value="KU 2">KU 2 (14 - 15 Tahun)</option>
+                    <option value="KU 1">KU 1 (16 - 18 Tahun)</option>
+                    <option value="Senior">Senior (≥ 19 Tahun)</option>
                     <option value="OPEN">OPEN / Semua Umur</option>
                   </select>
                 </div>

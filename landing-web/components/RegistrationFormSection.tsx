@@ -4,6 +4,7 @@ import { useState } from "react";
 import { submitRegistration, uploadPaymentProof } from "../lib/api-client";
 import { User, Plus, Trash2, Upload, CheckCircle2, AlertCircle, Clock } from "lucide-react";
 import SwimmingTimeInput from "./SwimmingTimeInput";
+import { toast } from "./Toast";
 
 interface SwimmingEvent {
   id: number;
@@ -55,7 +56,7 @@ export default function RegistrationFormSection({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !club) {
-      alert("Harap isi nama peserta dan nama klub/sekolah.");
+      toast.warning("Harap isi nama peserta dan nama klub/sekolah.");
       return;
     }
 

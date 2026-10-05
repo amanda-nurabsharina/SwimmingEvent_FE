@@ -122,16 +122,23 @@ export default function DashboardPage() {
     return parts.join(" • ");
   }, [activeTournament]);
 
+  // Only active registrations are counted in the dashboard summary stats and recent registrations overview
+  const activeRegistrations = useMemo(() => {
+    return registrations.filter(
+      (r) => r.is_active !== false && (!r.participant || r.participant.is_active !== false)
+    );
+  }, [registrations]);
+
   // Filter registrations based on selected tournament
   const filteredRegistrations = useMemo(() => {
     if (!selectedTourneyId || selectedTourneyId === 0) {
-      return registrations;
+      return activeRegistrations;
     }
-    return registrations.filter((r) => {
+    return activeRegistrations.filter((r) => {
       const tourneyId = r.swimming_event?.tournament_id || r.tournament_id || r.swimming_event?.tournament?.id;
       return tourneyId === selectedTourneyId;
     });
-  }, [registrations, selectedTourneyId]);
+  }, [activeRegistrations, selectedTourneyId]);
 
   const totalVerified = useMemo(() => {
     return filteredRegistrations.filter((r) => r.payment_status === "verified").length;

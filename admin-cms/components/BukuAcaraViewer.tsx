@@ -32,6 +32,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
+import { toast } from "./Toast";
 
 interface HeatItem {
   registration_id?: number;
@@ -146,16 +147,20 @@ export default function BukuAcaraViewer({
 
     if (res && res.success) {
       setIsPublished(targetPublishState);
+      const msg = targetPublishState
+        ? "🌐 Buku Acara berhasil dipublikasikan ke website publik!"
+        : "Publikasi Buku Acara berhasil ditarik.";
       setGenMessage({
         success: true,
         text: targetPublishState
           ? "🌐 Buku Acara berhasil dipublikasikan! Sekarang tampil di halaman website publik (/buku-acara)."
           : "Publikasi Buku Acara berhasil ditarik (disembunyikan dari halaman website publik).",
       });
+      toast.success(msg);
       if (onRefresh) onRefresh();
       fetchData();
     } else {
-      alert(res?.message || "Gagal mengubah status publikasi");
+      toast.error(res?.message || "Gagal mengubah status publikasi");
     }
   };
 
@@ -169,16 +174,18 @@ export default function BukuAcaraViewer({
     if (res && res.success) {
       setIsLocked(targetLockState);
       setShowUnlockModal(false);
+      const msg = targetLockState
+        ? "Buku Acara berhasil dipatenkan! Susunan seri & lintasan telah dikunci secara resmi."
+        : "Kunci buku acara telah dibuka (kembali ke mode draft).";
       setGenMessage({
         success: true,
-        text: targetLockState
-          ? "Buku Acara berhasil dipatenkan! Susunan seri & lintasan telah dikunci secara resmi."
-          : "Kunci buku acara telah dibuka (kembali ke mode draft). Anda dapat meng-generate ulang susunan.",
+        text: msg,
       });
+      toast.success(msg);
       if (onRefresh) onRefresh();
       fetchData();
     } else {
-      alert(res?.message || "Gagal mengubah status kunci buku acara");
+      toast.error(res?.message || "Gagal mengubah status kunci buku acara");
     }
   };
 
@@ -274,7 +281,16 @@ export default function BukuAcaraViewer({
         const s = (event.stroke || "").toUpperCase();
         const n = (event.event_name || "").toUpperCase();
         const target = selectedStroke.toUpperCase();
-        if (!s.includes(target) && !n.includes(target)) return false;
+        if (target === "FREESTYLE_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return false;
+        } else if (target === "KICKING_BOARD") {
+          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
+        } else if (target === "FREESTYLE") {
+          if (s.includes("FIN") || n.includes("FIN")) return false;
+          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
+        } else {
+          if (!s.includes(target) && !n.includes(target)) return false;
+        }
       }
 
       // 2. Filter Jarak (Distance)
@@ -721,6 +737,8 @@ export default function BukuAcaraViewer({
               >
                 <option value="ALL">Semua Gaya Renang</option>
                 <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+                <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                <option value="KICKING_BOARD">Kicking Board</option>
                 <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                 <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
                 <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>

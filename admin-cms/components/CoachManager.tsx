@@ -22,6 +22,7 @@ import {
   ShieldCheck,
   Clock,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function CoachManager({ onRefresh }: { onRefresh: () => void }) {
   const [activeSubTab, setActiveSubTab] = useState<"coaches" | "section">("coaches");
@@ -81,10 +82,10 @@ export default function CoachManager({ onRefresh }: { onRefresh: () => void }) {
     const res = await saveAdminCoachSectionConfig(payload);
     setSavingSection(false);
     if (res.success) {
-      alert("Pengaturan Header Seksi Pelatih berhasil diperbarui!");
+      toast.success("Pengaturan Header Seksi Pelatih berhasil diperbarui!");
       onRefresh();
     } else {
-      alert("Gagal menyimpan pengaturan: " + (res.message || "Error"));
+      toast.error("Gagal menyimpan pengaturan: " + (res.message || "Error"));
     }
   };
 
@@ -96,8 +97,9 @@ export default function CoachManager({ onRefresh }: { onRefresh: () => void }) {
     setUploadingPhoto(false);
     if (res.success && res.url) {
       setFormPhotoUrl(res.url);
+      toast.success("Foto pelatih berhasil diunggah!");
     } else {
-      alert("Gagal mengunggah foto: " + (res.message || "Error"));
+      toast.error("Gagal mengunggah foto: " + (res.message || "Error"));
     }
   };
 
@@ -130,7 +132,7 @@ export default function CoachManager({ onRefresh }: { onRefresh: () => void }) {
   const handleSaveCoach = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName || !formRoleTitle) {
-      alert("Nama Pelatih dan Peran / Spesialisasi wajib diisi!");
+      toast.warning("Nama Pelatih dan Peran / Spesialisasi wajib diisi!");
       return;
     }
 
@@ -151,24 +153,32 @@ export default function CoachManager({ onRefresh }: { onRefresh: () => void }) {
     const res = await saveAdminCoach(payload);
     setSavingCoach(false);
     if (res.success) {
-      alert(`Data "${formName}" berhasil disimpan!`);
+      toast.success(`Data "${formName}" berhasil disimpan!`);
       resetForm();
       loadData();
       onRefresh();
     } else {
-      alert("Gagal menyimpan data pelatih: " + (res.message || "Error"));
+      toast.error("Gagal menyimpan data pelatih: " + (res.message || "Error"));
     }
   };
 
   const handleDeleteCoach = async (id: number, nameStr: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus data "${nameStr}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Data Pelatih",
+      message: `Apakah Anda yakin ingin menghapus data pelatih "${nameStr}"? Data yang dihapus tidak dapat dipulihkan kembali.`,
+      confirmText: "Ya, Hapus Pelatih",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminCoach(id);
     if (res.success) {
-      alert("Data pelatih berhasil dihapus!");
+      toast.success("Data pelatih berhasil dihapus!");
       loadData();
       onRefresh();
     } else {
-      alert("Gagal menghapus data pelatih: " + (res.message || "Error"));
+      toast.error("Gagal menghapus data pelatih: " + (res.message || "Error"));
     }
   };
 

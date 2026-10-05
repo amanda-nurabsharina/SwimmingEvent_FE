@@ -246,7 +246,16 @@ export default function FormTimerPrinter({
         const s = (eg.stroke || "").toUpperCase();
         const n = (eg.event_name || "").toUpperCase();
         const target = selectedStroke.toUpperCase();
-        if (!s.includes(target) && !n.includes(target)) return;
+        if (target === "FREESTYLE_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return;
+        } else if (target === "KICKING_BOARD") {
+          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return;
+        } else if (target === "FREESTYLE") {
+          if (s.includes("FIN") || n.includes("FIN")) return;
+          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return;
+        } else {
+          if (!s.includes(target) && !n.includes(target)) return;
+        }
       }
 
       // 2. Filter Jarak (Distance)
@@ -640,6 +649,8 @@ export default function FormTimerPrinter({
             >
               <option value="ALL">Semua Gaya Renang</option>
               <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+              <option value="FREESTYLE_FIN">Freestyle FIN</option>
+              <option value="KICKING_BOARD">Kicking Board</option>
               <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
               <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
               <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>

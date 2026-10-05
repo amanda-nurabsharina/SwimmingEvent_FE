@@ -19,6 +19,7 @@ import {
   MessageCircle,
   Sparkles,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function ProgramManager({ onRefresh }: { onRefresh: () => void }) {
   const [activeSubTab, setActiveSubTab] = useState<"programs" | "section">("programs");
@@ -97,10 +98,10 @@ export default function ProgramManager({ onRefresh }: { onRefresh: () => void })
     const res = await saveAdminProgramSectionConfig(payload);
     setSavingSection(false);
     if (res.success) {
-      alert("Pengaturan Seksi Program Pelatihan berhasil diperbarui!");
+      toast.success("Pengaturan Seksi Program Pelatihan berhasil diperbarui!");
       onRefresh();
     } else {
-      alert("Gagal menyimpan pengaturan: " + (res.message || "Error"));
+      toast.error("Gagal menyimpan pengaturan: " + (res.message || "Error"));
     }
   };
 
@@ -112,8 +113,9 @@ export default function ProgramManager({ onRefresh }: { onRefresh: () => void })
     setUploadingImage(false);
     if (res.success && res.url) {
       setFormImageUrl(res.url);
+      toast.success("Foto program berhasil diunggah!");
     } else {
-      alert("Gagal mengunggah foto: " + (res.message || "Error"));
+      toast.error("Gagal mengunggah foto: " + (res.message || "Error"));
     }
   };
 
@@ -152,7 +154,7 @@ export default function ProgramManager({ onRefresh }: { onRefresh: () => void })
   const handleSaveProgram = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle || !formCategory) {
-      alert("Judul program dan Kategori wajib diisi!");
+      toast.warning("Judul program dan Kategori wajib diisi!");
       return;
     }
 
@@ -176,24 +178,32 @@ export default function ProgramManager({ onRefresh }: { onRefresh: () => void })
     const res = await saveAdminTrainingProgram(payload);
     setSavingProgram(false);
     if (res.success) {
-      alert(`Program "${formTitle}" berhasil disimpan!`);
+      toast.success(`Program "${formTitle}" berhasil disimpan!`);
       resetForm();
       loadData();
       onRefresh();
     } else {
-      alert("Gagal menyimpan program: " + (res.message || "Error"));
+      toast.error("Gagal menyimpan program: " + (res.message || "Error"));
     }
   };
 
   const handleDeleteProgram = async (id: number, titleStr: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus program "${titleStr}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Program Pelatihan",
+      message: `Apakah Anda yakin ingin menghapus program "${titleStr}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus Program",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminTrainingProgram(id);
     if (res.success) {
-      alert("Program berhasil dihapus!");
+      toast.success("Program berhasil dihapus!");
       loadData();
       onRefresh();
     } else {
-      alert("Gagal menghapus program: " + (res.message || "Error"));
+      toast.error("Gagal menghapus program: " + (res.message || "Error"));
     }
   };
 

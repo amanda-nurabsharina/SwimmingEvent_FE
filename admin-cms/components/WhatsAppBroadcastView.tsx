@@ -45,6 +45,7 @@ import {
   logoutWhatsApp,
   fetchAdminSiteConfig,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 
 interface ParticipantItem {
   id: number;
@@ -265,7 +266,7 @@ export default function WhatsAppBroadcastView({
   const handleRequestPairingCode = async () => {
     const targetPhone = pairingPhoneInput.trim() || adminConfigPhone;
     if (!targetPhone) {
-      alert("Masukkan nomor WhatsApp admin terlebih dahulu.");
+      toast.warning("Masukkan nomor WhatsApp admin terlebih dahulu.");
       return;
     }
     setIsRequestingPairing(true);
@@ -274,11 +275,12 @@ export default function WhatsAppBroadcastView({
       const res = await requestWhatsAppPairingCode(targetPhone);
       if (res && res.success && res.code) {
         setPairingCodeResult(res.code);
+        toast.success("Kode pairing berhasil dibuat! Masukkan kode ini di aplikasi WhatsApp Anda.");
       } else {
-        alert(res?.message || "Gagal membuat kode pairing. Pastikan WhatsApp Gateway aktif.");
+        toast.error(res?.message || "Gagal membuat kode pairing. Pastikan WhatsApp Gateway aktif.");
       }
     } catch (err: any) {
-      alert("Terjadi kesalahan: " + err.message);
+      toast.error("Terjadi kesalahan: " + err.message);
     } finally {
       setIsRequestingPairing(false);
     }
@@ -286,14 +288,24 @@ export default function WhatsAppBroadcastView({
 
   // Logout WhatsApp
   const handleLogoutWA = async () => {
-    if (!confirm("Apakah Anda yakin ingin memutuskan tautan sesi WhatsApp ini?")) return;
+    const ok = await confirmDialog({
+      title: "Putuskan Tautan WhatsApp",
+      message: "Apakah Anda yakin ingin memutuskan tautan sesi WhatsApp ini? Anda perlu melakukan scan QR atau pairing ulang untuk menghubungkannya kembali.",
+      confirmText: "Ya, Putuskan Tautan",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     setIsRefreshingWA(true);
     try {
       await logoutWhatsApp();
       await checkWAStatus();
       setPairingCodeResult("");
+      toast.success("Sesi WhatsApp berhasil diputuskan.");
     } catch (err) {
       console.error(err);
+      toast.error("Gagal memutuskan sesi WhatsApp");
     } finally {
       setIsRefreshingWA(false);
     }
@@ -460,7 +472,7 @@ export default function WhatsAppBroadcastView({
       .filter(Boolean)
       .join(", ");
     navigator.clipboard.writeText(phones);
-    alert(`Berhasil menyalin ${selectedParticipantsList.length} nomor WhatsApp ke clipboard!`);
+    toast.success(`Berhasil menyalin ${selectedParticipantsList.length} nomor WhatsApp ke clipboard!`);
   };
 
   // Open WhatsApp Web for specific recipient in queue (manual fallback)
@@ -470,7 +482,7 @@ export default function WhatsAppBroadcastView({
       window.open(link, "_blank");
       setSentRecipientIds((prev) => new Set(prev).add(String(p.id)));
     } else {
-      alert(`Nomor telepon untuk ${p.name} tidak valid atau kosong.`);
+      toast.warning(`Nomor telepon untuk ${p.name} tidak valid atau kosong.`);
     }
   };
 
@@ -478,23 +490,23 @@ export default function WhatsAppBroadcastView({
   const handleDirectSendBaileys = async (p: ParticipantItem) => {
     const phone = formatPhoneForWA(p.contact);
     if (!phone) {
-      alert(`Nomor kontak untuk ${p.name} kosong atau tidak valid.`);
+      toast.warning(`Nomor kontak untuk ${p.name} kosong atau tidak valid.`);
       return;
     }
     const msg = buildPersonalizedMessage(p);
     const res = await sendWhatsAppMessage(phone, msg);
     if (res && res.success) {
       setSentRecipientIds((prev) => new Set(prev).add(String(p.id)));
-      alert(`✓ Pesan berhasil dikirim ke ${p.name} (${phone}) melalui Baileys!`);
+      toast.success(`Pesan berhasil dikirim ke ${p.name} (${phone})!`);
     } else {
-      alert(`Gagal mengirim pesan: ${res?.message || "Kesalahan jaringan"}`);
+      toast.error(`Gagal mengirim pesan: ${res?.message || "Kesalahan jaringan"}`);
     }
   };
 
   // 9. AUTOMATED BROADCAST RUNNER (Sequential with safe anti-ban delay)
   const handleStartAutoBroadcast = async () => {
     if (!waStatus.isConnected) {
-      alert(
+      toast.warning(
         "WhatsApp Gateway belum terhubung! Silakan hubungkan akun WhatsApp admin terlebih dahulu melalui tombol 'Hubungkan WhatsApp Admin'."
       );
       setShowConnectModal(true);
@@ -506,14 +518,20 @@ export default function WhatsAppBroadcastView({
     );
 
     if (queueToSend.length === 0) {
-      alert("Semua peserta terpilih sudah terkirim!");
+      toast.info("Semua peserta terpilih sudah terkirim!");
       return;
     }
 
-    const confirmMsg = `Mulai broadcast otomatis ke ${queueToSend.length} peserta terpilih menggunakan nomor WhatsApp resmi admin (+${
-      waStatus.phoneNumber || adminConfigPhone
-    })?\n\nPesan akan dikirim secara berurutan langsung dari sistem dengan jeda aman 2 detik.`;
-    if (!window.confirm(confirmMsg)) return;
+    const ok = await confirmDialog({
+      title: "Mulai Broadcast Otomatis",
+      message: `Mulai broadcast otomatis ke ${queueToSend.length} peserta terpilih menggunakan nomor WhatsApp resmi admin (+${
+        waStatus.phoneNumber || adminConfigPhone
+      })? Pesan akan dikirim secara berurutan dengan jeda aman 2 detik.`,
+      confirmText: "Mulai Kirim Sekarang",
+      cancelText: "Batal",
+      variant: "primary",
+    });
+    if (!ok) return;
 
     setIsAutoBroadcasting(true);
     stopBroadcastRef.current = false;
@@ -561,9 +579,9 @@ export default function WhatsAppBroadcastView({
     setIsAutoBroadcasting(false);
 
     if (stopBroadcastRef.current) {
-      alert(`Broadcast dihentikan oleh pengguna.\n✓ Terkirim: ${successCount}\n✗ Gagal/Terlewati: ${failCount}`);
+      toast.warning(`Broadcast dihentikan. Terkirim: ${successCount} | Gagal/Terlewati: ${failCount}`);
     } else {
-      alert(`🎉 Broadcast Otomatis Selesai!\n✓ Berhasil terkirim: ${successCount} peserta\n✗ Gagal/Terlewati: ${failCount} peserta`);
+      toast.success(`Broadcast Otomatis Selesai! Berhasil terkirim: ${successCount} peserta | Gagal: ${failCount}`);
     }
   };
 

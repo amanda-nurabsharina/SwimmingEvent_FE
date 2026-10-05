@@ -8,6 +8,7 @@ import {
   saveAdminEvent,
   deleteAdminEvent,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 import {
   Trophy,
   Plus,
@@ -122,7 +123,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   const handleSaveTournament = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim()) {
-      alert("Nama turnamen/kejuaraan wajib diisi");
+      toast.warning("Nama turnamen/kejuaraan wajib diisi");
       return;
     }
 
@@ -142,28 +143,32 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
     const res = await saveAdminTournament(payload);
     setSaving(false);
     if (res.success) {
+      toast.success(editingTourney ? "Turnamen berhasil diperbarui!" : "Turnamen baru berhasil dibuat!");
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan data turnamen: " + res.message);
+      toast.error("Gagal menyimpan data turnamen: " + res.message);
     }
   };
 
   const handleDeleteTournament = async (id: number, name: string) => {
-    if (
-      !confirm(
-        `PERINGATAN HAPUS TURNAMEN:\nApakah Anda yakin ingin menghapus turnamen "${name}"?\n\nCATATAN KEAMANAN: Turnamen hanya dapat dihapus jika sudah tidak ada peserta yang terdaftar di dalamnya.`
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: "Hapus Turnamen Induk",
+      message: `PERINGATAN HAPUS TURNAMEN:\nApakah Anda yakin ingin menghapus turnamen "${name}"?\n\nCATATAN KEAMANAN: Turnamen hanya dapat dihapus jika sudah tidak ada peserta yang terdaftar di dalamnya.`,
+      confirmText: "Ya, Hapus Turnamen",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminTournament(id);
     if (res.success) {
-      alert(`Turnamen "${name}" berhasil dihapus.`);
+      toast.success(`Turnamen "${name}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal Menghapus Turnamen:\n" + (res.message || "Terjadi kesalahan server"));
+      toast.error("Gagal Menghapus Turnamen:\n" + (res.message || "Terjadi kesalahan server"));
     }
   };
 
@@ -201,7 +206,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   const handleSaveSubEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subEventName.trim()) {
-      alert("Nama nomor/gaya lomba wajib diisi");
+      toast.warning("Nama nomor/gaya lomba wajib diisi", { title: "Validasi Form" });
       return;
     }
 
@@ -223,28 +228,32 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
     const res = await saveAdminEvent(payload);
     setSubSaving(false);
     if (res.success) {
+      toast.success(editingSubEvent ? "Nomor lomba berhasil diperbarui!" : "Nomor lomba berhasil ditambahkan!");
       setIsSubEventModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan cabang nomor lomba: " + res.message);
+      toast.error("Gagal menyimpan cabang nomor lomba: " + res.message);
     }
   };
 
   const handleDeleteSubEvent = async (id: number, name: string) => {
-    if (
-      !confirm(
-        `PERINGATAN HAPUS NOMOR LOMBA:\nApakah Anda yakin ingin menghapus nomor lomba "${name}"?\n\nCATATAN KEAMANAN: Nomor lomba tidak dapat dihapus jika masih ada peserta yang terdaftar.`
-      )
-    )
-      return;
+    const ok = await confirmDialog({
+      title: "Hapus Nomor Lomba",
+      message: `PERINGATAN HAPUS NOMOR LOMBA:\nApakah Anda yakin ingin menghapus nomor lomba "${name}"?\n\nCATATAN KEAMANAN: Nomor lomba tidak dapat dihapus jika masih ada peserta yang terdaftar.`,
+      confirmText: "Ya, Hapus Nomor",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminEvent(id);
     if (res.success) {
-      alert(`Nomor lomba "${name}" berhasil dihapus.`);
+      toast.success(`Nomor lomba "${name}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal Menghapus Nomor Lomba:\n" + (res.message || "Terjadi kesalahan server"));
+      toast.error("Gagal Menghapus Nomor Lomba:\n" + (res.message || "Terjadi kesalahan server"));
     }
   };
 
@@ -716,10 +725,25 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                   </label>
                   <select
                     value={subStroke}
-                    onChange={(e) => setSubStroke(e.target.value)}
+                    onChange={(e) => {
+                      const newStroke = e.target.value;
+                      setSubStroke(newStroke);
+                      const distNum = subDistance ? subDistance.replace(/\D/g, "") : "50";
+                      if (!editingSubEvent || subEventName === "50m Gaya Bebas" || subEventName === `${distNum}m Gaya Bebas`) {
+                        if (newStroke === "FREESTYLE_FIN") setSubEventName(`${distNum}m Freestyle FIN`);
+                        else if (newStroke === "KICKING_BOARD") setSubEventName(`${distNum}m Kicking Board`);
+                        else if (newStroke === "FREESTYLE") setSubEventName(`${distNum}m Gaya Bebas`);
+                        else if (newStroke === "BREASTSTROKE") setSubEventName(`${distNum}m Gaya Dada`);
+                        else if (newStroke === "BACKSTROKE") setSubEventName(`${distNum}m Gaya Punggung`);
+                        else if (newStroke === "BUTTERFLY") setSubEventName(`${distNum}m Gaya Kupu-kupu`);
+                        else if (newStroke === "INDIVIDUALMEDLEY") setSubEventName(`${distNum}m Gaya Ganti Perorangan`);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
                     <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+                    <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                    <option value="KICKING_BOARD">Kicking Board</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                     <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
                     <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
@@ -752,11 +776,12 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                     onChange={(e) => setSubAgeGroup(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 4">KU 4 (≤ 10 Thn)</option>
-                    <option value="KU 3">KU 3 (11 - 12 Thn)</option>
-                    <option value="KU 2">KU 2 (13 - 14 Thn)</option>
-                    <option value="KU 1">KU 1 (15 - 17 Thn)</option>
-                    <option value="Senior">Senior (≥ 18 Thn)</option>
+                    <option value="KU 5">KU 5 (≤ 9 Thn / Pemula)</option>
+                    <option value="KU 4">KU 4 (10 - 11 Thn)</option>
+                    <option value="KU 3">KU 3 (12 - 13 Thn)</option>
+                    <option value="KU 2">KU 2 (14 - 15 Thn)</option>
+                    <option value="KU 1">KU 1 (16 - 18 Thn)</option>
+                    <option value="Senior">Senior (≥ 19 Thn)</option>
                     <option value="OPEN">OPEN (Semua Umur)</option>
                   </select>
                 </div>

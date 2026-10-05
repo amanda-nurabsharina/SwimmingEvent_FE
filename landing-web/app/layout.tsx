@@ -1,5 +1,6 @@
 import "./globals.css";
 import type { Metadata } from "next";
+import { ToastProvider } from "../components/Toast";
 
 export const metadata: Metadata = {
   title: "Kejuaraan Renang Time Trial 2025 | Akuatik Indonesia Kota Tangerang",
@@ -12,9 +13,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="id">
-      <body className="bg-slate-50 text-slate-900 font-sans antialiased">
-        {children}
+    <html lang="id" suppressHydrationWarning>
+      <body className="bg-slate-50 text-slate-900 font-sans antialiased" suppressHydrationWarning>
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

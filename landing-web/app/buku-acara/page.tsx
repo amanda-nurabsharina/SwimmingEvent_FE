@@ -169,7 +169,16 @@ function BukuAcaraContent() {
         const s = (event.stroke || "").toUpperCase();
         const n = (event.event_name || "").toUpperCase();
         const target = selectedStroke.toUpperCase();
-        if (!s.includes(target) && !n.includes(target)) return false;
+        if (target === "FREESTYLE_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return false;
+        } else if (target === "KICKING_BOARD") {
+          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
+        } else if (target === "FREESTYLE") {
+          if (s.includes("FIN") || n.includes("FIN")) return false;
+          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
+        } else {
+          if (!s.includes(target) && !n.includes(target)) return false;
+        }
       }
 
       // 2. Filter Jarak (Distance)
@@ -374,6 +383,8 @@ function BukuAcaraContent() {
                   >
                     <option value="ALL">Semua Gaya Renang</option>
                     <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+                    <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                    <option value="KICKING_BOARD">Kicking Board</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                     <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
                     <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>

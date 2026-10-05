@@ -19,6 +19,7 @@ import {
   Medal,
   User,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function AchievementManager({ onRefresh }: { onRefresh?: () => void }) {
   const [activeSubTab, setActiveSubTab] = useState<"achievements" | "section">("achievements");
@@ -76,10 +77,10 @@ export default function AchievementManager({ onRefresh }: { onRefresh?: () => vo
     const res = await saveAdminAchievementSectionConfig(payload);
     setSavingSection(false);
     if (res.success) {
-      alert("Pengaturan Seksi Prestasi Medali berhasil disimpan!");
+      toast.success("Pengaturan Seksi Prestasi Medali berhasil disimpan!");
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan: " + res.message);
+      toast.error("Gagal menyimpan: " + res.message);
     }
   };
 
@@ -110,7 +111,7 @@ export default function AchievementManager({ onRefresh }: { onRefresh?: () => vo
   const handleSaveAchievement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) {
-      alert("Judul prestasi wajib diisi");
+      toast.warning("Judul prestasi wajib diisi");
       return;
     }
 
@@ -129,22 +130,32 @@ export default function AchievementManager({ onRefresh }: { onRefresh?: () => vo
     const res = await saveAdminAchievement(payload);
     setSavingAch(false);
     if (res.success) {
+      toast.success(`Prestasi "${formTitle}" berhasil disimpan!`);
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan data prestasi: " + res.message);
+      toast.error("Gagal menyimpan data prestasi: " + res.message);
     }
   };
 
   const handleDeleteAchievement = async (id: number, achTitle: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus data prestasi "${achTitle}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Prestasi",
+      message: `Apakah Anda yakin ingin menghapus data prestasi "${achTitle}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus Prestasi",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminAchievement(id);
     if (res.success) {
+      toast.success("Data prestasi berhasil dihapus!");
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus: " + res.message);
+      toast.error("Gagal menghapus: " + res.message);
     }
   };
 

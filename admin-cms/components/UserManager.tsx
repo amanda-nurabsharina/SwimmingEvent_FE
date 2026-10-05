@@ -27,6 +27,7 @@ import {
   deleteAdminUser,
   fetchAdminRoles,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 import { RoleItem } from "./RoleManager";
 
 export interface UserItem {
@@ -112,30 +113,30 @@ export default function UserManager({ onRefresh }: { onRefresh?: () => void }) {
 
     if (!editingUser) {
       if (!formData.username.trim() || !formData.email.trim() || !formData.password.trim()) {
-        alert("Username, email, dan password wajib diisi");
+        toast.warning("Username, email, dan password wajib diisi");
         return;
       }
       if (formData.password !== formData.confirmPassword) {
-        alert("Konfirmasi password tidak cocok");
+        toast.warning("Konfirmasi password tidak cocok");
         return;
       }
       if (formData.password.length < 6) {
-        alert("Password minimal harus 6 karakter");
+        toast.warning("Password minimal harus 6 karakter");
         return;
       }
     } else {
       if (formData.password && formData.password !== formData.confirmPassword) {
-        alert("Konfirmasi password baru tidak cocok");
+        toast.warning("Konfirmasi password baru tidak cocok");
         return;
       }
       if (formData.password && formData.password.length < 6) {
-        alert("Password baru minimal harus 6 karakter");
+        toast.warning("Password baru minimal harus 6 karakter");
         return;
       }
     }
 
     if (!formData.role_id) {
-      alert("Silakan pilih role untuk user ini");
+      toast.warning("Silakan pilih role untuk user ini");
       return;
     }
 
@@ -162,30 +163,37 @@ export default function UserManager({ onRefresh }: { onRefresh?: () => void }) {
     setSaving(false);
 
     if (res && res.success) {
+      toast.success(editingUser ? "Data user berhasil diperbarui!" : "User baru berhasil dibuat!");
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menyimpan user");
+      toast.error(res?.message || "Gagal menyimpan user");
     }
   };
 
   const handleDelete = async (user: UserItem) => {
     if (user.username === "admin") {
-      alert("User admin utama tidak dapat dihapus.");
+      toast.warning("User admin utama tidak dapat dihapus.", { title: "Aksi Ditolak" });
       return;
     }
 
-    if (!confirm(`Apakah Anda yakin ingin menghapus user admin "${user.username}"?`)) {
-      return;
-    }
+    const ok = await confirmDialog({
+      title: "Hapus User Admin",
+      message: `Apakah Anda yakin ingin menghapus user admin "${user.username}"?`,
+      confirmText: "Ya, Hapus User",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
 
     const res = await deleteAdminUser(user.id);
     if (res && res.success) {
+      toast.success(`User "${user.username}" berhasil dihapus.`);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menghapus user");
+      toast.error(res?.message || "Gagal menghapus user");
     }
   };
 

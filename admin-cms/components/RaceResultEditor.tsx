@@ -10,6 +10,7 @@ import {
   generateFinalRound,
   PUBLIC_LANDING_URL,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 import {
   Trophy,
   Check,
@@ -173,7 +174,7 @@ export default function RaceResultEditor({
       if (onRefresh) onRefresh();
       fetchBaganData(selectedTournamentId);
     } else {
-      alert(res?.message || "Gagal mengubah status publikasi");
+      toast.error(res?.message || "Gagal mengubah status publikasi");
     }
   };
 
@@ -219,7 +220,7 @@ export default function RaceResultEditor({
       if (onRefresh) onRefresh();
       fetchBaganData(selectedTournamentId);
     } else {
-      alert(res?.message || "Gagal mengubah status kunci Buku Acara");
+      toast.error(res?.message || "Gagal mengubah status kunci Buku Acara");
     }
   };
 
@@ -270,7 +271,16 @@ export default function RaceResultEditor({
         const s = (event.stroke || "").toUpperCase();
         const n = (event.event_name || "").toUpperCase();
         const target = selectedStroke.toUpperCase();
-        if (!s.includes(target) && !n.includes(target)) return false;
+        if (target === "FREESTYLE_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return false;
+        } else if (target === "KICKING_BOARD") {
+          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
+        } else if (target === "FREESTYLE") {
+          if (s.includes("FIN") || n.includes("FIN")) return false;
+          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
+        } else {
+          if (!s.includes(target) && !n.includes(target)) return false;
+        }
       }
 
       if (selectedDistance !== "ALL") {
@@ -360,14 +370,18 @@ export default function RaceResultEditor({
   };
 
   // Start inline result edit
-  const startEdit = (item: HeatItem) => {
+  const startEdit = async (item: HeatItem) => {
     if (!item.registration_id) return;
     if (!isLocked) {
-      if (
-        confirm(
-          "⚠️ Buku Acara belum dikunci!\n\nUntuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu agar nomor seri dan lintasan resmi tidak bergeser otomatis.\n\nApakah Anda ingin mengunci Buku Acara sekarang?"
-        )
-      ) {
+      const ok = await confirmDialog({
+        title: "Kunci Buku Acara",
+        message:
+          "⚠️ Buku Acara belum dikunci!\n\nUntuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu agar nomor seri dan lintasan resmi tidak bergeser otomatis.\n\nApakah Anda ingin mengunci Buku Acara sekarang?",
+        confirmText: "Ya, Kunci Sekarang",
+        cancelText: "Batal",
+        variant: "warning",
+      });
+      if (ok) {
         handleLockBukuAcara(true);
       }
       return;
@@ -395,8 +409,9 @@ export default function RaceResultEditor({
   // Save race result
   const saveResult = async (regId: number) => {
     if (!isLocked) {
-      alert(
-        "⚠️ Buku Acara belum dikunci!\n\nUntuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu agar nomor seri dan lintasan resmi tidak bergeser otomatis."
+      toast.warning(
+        "Buku Acara belum dikunci! Untuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu.",
+        { title: "Buku Acara Belum Dikunci" }
       );
       return;
     }
@@ -412,15 +427,11 @@ export default function RaceResultEditor({
 
     if (res && res.success) {
       setEditingId(null);
-      setActionMessage({
-        success: true,
-        text: "Catatan waktu hasil lomba berhasil disimpan!",
-      });
-      setTimeout(() => setActionMessage(null), 3000);
+      toast.success("Catatan waktu hasil lomba berhasil disimpan!");
       fetchBaganData(selectedTournamentId);
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menyimpan hasil lomba");
+      toast.error(res?.message || "Gagal menyimpan hasil lomba");
     }
   };
 
@@ -462,7 +473,7 @@ export default function RaceResultEditor({
   const handleExecuteSwap = async () => {
     if (!swimmerToMove) return;
     if (targetHeat <= 0 || targetLine <= 0) {
-      alert("Nomor Seri (Heat) dan Lintasan (Line) harus bernilai minimal 1");
+      toast.warning("Nomor Seri (Heat) dan Lintasan (Line) harus bernilai minimal 1", { title: "Validasi Lintasan" });
       return;
     }
 
@@ -478,15 +489,11 @@ export default function RaceResultEditor({
     if (res && res.success) {
       setSwapModalOpen(false);
       setSwimmerToMove(null);
-      setActionMessage({
-        success: true,
-        text: res.message || "Posisi perenang berhasil dipindahkan / ditukar!",
-      });
-      setTimeout(() => setActionMessage(null), 4000);
+      toast.success(res.message || "Posisi perenang berhasil dipindahkan / ditukar!");
       fetchBaganData(selectedTournamentId);
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal memindahkan posisi perenang");
+      toast.error(res?.message || "Gagal memindahkan posisi perenang");
     }
   };
 
@@ -503,15 +510,11 @@ export default function RaceResultEditor({
       true
     );
     if (res && res.success) {
-      setActionMessage({
-        success: true,
-        text: `Lintasan ${item.nama} digeser ke Line ${newLine}`,
-      });
-      setTimeout(() => setActionMessage(null), 2500);
+      toast.success(`Lintasan ${item.nama} digeser ke Line ${newLine}`);
       fetchBaganData(selectedTournamentId);
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menggeser lintasan");
+      toast.error(res?.message || "Gagal menggeser lintasan");
     }
   };
 
@@ -538,7 +541,7 @@ export default function RaceResultEditor({
   // Execute moving chosen swimmer into empty slot
   const handleFillEmptySlot = async () => {
     if (!targetSlot || !selectedSwimmerIdToMove) {
-      alert("Pilih perenang yang ingin dipindahkan ke lintasan kosong ini");
+      toast.warning("Pilih perenang yang ingin dipindahkan ke lintasan kosong ini", { title: "Pilih Perenang" });
       return;
     }
 
@@ -554,15 +557,11 @@ export default function RaceResultEditor({
     if (res && res.success) {
       setFillSlotModalOpen(false);
       setTargetSlot(null);
-      setActionMessage({
-        success: true,
-        text: res.message || "Perenang berhasil dipindahkan ke lintasan kosong!",
-      });
-      setTimeout(() => setActionMessage(null), 3000);
+      toast.success(res.message || "Perenang berhasil dipindahkan ke lintasan kosong!");
       fetchBaganData(selectedTournamentId);
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal memindahkan perenang");
+      toast.error(res?.message || "Gagal memindahkan perenang");
     }
   };
 
@@ -698,16 +697,20 @@ export default function RaceResultEditor({
             <button
               type="button"
               disabled={isLocking}
-              onClick={() => {
-                if (
-                  confirm(
-                    "Buka kembali kunci Buku Acara ke mode draft?\n\nPerhatian: Jika dibuka, susunan seri & lintasan dapat digenerate ulang."
-                  )
-                ) {
+              onClick={async () => {
+                const ok = await confirmDialog({
+                  title: "Buka Kunci Buku Acara",
+                  message:
+                    "Buka kembali kunci Buku Acara ke mode draft?\n\nPerhatian: Jika dibuka, susunan seri & lintasan dapat digenerate ulang.",
+                  confirmText: "Ya, Buka Kunci",
+                  cancelText: "Batal",
+                  variant: "warning",
+                });
+                if (ok) {
                   handleLockBukuAcara(false);
                 }
               }}
-              className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-[11px] font-bold transition-all shadow-sm"
+              className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-[11px] font-bold transition-all shadow-sm cursor-pointer"
             >
               Buka Kunci
             </button>
@@ -851,6 +854,8 @@ export default function RaceResultEditor({
             >
               <option value="ALL">Semua Gaya Renang</option>
               <option value="FREESTYLE">Gaya Bebas</option>
+              <option value="FREESTYLE_FIN">Freestyle FIN</option>
+              <option value="KICKING_BOARD">Kicking Board</option>
               <option value="BREASTSTROKE">Gaya Dada</option>
               <option value="BACKSTROKE">Gaya Punggung</option>
               <option value="BUTTERFLY">Gaya Kupu-kupu</option>

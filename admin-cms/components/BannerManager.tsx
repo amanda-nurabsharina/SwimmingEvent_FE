@@ -24,6 +24,7 @@ import {
   Layers,
   X,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function BannerManager({
   banners,
@@ -170,10 +171,10 @@ export default function BannerManager({
     const res = await saveAdminHeroConfig(payload);
     setSavingKotak1(false);
     if (res.success) {
-      alert("Kotak 1 (Teks & Tombol Hero) berhasil diperbarui!");
+      toast.success("Kotak 1 (Teks & Tombol Hero) berhasil diperbarui!");
       onRefresh();
     } else {
-      alert("Gagal menyimpan Kotak 1: " + (res.message || "Unknown error"));
+      toast.error("Gagal menyimpan Kotak 1: " + (res.message || "Unknown error"));
     }
   };
 
@@ -184,10 +185,10 @@ export default function BannerManager({
     const res = await saveAdminHeroStats(stats);
     setSavingKotak3(false);
     if (res.success) {
-      alert("Kotak 3 (Counter Statistik) berhasil diperbarui!");
+      toast.success("Kotak 3 (Counter Statistik) berhasil diperbarui!");
       onRefresh();
     } else {
-      alert("Gagal menyimpan Kotak 3: " + (res.message || "Unknown error"));
+      toast.error("Gagal menyimpan Kotak 3: " + (res.message || "Unknown error"));
     }
   };
 
@@ -230,7 +231,7 @@ export default function BannerManager({
     if (newBanners.length > 0) {
       const batchRes = await batchSaveBanners(newBanners);
       if (batchRes.success) {
-        alert(`Berhasil mengunggah & menambahkan ${newBanners.length} gambar baru ke Slider Kotak 2!`);
+        toast.success(`Berhasil mengunggah & menambahkan ${newBanners.length} gambar baru ke Slider!`);
         onRefresh();
       }
     }
@@ -252,22 +253,33 @@ export default function BannerManager({
 
     const res = await saveBanner(payload);
     if (res.success) {
+      toast.success("Gambar slide berhasil disimpan!");
       setEditingBanner(null);
       setSlideTitle("");
       setSlideImageUrl("/banner.jpg");
       setSortOrder(banners.length + 1);
       onRefresh();
     } else {
-      alert("Gagal menyimpan gambar slide: " + (res.message || "Unknown error"));
+      toast.error("Gagal menyimpan gambar slide: " + (res.message || "Unknown error"));
     }
   };
 
   const handleDeleteBanner = async (id: number) => {
-    if (confirm("Hapus gambar slider ini?")) {
-      const res = await deleteBanner(id);
-      if (res.success) {
-        onRefresh();
-      }
+    const ok = await confirmDialog({
+      title: "Hapus Slide Banner",
+      message: "Apakah Anda yakin ingin menghapus gambar slider ini?",
+      confirmText: "Ya, Hapus Slide",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
+    const res = await deleteBanner(id);
+    if (res.success) {
+      toast.success("Gambar slider berhasil dihapus!");
+      onRefresh();
+    } else {
+      toast.error("Gagal menghapus slide: " + (res.message || "Unknown error"));
     }
   };
 

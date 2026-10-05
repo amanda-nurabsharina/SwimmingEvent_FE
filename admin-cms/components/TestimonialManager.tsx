@@ -20,6 +20,7 @@ import {
   Sparkles,
   User,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function TestimonialManager({ onRefresh }: { onRefresh?: () => void }) {
   const [activeSubTab, setActiveSubTab] = useState<"testimonials" | "section">("testimonials");
@@ -78,10 +79,10 @@ export default function TestimonialManager({ onRefresh }: { onRefresh?: () => vo
     const res = await saveAdminTestimonialSectionConfig(payload);
     setSavingSection(false);
     if (res.success) {
-      alert("Pengaturan Seksi Testimoni berhasil disimpan!");
+      toast.success("Pengaturan Seksi Testimoni berhasil disimpan!");
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan: " + res.message);
+      toast.error("Gagal menyimpan: " + res.message);
     }
   };
 
@@ -117,11 +118,12 @@ export default function TestimonialManager({ onRefresh }: { onRefresh?: () => vo
       const res = await uploadImage(file);
       if (res.success && res.url) {
         setFormAvatarUrl(res.url);
+        toast.success("Foto testimoni berhasil diunggah!");
       } else {
-        alert("Gagal mengunggah foto: " + (res.message || "Unknown error"));
+        toast.error("Gagal mengunggah foto: " + (res.message || "Unknown error"));
       }
     } catch (err) {
-      alert("Terjadi kesalahan saat mengunggah foto");
+      toast.error("Terjadi kesalahan saat mengunggah foto");
     } finally {
       setUploadingAvatar(false);
     }
@@ -130,7 +132,7 @@ export default function TestimonialManager({ onRefresh }: { onRefresh?: () => vo
   const handleSaveTestimonial = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formName.trim() || !formContent.trim()) {
-      alert("Nama dan isi ulasan wajib diisi");
+      toast.warning("Nama dan isi ulasan wajib diisi");
       return;
     }
 
@@ -149,22 +151,32 @@ export default function TestimonialManager({ onRefresh }: { onRefresh?: () => vo
     const res = await saveAdminTestimonial(payload);
     setSavingTest(false);
     if (res.success) {
+      toast.success(`Testimoni dari "${formName}" berhasil disimpan!`);
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan testimoni: " + res.message);
+      toast.error("Gagal menyimpan testimoni: " + res.message);
     }
   };
 
   const handleDeleteTestimonial = async (id: number, name: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus testimoni dari "${name}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Testimoni",
+      message: `Apakah Anda yakin ingin menghapus testimoni dari "${name}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus Testimoni",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminTestimonial(id);
     if (res.success) {
+      toast.success("Testimoni berhasil dihapus!");
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus: " + res.message);
+      toast.error("Gagal menghapus: " + res.message);
     }
   };
 

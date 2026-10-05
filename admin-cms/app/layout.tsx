@@ -1,4 +1,5 @@
 import "./globals.css";
+import { ToastProvider } from "../components/Toast";
 
 export const metadata = {
   title: "Admin CMS | Kejuaraan Renang Time Trial 2025",
@@ -9,7 +10,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="id">
       <body className="min-h-screen bg-slate-950 text-slate-100 antialiased font-sans">
-        {children}
+        <ToastProvider>{children}</ToastProvider>
       </body>
     </html>
   );

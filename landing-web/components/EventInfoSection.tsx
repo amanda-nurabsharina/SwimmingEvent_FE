@@ -98,7 +98,9 @@ export default function EventInfoSection({
     const s = eventStroke.toUpperCase();
     const t = targetCode.toUpperCase();
     if (s === t) return true;
-    if (t === "FREESTYLE" && (s.includes("BEBAS") || s.includes("FREE"))) return true;
+    if (t === "FREESTYLE_FIN" && (s.includes("FIN") || s.includes("GAYA BEBAS FIN") || s.includes("FREESTYLE FIN"))) return true;
+    if (t === "KICKING_BOARD" && (s.includes("KICK") || s.includes("BOARD") || s.includes("PAPAN"))) return true;
+    if (t === "FREESTYLE" && !s.includes("FIN") && (s.includes("BEBAS") || s.includes("FREE"))) return true;
     if (t === "BREASTSTROKE" && (s.includes("DADA") || s.includes("BREAST"))) return true;
     if (t === "BACKSTROKE" && (s.includes("PUNGGUNG") || s.includes("BACK"))) return true;
     if (t === "BUTTERFLY" && (s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY"))) return true;
@@ -275,6 +277,8 @@ export default function EventInfoSection({
             {[
               { code: "ALL", label: "Semua" },
               { code: "FREESTYLE", label: "FREESTYLE" },
+              { code: "FREESTYLE_FIN", label: "FREESTYLE FIN" },
+              { code: "KICKING_BOARD", label: "KICKBOARD" },
               { code: "BREASTSTROKE", label: "BREASTSTROKE" },
               { code: "BACKSTROKE", label: "BACKSTROKE" },
               { code: "BUTTERFLY", label: "BUTTERFLY" },

@@ -28,6 +28,7 @@ import {
   Calendar,
   Search,
 } from "lucide-react";
+import { toast } from "./Toast";
 
 interface PageSectionItem {
   id: number;
@@ -209,10 +210,11 @@ export default function SectionOrderManager({ onRefresh }: { onRefresh?: () => v
         const sorted = [...res.data].sort((a, b) => a.sort_order - b.sort_order);
         setSections(sorted);
       }
+      toast.success("Urutan tata letak berhasil disimpan!");
       if (onRefresh) onRefresh();
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert("Gagal menyimpan urutan: " + (res.message || "Unknown error"));
+      toast.error("Gagal menyimpan urutan: " + (res.message || "Unknown error"));
     }
   };
 
@@ -233,10 +235,11 @@ export default function SectionOrderManager({ onRefresh }: { onRefresh?: () => v
       setSections(sorted);
       setHasChanges(false);
       setSaveSuccess(true);
+      toast.success("Urutan tata letak berhasil direset ke default!");
       if (onRefresh) onRefresh();
       setTimeout(() => setSaveSuccess(false), 3000);
     } else {
-      alert("Gagal mereset urutan: " + (res.message || "Unknown error"));
+      toast.error("Gagal mereset urutan: " + (res.message || "Unknown error"));
     }
   };
 

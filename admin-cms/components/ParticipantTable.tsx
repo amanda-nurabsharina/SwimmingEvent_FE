@@ -1,7 +1,16 @@
 "use client";
 
 import { useState, Fragment } from "react";
-import { verifyPayment } from "../lib/api-admin";
+import {
+  verifyPayment,
+  softDeleteParticipant,
+  restoreParticipant,
+  hardDeleteParticipant,
+  softDeleteRegistration,
+  restoreRegistration,
+  hardDeleteRegistration,
+} from "../lib/api-admin";
+import { toast } from "./Toast";
 import {
   Search,
   CheckCircle,
@@ -31,6 +40,10 @@ import {
   ChevronUp,
   AlertTriangle,
   Lock,
+  Trash2,
+  RotateCcw,
+  UserCheck,
+  AlertOctagon,
 } from "lucide-react";
 
 interface ParticipantTableProps {
@@ -49,6 +62,7 @@ interface SwimmerGroup {
   status: string;
   total_fee: number;
   items: any[];
+  is_active: boolean;
 }
 
 export default function ParticipantTable({
@@ -56,6 +70,9 @@ export default function ParticipantTable({
   tournaments = [],
   onRefresh,
 }: ParticipantTableProps) {
+  // Navigation: Active vs Deleted Participants
+  const [activeMainTab, setActiveMainTab] = useState<"active" | "deleted">("active");
+
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("ALL");
   const [filterTournamentID, setFilterTournamentID] = useState("ALL");
@@ -70,6 +87,15 @@ export default function ParticipantTable({
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [previewImageTitle, setPreviewImageTitle] = useState<string>("");
   const [verifyingItemId, setVerifyingItemId] = useState<number | null>(null);
+
+  // Confirmation Modal State for Soft Delete, Restore, and Hard Delete
+  const [confirmModal, setConfirmModal] = useState<{
+    type: "soft_delete" | "hard_delete" | "restore";
+    targetType: "participant" | "registration";
+    group?: SwimmerGroup;
+    item?: any;
+  } | null>(null);
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
 
   const toggleExpand = (groupKey: string) => {
     setExpandedKeys((prev) => ({
@@ -102,6 +128,7 @@ export default function ParticipantTable({
         status: r.payment_status || "pending",
         total_fee: 0,
         items: [],
+        is_active: true,
       };
     }
 
@@ -122,7 +149,7 @@ export default function ParticipantTable({
     grp.total_fee += fee;
   });
 
-  // Calculate unified status for the Swimmer Group
+  // Calculate unified status & active state for the Swimmer Group
   const swimmerGroups: SwimmerGroup[] = Object.values(groupMap).map((grp) => {
     const statuses = grp.items.map((i) => i.payment_status);
     let unifiedStatus = "pending";
@@ -135,19 +162,33 @@ export default function ParticipantTable({
     } else if (statuses.some((s) => s === "rejected")) {
       unifiedStatus = "rejected";
     }
+
+    // Determine if group is active or soft-deleted
+    const isParticipantInactive = grp.participant?.is_active === false;
+    const areAllItemsInactive = grp.items.length > 0 && grp.items.every((i) => i.is_active === false);
+    const isGroupActive = !isParticipantInactive && !areAllItemsInactive;
+
     return {
       ...grp,
       status: unifiedStatus,
+      is_active: isGroupActive,
     };
   });
 
-  // Count Statistics (Grouped per Person)
-  const countPending = swimmerGroups.filter((g) => g.status === "pending").length;
-  const countVerified = swimmerGroups.filter((g) => g.status === "verified").length;
-  const countRejected = swimmerGroups.filter((g) => g.status === "rejected").length;
+  // Partition into Active and Deleted Groups
+  const activeSwimmerGroups = swimmerGroups.filter((g) => g.is_active);
+  const deletedSwimmerGroups = swimmerGroups.filter((g) => !g.is_active);
+
+  // Current groups to display based on selected tab
+  const currentGroups = activeMainTab === "active" ? activeSwimmerGroups : deletedSwimmerGroups;
+
+  // Count Statistics (for currently active main tab)
+  const countPending = currentGroups.filter((g) => g.status === "pending").length;
+  const countVerified = currentGroups.filter((g) => g.status === "verified").length;
+  const countRejected = currentGroups.filter((g) => g.status === "rejected").length;
 
   // Filter Logic on Swimmer Groups
-  const filteredGroups = swimmerGroups.filter((g) => {
+  const filteredGroups = currentGroups.filter((g) => {
     // 1. Status Filter
     const matchStatus = filterStatus === "ALL" || g.status === filterStatus;
 
@@ -204,7 +245,7 @@ export default function ParticipantTable({
       if (!completeness.hasDoc) missingMsg += "- Berkas Identitas (Akte Kelahiran / KK) belum diunggah.\n";
       if (!completeness.hasProof) missingMsg += "- Bukti Transfer Pembayaran belum diunggah.\n";
       missingMsg += "\nStatus pendaftaran TIDAK DAPAT disetujui sampai berkas lengkap.";
-      alert(missingMsg);
+      toast.warning(missingMsg, { title: "Berkas Belum Lengkap" });
       return;
     }
 
@@ -230,9 +271,14 @@ export default function ParticipantTable({
           items: updatedItems,
         });
       }
+      toast.success(
+        status === "verified"
+          ? `Cabang #${item.swimming_event?.event_code} berhasil disetujui!`
+          : `Cabang #${item.swimming_event?.event_code} telah ditolak.`
+      );
       onRefresh();
     } else {
-      alert(res.message || "Gagal mengubah status nomor lomba ini.");
+      toast.error(res.message || "Gagal mengubah status nomor lomba ini.");
     }
   };
 
@@ -244,7 +290,7 @@ export default function ParticipantTable({
       if (!completeness.hasDoc) missingMsg += "- Berkas Identitas (Akte Kelahiran / KK) belum diunggah.\n";
       if (!completeness.hasProof) missingMsg += "- Bukti Transfer Pembayaran belum diunggah.\n";
       missingMsg += "\nStatus pendaftaran TIDAK DAPAT disetujui sampai berkas lengkap.";
-      alert(missingMsg);
+      toast.warning(missingMsg, { title: "Berkas Belum Lengkap" });
       return;
     }
 
@@ -258,13 +304,69 @@ export default function ParticipantTable({
         });
       }
       onRefresh();
-      alert(
-        status === "verified"
-          ? "Seluruh nomor lomba (" + (group.participant?.name || "Perenang") + ") berhasil disetujui (VERIFIED)!"
-          : "Seluruh nomor lomba (" + (group.participant?.name || "Perenang") + ") telah ditolak (REJECTED)."
-      );
+      if (status === "verified") {
+        toast.success(
+          `Seluruh nomor lomba (${group.participant?.name || "Perenang"}) berhasil disetujui (VERIFIED)!`
+        );
+      } else {
+        toast.error(
+          `Seluruh nomor lomba (${group.participant?.name || "Perenang"}) telah ditolak (REJECTED).`
+        );
+      }
     } catch (err) {
-      alert("Gagal memperbarui status pendaftaran.");
+      toast.error("Gagal memperbarui status pendaftaran.");
+    }
+  };
+
+  // =========================================================================
+  // EXECUTE CONFIRMED ACTIONS (SOFT DELETE, RESTORE, HARD DELETE)
+  // =========================================================================
+  const executeConfirmedAction = async () => {
+    if (!confirmModal) return;
+    setIsProcessingAction(true);
+    try {
+      let res: any;
+      const participantId =
+        confirmModal.group?.participant?.id ||
+        confirmModal.item?.participant_id ||
+        confirmModal.item?.participant?.id ||
+        confirmModal.group?.items?.[0]?.participant_id ||
+        confirmModal.group?.items?.[0]?.participant?.id;
+
+      if (confirmModal.type === "soft_delete") {
+        if (confirmModal.targetType === "participant" && participantId) {
+          res = await softDeleteParticipant(Number(participantId));
+        } else if (confirmModal.item?.id) {
+          res = await softDeleteRegistration(Number(confirmModal.item.id));
+        }
+      } else if (confirmModal.type === "restore") {
+        if (confirmModal.targetType === "participant" && participantId) {
+          res = await restoreParticipant(Number(participantId));
+        } else if (confirmModal.item?.id) {
+          res = await restoreRegistration(Number(confirmModal.item.id));
+        }
+      } else if (confirmModal.type === "hard_delete") {
+        if (confirmModal.targetType === "participant" && participantId) {
+          res = await hardDeleteParticipant(Number(participantId));
+        } else if (confirmModal.item?.id) {
+          res = await hardDeleteRegistration(Number(confirmModal.item.id));
+        }
+      }
+
+      if (res?.success) {
+        toast.success(res?.message || "Tindakan berhasil diproses!");
+        setConfirmModal(null);
+        if (selectedGroup) {
+          setSelectedGroup(null);
+        }
+        onRefresh();
+      } else {
+        toast.error(res?.message || "Gagal memproses aksi.");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Terjadi kesalahan koneksi atau sistem.");
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
@@ -275,7 +377,74 @@ export default function ParticipantTable({
 
   return (
     <div className="space-y-6 font-sans">
-      {/* HEADER CONTROLS & FILTER BAR */}
+      {/* =================================================================== */}
+      {/* 0. PRIMARY NAVIGATION TABS: PESERTA AKTIF vs PESERTA DIHAPUS */}
+      {/* =================================================================== */}
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          onClick={() => {
+            setActiveMainTab("active");
+            setFilterStatus("ALL");
+          }}
+          className={`px-5 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 cursor-pointer ${
+            activeMainTab === "active"
+              ? "bg-sky-600 text-white shadow-lg shadow-sky-600/25 ring-2 ring-sky-400"
+              : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200"
+          }`}
+        >
+          <UserCheck className="w-4 h-4" />
+          <span>Peserta Aktif</span>
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+              activeMainTab === "active" ? "bg-white/20 text-white" : "bg-sky-100 text-sky-800"
+            }`}
+          >
+            {activeSwimmerGroups.length}
+          </span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveMainTab("deleted");
+            setFilterStatus("ALL");
+          }}
+          className={`px-5 py-3 rounded-2xl text-xs font-black transition-all flex items-center gap-2.5 cursor-pointer ${
+            activeMainTab === "deleted"
+              ? "bg-rose-600 text-white shadow-lg shadow-rose-600/25 ring-2 ring-rose-400"
+              : "bg-white hover:bg-rose-50 text-slate-700 hover:text-rose-700 border border-slate-200"
+          }`}
+        >
+          <Trash2 className="w-4 h-4" />
+          <span>Peserta Dihapus (Non-Aktif)</span>
+          <span
+            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+              activeMainTab === "deleted" ? "bg-white/20 text-white" : "bg-rose-100 text-rose-800"
+            }`}
+          >
+            {deletedSwimmerGroups.length}
+          </span>
+        </button>
+      </div>
+
+      {/* INFORMATIONAL WARNING BANNER WHEN IN DELETED TAB */}
+      {activeMainTab === "deleted" && (
+        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 flex items-start gap-3.5 text-rose-950 shadow-sm animate-in fade-in duration-200">
+          <AlertOctagon className="w-6 h-6 text-rose-600 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-xs">
+            <h4 className="font-black text-rose-950 text-sm uppercase tracking-wide flex items-center gap-2">
+              Tab Peserta Dihapus / Non-Aktif
+            </h4>
+            <p className="text-rose-800 leading-relaxed font-medium">
+              Peserta di tab ini telah <strong>dinonaktifkan (soft delete)</strong> dan disembunyikan dari Buku Acara serta Starting List publik.
+              Gunakan tombol <strong>Pulihkan (Restore)</strong> untuk mengembalikan peserta ke daftar aktif, atau <strong>Hapus Permanen (Hard Delete)</strong> untuk menghapus data peserta dari database.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* 1. HEADER CONTROLS & FILTER BAR */}
+      {/* =================================================================== */}
       <div className="bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-sm space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* SEARCH INPUT & TOURNAMENT DROPDOWN */}
@@ -314,14 +483,14 @@ export default function ParticipantTable({
           {/* COUNTER BADGE */}
           <div className="text-xs font-bold text-slate-500 self-start lg:self-center">
             Menampilkan <span className="text-sky-700 font-black">{filteredGroups.length}</span> Perenang (Total{" "}
-            <span className="font-black text-slate-800">{swimmerGroups.length}</span> Perenang Terdaftar)
+            <span className="font-black text-slate-800">{currentGroups.length}</span> {activeMainTab === "active" ? "Aktif" : "Dihapus"})
           </div>
         </div>
 
         {/* STATUS TAB BUTTONS */}
         <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
           {[
-            { id: "ALL", label: "Semua Perenang", count: swimmerGroups.length },
+            { id: "ALL", label: "Semua Perenang", count: currentGroups.length },
             { id: "pending", label: "PENDING VERIFIKASI", count: countPending },
             { id: "verified", label: "TERVERIFIKASI (VERIFIED)", count: countVerified },
             { id: "rejected", label: "DITOLAK (REJECTED)", count: countRejected },
@@ -333,7 +502,9 @@ export default function ParticipantTable({
                 onClick={() => setFilterStatus(tab.id)}
                 className={`px-4 py-2 rounded-2xl text-xs font-extrabold transition-all flex items-center gap-2 cursor-pointer ${
                   isActive
-                    ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
+                    ? activeMainTab === "active"
+                      ? "bg-sky-600 text-white shadow-md shadow-sky-600/20"
+                      : "bg-rose-600 text-white shadow-md shadow-rose-600/20"
                     : "bg-slate-100 hover:bg-slate-200 text-slate-700"
                 }`}
               >
@@ -359,7 +530,9 @@ export default function ParticipantTable({
         </div>
       </div>
 
-      {/* COLLAPSIBLE GROUPED REGISTRATIONS TABLE (1 ROW PER PERSON) */}
+      {/* =================================================================== */}
+      {/* 2. COLLAPSIBLE GROUPED REGISTRATIONS TABLE (1 ROW PER PERSON) */}
+      {/* =================================================================== */}
       <div className="overflow-x-auto rounded-3xl border border-slate-200 bg-white shadow-sm">
         <table className="w-full text-left text-xs border-collapse">
           <thead>
@@ -380,7 +553,11 @@ export default function ParticipantTable({
               <tr>
                 <td colSpan={9} className="p-12 text-center text-slate-500 font-medium space-y-2">
                   <AlertCircle className="w-8 h-8 text-amber-500 mx-auto" />
-                  <p className="font-bold text-sm text-slate-700">Tidak ada pendaftaran yang sesuai dengan filter.</p>
+                  <p className="font-bold text-sm text-slate-700">
+                    {activeMainTab === "active"
+                      ? "Tidak ada pendaftaran peserta aktif yang sesuai dengan filter."
+                      : "Tidak ada peserta yang dihapus / non-aktif."}
+                  </p>
                   <p className="text-xs text-slate-400">Coba ubah status tab atau kata kunci pencarian di atas.</p>
                 </td>
               </tr>
@@ -396,7 +573,7 @@ export default function ParticipantTable({
                     <tr
                       className={`hover:bg-sky-50/50 transition-colors cursor-pointer border-b border-slate-100 ${
                         isExpanded ? "bg-sky-50/80 font-semibold" : ""
-                      }`}
+                      } ${!g.is_active ? "bg-rose-50/20" : ""}`}
                       onClick={() => toggleExpand(g.group_key)}
                     >
                       {/* Collapse Toggle Button */}
@@ -408,7 +585,9 @@ export default function ParticipantTable({
                           }}
                           className={`p-1.5 rounded-xl transition-all ${
                             isExpanded
-                              ? "bg-sky-600 text-white shadow-sm"
+                              ? activeMainTab === "active"
+                                ? "bg-sky-600 text-white shadow-xs"
+                                : "bg-rose-600 text-white shadow-xs"
                               : "bg-slate-100 text-slate-600 hover:bg-sky-100 hover:text-sky-700"
                           }`}
                           title={isExpanded ? "Sembunyikan Rincian Lomba" : "Buka Rincian Lomba"}
@@ -427,9 +606,16 @@ export default function ParticipantTable({
                       {/* Nama Perenang */}
                       <td className="p-4">
                         <div className="space-y-0.5">
-                          <span className="font-black text-slate-900 uppercase text-xs block group-hover:text-sky-700 transition-colors">
-                            {p.name || "-"}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-slate-900 uppercase text-xs block group-hover:text-sky-700 transition-colors">
+                              {p.name || "-"}
+                            </span>
+                            {!g.is_active && (
+                              <span className="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 rounded-md text-[9px] font-black uppercase tracking-wider">
+                                Non-Aktif
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1.5">
                             <span
                               className={`px-2 py-0.5 rounded-md text-[10px] font-black ${
@@ -513,22 +699,82 @@ export default function ParticipantTable({
                       {/* Actions */}
                       <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1.5">
-                          <button
-                            onClick={() => setSelectedGroup(g)}
-                            className="px-3 py-1.5 bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white rounded-xl text-xs font-extrabold transition-all border border-sky-200 flex items-center gap-1 cursor-pointer"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>Detail Modal</span>
-                          </button>
+                          {activeMainTab === "active" ? (
+                            <>
+                              <button
+                                onClick={() => setSelectedGroup(g)}
+                                className="px-3 py-1.5 bg-sky-50 hover:bg-sky-600 text-sky-700 hover:text-white rounded-xl text-xs font-extrabold transition-all border border-sky-200 flex items-center gap-1 cursor-pointer"
+                                title="Lihat Rincian & Berkas"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                                <span>Detail</span>
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  setConfirmModal({
+                                    type: "soft_delete",
+                                    targetType: "participant",
+                                    group: g,
+                                  })
+                                }
+                                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white rounded-xl text-xs font-extrabold transition-all border border-rose-200 flex items-center gap-1 cursor-pointer"
+                                title="Hapus Peserta (Pindahkan ke Tab Dihapus)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() =>
+                                  setConfirmModal({
+                                    type: "restore",
+                                    targetType: "participant",
+                                    group: g,
+                                  })
+                                }
+                                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-xl text-xs font-extrabold transition-all border border-emerald-200 flex items-center gap-1 cursor-pointer"
+                                title="Pulihkan Peserta ke Daftar Aktif"
+                              >
+                                <RotateCcw className="w-3.5 h-3.5" />
+                                <span>Pulihkan</span>
+                              </button>
+
+                              <button
+                                onClick={() =>
+                                  setConfirmModal({
+                                    type: "hard_delete",
+                                    targetType: "participant",
+                                    group: g,
+                                  })
+                                }
+                                className="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                                title="Hapus Permanen dari Database"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                                <span>Hapus Permanen</span>
+                              </button>
+
+                              <button
+                                onClick={() => setSelectedGroup(g)}
+                                className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-xl text-xs transition-all cursor-pointer"
+                                title="Lihat Detail Berkas"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
 
                     {/* EXPANDED SUB-TABLE VIEW (ITEMIZED VERIFICATION PER SUB-EVENT) */}
                     {isExpanded && (
-                      <tr className="bg-sky-50/40">
+                      <tr className={activeMainTab === "active" ? "bg-sky-50/40" : "bg-rose-50/30"}>
                         <td colSpan={9} className="p-4 sm:p-6 space-y-4">
-                          <div className="bg-white rounded-2xl border border-sky-200 p-4 sm:p-5 shadow-sm space-y-4">
+                          <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs space-y-4">
                             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 pb-3 border-b border-slate-100">
                               <div>
                                 <h4 className="font-black text-xs uppercase text-slate-900 flex items-center gap-2">
@@ -536,11 +782,13 @@ export default function ParticipantTable({
                                   Rincian {g.items.length} Nomor Lomba Terdaftar ({g.participant?.name})
                                 </h4>
                                 <p className="text-[11px] text-slate-500 font-medium mt-0.5">
-                                  Verifikasi setiap cabang nomor lomba satu per satu di bawah ini.
+                                  {activeMainTab === "active"
+                                    ? "Verifikasi setiap cabang nomor lomba satu per satu di bawah ini."
+                                    : "Daftar cabang lomba perenang yang dinonaktifkan."}
                                 </p>
                               </div>
 
-                              {!completeness.isComplete && (
+                              {activeMainTab === "active" && !completeness.isComplete && (
                                 <div className="px-3 py-1.5 bg-red-50 text-red-700 border border-red-200 rounded-xl text-[10px] font-black flex items-center gap-1.5">
                                   <Lock className="w-3.5 h-3.5 text-red-500 shrink-0" />
                                   <span>Tombol Setujui Terkunci (Unggah Berkas Akte/KK & Bukti Bayar Dahulu)</span>
@@ -559,7 +807,7 @@ export default function ParticipantTable({
                                     <th className="p-2.5 text-center">TIME SEED</th>
                                     <th className="p-2.5 text-center">BIAYA NOMOR</th>
                                     <th className="p-2.5 text-center">STATUS CABANG</th>
-                                    <th className="p-2.5 text-right">AKSI VERIFIKASI SATU PER SATU</th>
+                                    <th className="p-2.5 text-right">AKSI</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
@@ -602,40 +850,96 @@ export default function ParticipantTable({
                                         </td>
                                         <td className="p-2.5 text-right">
                                           <div className="flex items-center justify-end gap-1.5">
-                                            {/* Item Approve Button */}
-                                            <button
-                                              onClick={() => handleVerifySingleItem(item, "verified", g)}
-                                              disabled={verifyingItemId === item.id || isVerified || !completeness.isComplete}
-                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
-                                                isVerified
-                                                  ? "bg-emerald-600 text-white opacity-90"
-                                                  : !completeness.isComplete
-                                                  ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                                                  : "bg-emerald-100 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200"
-                                              }`}
-                                              title={
-                                                !completeness.isComplete
-                                                  ? "Tidak bisa di-verified: Berkas Akte/KK & Bukti Bayar belum diunggah"
-                                                  : "Setujui cabang lomba ini"
-                                              }
-                                            >
-                                              <CheckCircle className="w-3.5 h-3.5" />
-                                              <span>{isVerified ? "Terverifikasi" : "Setujui"}</span>
-                                            </button>
+                                            {activeMainTab === "active" ? (
+                                              <>
+                                                {/* Item Approve Button */}
+                                                <button
+                                                  onClick={() => handleVerifySingleItem(item, "verified", g)}
+                                                  disabled={verifyingItemId === item.id || isVerified || !completeness.isComplete}
+                                                  className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                                                    isVerified
+                                                      ? "bg-emerald-600 text-white opacity-90"
+                                                      : !completeness.isComplete
+                                                      ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                                      : "bg-emerald-100 hover:bg-emerald-600 text-emerald-800 hover:text-white border border-emerald-200"
+                                                  }`}
+                                                  title={
+                                                    !completeness.isComplete
+                                                      ? "Tidak bisa di-verified: Berkas Akte/KK & Bukti Bayar belum diunggah"
+                                                      : "Setujui cabang lomba ini"
+                                                  }
+                                                >
+                                                  <CheckCircle className="w-3.5 h-3.5" />
+                                                  <span>{isVerified ? "Terverifikasi" : "Setujui"}</span>
+                                                </button>
 
-                                            {/* Item Reject Button */}
-                                            <button
-                                              onClick={() => handleVerifySingleItem(item, "rejected", g)}
-                                              disabled={verifyingItemId === item.id || isRejected}
-                                              className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
-                                                isRejected
-                                                  ? "bg-red-600 text-white opacity-90"
-                                                  : "bg-red-100 hover:bg-red-600 text-red-800 hover:text-white border border-red-200"
-                                              }`}
-                                            >
-                                              <XCircle className="w-3.5 h-3.5" />
-                                              <span>{isRejected ? "Ditolak" : "Tolak"}</span>
-                                            </button>
+                                                {/* Item Reject Button */}
+                                                <button
+                                                  onClick={() => handleVerifySingleItem(item, "rejected", g)}
+                                                  disabled={verifyingItemId === item.id || isRejected}
+                                                  className={`px-3 py-1.5 rounded-xl text-[11px] font-extrabold transition-all flex items-center gap-1 cursor-pointer ${
+                                                    isRejected
+                                                      ? "bg-red-600 text-white opacity-90"
+                                                      : "bg-red-100 hover:bg-red-600 text-red-800 hover:text-white border border-red-200"
+                                                  }`}
+                                                >
+                                                  <XCircle className="w-3.5 h-3.5" />
+                                                  <span>{isRejected ? "Ditolak" : "Tolak"}</span>
+                                                </button>
+
+                                                {/* Item Soft Delete Button */}
+                                                <button
+                                                  onClick={() =>
+                                                    setConfirmModal({
+                                                      type: "soft_delete",
+                                                      targetType: "registration",
+                                                      group: g,
+                                                      item,
+                                                    })
+                                                  }
+                                                  className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                                  title="Nonaktifkan Cabang Lomba Ini"
+                                                >
+                                                  <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                              </>
+                                            ) : (
+                                              <>
+                                                {/* Item Restore Button */}
+                                                <button
+                                                  onClick={() =>
+                                                    setConfirmModal({
+                                                      type: "restore",
+                                                      targetType: "registration",
+                                                      group: g,
+                                                      item,
+                                                    })
+                                                  }
+                                                  className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-600 text-emerald-700 hover:text-white rounded-lg text-[11px] font-black transition-all flex items-center gap-1 cursor-pointer"
+                                                  title="Pulihkan Cabang Lomba Ini"
+                                                >
+                                                  <RotateCcw className="w-3 h-3" />
+                                                  <span>Pulihkan</span>
+                                                </button>
+
+                                                {/* Item Hard Delete Button */}
+                                                <button
+                                                  onClick={() =>
+                                                    setConfirmModal({
+                                                      type: "hard_delete",
+                                                      targetType: "registration",
+                                                      group: g,
+                                                      item,
+                                                    })
+                                                  }
+                                                  className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-lg text-[11px] font-black transition-all shadow-xs flex items-center gap-1 cursor-pointer"
+                                                  title="Hapus Permanen Cabang Lomba Ini"
+                                                >
+                                                  <Trash2 className="w-3 h-3" />
+                                                  <span>Hapus Permanen</span>
+                                                </button>
+                                              </>
+                                            )}
                                           </div>
                                         </td>
                                       </tr>
@@ -657,13 +961,13 @@ export default function ParticipantTable({
       </div>
 
       {/* =================================================================== */}
-      {/* GROUPED VERIFICATION DETAIL MODAL */}
+      {/* 3. GROUPED VERIFICATION DETAIL MODAL */}
       {/* =================================================================== */}
       {selectedGroup && (
         <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-6 overflow-y-auto font-sans">
           <div className="bg-white rounded-3xl max-w-4xl w-full shadow-2xl border border-slate-200 overflow-hidden my-6 flex flex-col max-h-[92vh]">
             {/* MODAL HEADER */}
-            <div className="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 text-white p-5 sm:p-6 relative flex-shrink-0">
+            <div className="bg-gradient-to-r from-sky-700 via-blue-700 to-indigo-800 text-white p-5 sm:p-6 relative shrink-0">
               <button
                 onClick={() => setSelectedGroup(null)}
                 className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all cursor-pointer"
@@ -679,6 +983,11 @@ export default function ParticipantTable({
                   <span className="font-mono text-xs text-sky-200 font-black">
                     {selectedGroup.registration_code}
                   </span>
+                  {!selectedGroup.is_active && (
+                    <span className="px-2.5 py-0.5 bg-rose-500/80 text-white rounded-full text-[10px] font-black tracking-wider uppercase border border-rose-300/40">
+                      STATUS: NON-AKTIF
+                    </span>
+                  )}
                 </div>
                 <h2 className="text-xl sm:text-2xl font-black tracking-tight uppercase">
                   {selectedGroup.participant?.name || "Nama Perenang"}
@@ -785,7 +1094,7 @@ export default function ParticipantTable({
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-200 text-indigo-700">
                     <Trophy className="w-4 h-4" />
                     <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
-                      Rincian & Verifikasi Satu per Satu ({selectedGroup.items.length})
+                      Rincian Cabang Lomba ({selectedGroup.items.length})
                     </h3>
                   </div>
 
@@ -831,33 +1140,37 @@ export default function ParticipantTable({
                             </span>
 
                             <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleVerifySingleItem(item, "verified", selectedGroup)}
-                                disabled={verifyingItemId === item.id || isItemVerified || !isComplete}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
-                                  isItemVerified
-                                    ? "bg-emerald-600 text-white"
-                                    : !isComplete
-                                    ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
-                                    : "bg-emerald-100 text-emerald-800 hover:bg-emerald-600 hover:text-white"
-                                }`}
-                              >
-                                <CheckCircle className="w-3 h-3" />
-                                <span>Setuju</span>
-                              </button>
+                              {selectedGroup.is_active && (
+                                <>
+                                  <button
+                                    onClick={() => handleVerifySingleItem(item, "verified", selectedGroup)}
+                                    disabled={verifyingItemId === item.id || isItemVerified || !isComplete}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
+                                      isItemVerified
+                                        ? "bg-emerald-600 text-white"
+                                        : !isComplete
+                                        ? "bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed"
+                                        : "bg-emerald-100 text-emerald-800 hover:bg-emerald-600 hover:text-white"
+                                    }`}
+                                  >
+                                    <CheckCircle className="w-3 h-3" />
+                                    <span>Setuju</span>
+                                  </button>
 
-                              <button
-                                onClick={() => handleVerifySingleItem(item, "rejected", selectedGroup)}
-                                disabled={verifyingItemId === item.id || isItemRejected}
-                                className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
-                                  isItemRejected
-                                    ? "bg-red-600 text-white"
-                                    : "bg-red-100 text-red-800 hover:bg-red-600 hover:text-white"
-                                }`}
-                              >
-                                <XCircle className="w-3 h-3" />
-                                <span>Tolak</span>
-                              </button>
+                                  <button
+                                    onClick={() => handleVerifySingleItem(item, "rejected", selectedGroup)}
+                                    disabled={verifyingItemId === item.id || isItemRejected}
+                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 ${
+                                      isItemRejected
+                                        ? "bg-red-600 text-white"
+                                        : "bg-red-100 text-red-800 hover:bg-red-600 hover:text-white"
+                                    }`}
+                                  >
+                                    <XCircle className="w-3 h-3" />
+                                    <span>Tolak</span>
+                                  </button>
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -966,7 +1279,7 @@ export default function ParticipantTable({
             </div>
 
             {/* MODAL FOOTER ACTION BAR */}
-            <div className="bg-slate-100 p-5 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4 flex-shrink-0">
+            <div className="bg-slate-100 p-5 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-4 shrink-0">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-slate-500">Status Overall:</span>
                 <span
@@ -984,33 +1297,91 @@ export default function ParticipantTable({
 
               {/* Action Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                {/* Approve All */}
-                <button
-                  onClick={() => handleVerifyGroupAll(selectedGroup, "verified")}
-                  disabled={!checkDocCompleteness(selectedGroup).isComplete}
-                  className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-sm flex items-center gap-1.5 cursor-pointer ${
-                    !checkDocCompleteness(selectedGroup).isComplete
-                      ? "bg-slate-300 text-slate-500 cursor-not-allowed"
-                      : "bg-emerald-600 hover:bg-emerald-700 text-white"
-                  }`}
-                  title={
-                    !checkDocCompleteness(selectedGroup).isComplete
-                      ? "Tidak bisa di-verified: Berkas Akte/KK & Bukti Bayar belum lengkap"
-                      : "Setujui Semua Nomor Lomba"
-                  }
-                >
-                  <CheckCircle className="w-4 h-4" />
-                  <span>Setujui Semua (Verified)</span>
-                </button>
+                {selectedGroup.is_active ? (
+                  <>
+                    {/* Approve All */}
+                    <button
+                      onClick={() => handleVerifyGroupAll(selectedGroup, "verified")}
+                      disabled={!checkDocCompleteness(selectedGroup).isComplete}
+                      className={`px-4 py-2.5 rounded-xl text-xs font-black transition-all shadow-xs flex items-center gap-1.5 cursor-pointer ${
+                        !checkDocCompleteness(selectedGroup).isComplete
+                          ? "bg-slate-300 text-slate-500 cursor-not-allowed"
+                          : "bg-emerald-600 hover:bg-emerald-700 text-white"
+                      }`}
+                      title={
+                        !checkDocCompleteness(selectedGroup).isComplete
+                          ? "Tidak bisa di-verified: Berkas Akte/KK & Bukti Bayar belum lengkap"
+                          : "Setujui Semua Nomor Lomba"
+                      }
+                    >
+                      <CheckCircle className="w-4 h-4" />
+                      <span>Setujui Semua (Verified)</span>
+                    </button>
 
-                {/* Reject All */}
-                <button
-                  onClick={() => handleVerifyGroupAll(selectedGroup, "rejected")}
-                  className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
-                >
-                  <XCircle className="w-4 h-4" />
-                  <span>Tolak Semua (Rejected)</span>
-                </button>
+                    {/* Reject All */}
+                    <button
+                      onClick={() => handleVerifyGroupAll(selectedGroup, "rejected")}
+                      className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <XCircle className="w-4 h-4" />
+                      <span>Tolak Semua (Rejected)</span>
+                    </button>
+
+                    {/* Soft Delete from Modal */}
+                    <button
+                      onClick={() => {
+                        const grp = selectedGroup;
+                        setSelectedGroup(null);
+                        setConfirmModal({
+                          type: "soft_delete",
+                          targetType: "participant",
+                          group: grp,
+                        });
+                      }}
+                      className="px-4 py-2.5 bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white text-xs font-black rounded-xl transition-all border border-rose-200 flex items-center gap-1.5 cursor-pointer"
+                      title="Pindahkan ke Tab Peserta Dihapus"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Hapus Peserta</span>
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    {/* Restore from Modal */}
+                    <button
+                      onClick={() => {
+                        const grp = selectedGroup;
+                        setSelectedGroup(null);
+                        setConfirmModal({
+                          type: "restore",
+                          targetType: "participant",
+                          group: grp,
+                        });
+                      }}
+                      className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      <span>Pulihkan Peserta</span>
+                    </button>
+
+                    {/* Hard Delete from Modal */}
+                    <button
+                      onClick={() => {
+                        const grp = selectedGroup;
+                        setSelectedGroup(null);
+                        setConfirmModal({
+                          type: "hard_delete",
+                          targetType: "participant",
+                          group: grp,
+                        });
+                      }}
+                      className="px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white text-xs font-black rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      <span>Hapus Permanen</span>
+                    </button>
+                  </>
+                )}
 
                 {/* Close Button */}
                 <button
@@ -1026,7 +1397,129 @@ export default function ParticipantTable({
       )}
 
       {/* =================================================================== */}
-      {/* FULLSCREEN IMAGE PREVIEW MODAL */}
+      {/* 4. CONFIRMATION MODAL (SOFT DELETE / RESTORE / HARD DELETE) */}
+      {/* =================================================================== */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden space-y-4 p-6 animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-3">
+              <div
+                className={`p-3 rounded-2xl shrink-0 ${
+                  confirmModal.type === "hard_delete"
+                    ? "bg-red-100 text-red-600"
+                    : confirmModal.type === "restore"
+                    ? "bg-emerald-100 text-emerald-600"
+                    : "bg-rose-100 text-rose-600"
+                }`}
+              >
+                {confirmModal.type === "hard_delete" ? (
+                  <AlertOctagon className="w-6 h-6" />
+                ) : confirmModal.type === "restore" ? (
+                  <RotateCcw className="w-6 h-6" />
+                ) : (
+                  <Trash2 className="w-6 h-6" />
+                )}
+              </div>
+              <div>
+                <h3 className="text-base font-black text-slate-900">
+                  {confirmModal.type === "hard_delete"
+                    ? "Hapus Permanen (Hard Delete)"
+                    : confirmModal.type === "restore"
+                    ? "Pulihkan Data Peserta"
+                    : "Nonaktifkan Peserta (Hapus Sementara)"}
+                </h3>
+                <p className="text-xs font-semibold text-slate-500">
+                  {confirmModal.targetType === "participant"
+                    ? "Tindakan untuk atlet & seluruh nomor lomba"
+                    : "Tindakan untuk 1 cabang nomor lomba"}
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200 text-xs space-y-2">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 block uppercase">NAMA PERENANG / ATLET:</span>
+                <span className="font-black text-slate-900 text-sm uppercase">
+                  {confirmModal.group?.participant?.name ||
+                    confirmModal.item?.participant?.name ||
+                    "Perenang"}
+                </span>
+              </div>
+              {confirmModal.targetType === "participant" ? (
+                <div className="flex justify-between text-slate-600">
+                  <span>
+                    Klub: <strong className="text-slate-900">{confirmModal.group?.participant?.club || "-"}</strong>
+                  </span>
+                  <span>
+                    Jumlah Lomba:{" "}
+                    <strong className="text-indigo-700">{confirmModal.group?.items?.length || 0} Nomor</strong>
+                  </span>
+                </div>
+              ) : (
+                <div className="text-slate-700">
+                  <span>Cabang: </span>
+                  <strong className="text-indigo-700">
+                    #{confirmModal.item?.swimming_event?.event_code} - {confirmModal.item?.swimming_event?.event_name}
+                  </strong>
+                </div>
+              )}
+            </div>
+
+            <div className="text-xs leading-relaxed">
+              {confirmModal.type === "hard_delete" ? (
+                <div className="p-3 bg-red-50 text-red-800 rounded-xl border border-red-200 text-[11px] font-bold space-y-1">
+                  <span className="text-red-950 font-black block">PERHATIAN: TINDAKAN INI BERSIFAT PERMANEN!</span>
+                  <span>
+                    Data peserta dan seluruh pendaftaran nomor lomba akan dihapus seluruhnya dari database dan{" "}
+                    <strong>tidak dapat dikembalikan lagi</strong>.
+                  </span>
+                </div>
+              ) : confirmModal.type === "restore" ? (
+                <p className="text-slate-600">
+                  Data peserta akan diaktifkan kembali dan dipindahkan ke tab <strong>Peserta Aktif</strong>. Peserta dapat kembali diverifikasi dan dimasukkan ke Buku Acara.
+                </p>
+              ) : (
+                <p className="text-slate-600">
+                  Peserta akan dinonaktifkan (flag non-aktif) dan dipindahkan ke tab <strong>Peserta Dihapus</strong>. Nomor lintasan dan seri akan dikosongkan. Anda dapat memulihkannya kembali kapan saja.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+              <button
+                onClick={() => setConfirmModal(null)}
+                disabled={isProcessingAction}
+                className="px-4 py-2.5 rounded-xl border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-bold transition-all cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                onClick={executeConfirmedAction}
+                disabled={isProcessingAction}
+                className={`px-5 py-2.5 rounded-xl text-white text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                  confirmModal.type === "hard_delete"
+                    ? "bg-red-600 hover:bg-red-700"
+                    : confirmModal.type === "restore"
+                    ? "bg-emerald-600 hover:bg-emerald-700"
+                    : "bg-rose-600 hover:bg-rose-700"
+                }`}
+              >
+                {isProcessingAction && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {confirmModal.type === "hard_delete"
+                    ? "Ya, Hapus Permanen"
+                    : confirmModal.type === "restore"
+                    ? "Ya, Pulihkan Data"
+                    : "Ya, Nonaktifkan"}
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* 5. FULLSCREEN IMAGE PREVIEW MODAL */}
       {/* =================================================================== */}
       {previewImageUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">

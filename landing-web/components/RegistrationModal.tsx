@@ -27,9 +27,54 @@ import {
 } from "lucide-react";
 import { registerParticipant, uploadImage } from "../lib/api";
 import SwimmingTimeInput from "./SwimmingTimeInput";
+import { toast } from "./Toast";
+
+export function isKUMatch(eventKU?: string, athleteKU?: string, athleteAge?: number): boolean {
+  if (!eventKU) return true;
+  const e = eventKU.toUpperCase().trim();
+  if (e === "OPEN" || e === "TERBUKA" || e === "ALL" || e === "SEMUA" || e === "") return true;
+  if (!athleteKU) return true;
+  const a = athleteKU.toUpperCase().trim();
+  if (e === a) return true;
+
+  // Normalized: remove whitespace
+  if (e.replace(/\s+/g, "") === a.replace(/\s+/g, "")) return true;
+
+  // Match KU number (e.g. "KU 2 (13 - 14 Thn)" matches "KU 2")
+  const eKUMatch = e.match(/KU\s*([1-5])/i);
+  const aKUMatch = a.match(/KU\s*([1-5])/i);
+  if (eKUMatch && aKUMatch && eKUMatch[1] === aKUMatch[1]) return true;
+
+  // Senior matching
+  if (
+    (e.includes("SENIOR") || e.includes("DEWASA") || e.includes("MASTER")) &&
+    (a.includes("SENIOR") || a.includes("DEWASA") || a.includes("MASTER"))
+  ) {
+    return true;
+  }
+
+  // Age numeric range matching (e.g. "13 - 14 Thn" or "≤ 9 Thn")
+  if (athleteAge !== undefined && athleteAge > 0) {
+    const leMatch = e.match(/[≤<=]\s*(\d+)/);
+    if (leMatch && athleteAge <= parseInt(leMatch[1], 10)) return true;
+
+    const geMatch = e.match(/[≥>=]\s*(\d+)/);
+    if (geMatch && athleteAge >= parseInt(geMatch[1], 10)) return true;
+
+    const rangeMatch = e.match(/(\d+)\s*[-–]\s*(\d+)/);
+    if (rangeMatch) {
+      const minAge = parseInt(rangeMatch[1], 10);
+      const maxAge = parseInt(rangeMatch[2], 10);
+      if (athleteAge >= minAge && athleteAge <= maxAge) return true;
+    }
+  }
+
+  return false;
+}
 
 interface SwimmingEvent {
   id: number;
+  tournament_id?: number;
   event_code: number;
   event_name: string;
   distance: string;
@@ -129,17 +174,17 @@ export default function RegistrationModal({
       const parsed = new Date(currentTourney.event_start_date).getFullYear();
       if (!isNaN(parsed) && parsed > 2000) return parsed;
     }
-    return 2026;
+    return new Date().getFullYear();
   }, [currentTourney]);
 
   // Real-time Age and official PB PRSI / Akuatik Indonesia KU validation
   const ageValidation = useMemo(() => {
     if (!birthDate) {
-      return { age: 0, ku: "KU 2", label: "-", valid: false, error: "Tanggal lahir wajib diisi" };
+      return { age: 0, ku: "-", label: "Silakan isi tanggal lahir", valid: false, error: "Tanggal lahir wajib diisi" };
     }
     const parts = birthDate.split("-").map(Number);
     if (parts.length !== 3 || isNaN(parts[0])) {
-      return { age: 0, ku: "KU 2", label: "-", valid: false, error: "Format tanggal tidak valid" };
+      return { age: 0, ku: "-", label: "Format tanggal tidak valid", valid: false, error: "Format tanggal tidak valid" };
     }
     const birthYear = parts[0];
     const age = tournamentYear - birthYear;
@@ -185,6 +230,41 @@ export default function RegistrationModal({
     }
   }, [ageValidation]);
 
+  // Count matching events per tournament for the current athlete (by KU and gender)
+  const tournamentMatchingStats = useMemo(() => {
+    const map: { [tourneyId: string]: number } = {};
+    (tournaments || []).forEach((t) => {
+      map[String(t.id)] = 0;
+    });
+
+    (events || []).forEach((e) => {
+      const tId = String(e.tournament_id ?? (e as any).tournamentId ?? "");
+      if (map[tId] !== undefined) {
+        const matchGender = !e.gender || e.gender.toUpperCase() === gender;
+        const matchKU = isKUMatch(e.age_group, detectedKU, ageValidation.age);
+        if (matchGender && matchKU) {
+          map[tId] += 1;
+        }
+      }
+    });
+
+    return map;
+  }, [tournaments, events, gender, detectedKU, ageValidation.age]);
+
+  // When detectedKU or tournaments change, auto-switch to a tournament that has matching events if current has 0
+  useEffect(() => {
+    if (!tournaments || tournaments.length === 0) return;
+    const currentCount = tournamentMatchingStats[String(selectedTournamentID)] || 0;
+    if (currentCount === 0) {
+      const availableTourney = tournaments.find(
+        (t) => (tournamentMatchingStats[String(t.id)] || 0) > 0
+      );
+      if (availableTourney) {
+        setSelectedTournamentID(String(availableTourney.id));
+      }
+    }
+  }, [tournamentMatchingStats, selectedTournamentID, tournaments]);
+
   // Reset all states when modal is closed
   useEffect(() => {
     if (!isOpen) {
@@ -209,8 +289,6 @@ export default function RegistrationModal({
       setReceiptData(null);
     }
   }, [isOpen]);
-
-  if (!isOpen) return null;
 
   const appWa = siteConfig?.wa_number || "6281234567890";
   const compName =
@@ -266,8 +344,9 @@ export default function RegistrationModal({
     const uploadedUrl = res.url || res.data?.url;
     if (res.success && uploadedUrl) {
       setDocFileUrl(uploadedUrl);
+      toast.success("Foto berkas identitas berhasil diunggah!");
     } else {
-      alert("Gagal mengunggah foto berkas: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
+      toast.error("Gagal mengunggah foto berkas: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
     }
   };
 
@@ -280,8 +359,9 @@ export default function RegistrationModal({
     const uploadedUrl = res.url || res.data?.url;
     if (res.success && uploadedUrl) {
       setProofFileUrl(uploadedUrl);
+      toast.success("Bukti transfer pembayaran berhasil diunggah!");
     } else {
-      alert("Gagal mengunggah bukti transfer: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
+      toast.error("Gagal mengunggah bukti transfer: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
     }
   };
 
@@ -297,28 +377,38 @@ export default function RegistrationModal({
   const handleGoToStep2 = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      alert("Nama lengkap atlet wajib diisi");
+      toast.warning("Nama lengkap atlet wajib diisi");
       return;
     }
     if (!ageValidation.valid) {
-      alert("Validasi Usia Gagal: " + (ageValidation.error || "Tanggal lahir atlet tidak memenuhi ketentuan kejuaraan."));
+      toast.warning("Validasi Usia Gagal: " + (ageValidation.error || "Tanggal lahir atlet tidak memenuhi ketentuan kejuaraan."));
+      return;
+    }
+    if (isRegistrationClosed) {
+      toast.warning(`Pendaftaran untuk ${currentTourney?.name || "kejuaraan ini"} telah ditutup.`);
+      return;
+    }
+    if (eligibleEvents.length === 0) {
+      toast.warning(
+        `Turnamen yang dipilih belum memiliki nomor lomba untuk kategori ${detectedKU} (${gender === "PUTRA" ? "Putra" : "Putri"}). Silakan pilih turnamen lain yang tersedia.`
+      );
       return;
     }
     if (!club.trim()) {
-      alert("Asal klub / sekolah wajib diisi");
+      toast.warning("Asal klub / sekolah wajib diisi");
       return;
     }
     const cleanContact = contact.replace(/\D/g, "");
     if (!cleanContact) {
-      alert("Nomor WhatsApp PIC wajib diisi (hanya angka)");
+      toast.warning("Nomor WhatsApp PIC wajib diisi (hanya angka)");
       return;
     }
     if (cleanContact.length < 9) {
-      alert("Nomor WhatsApp tidak valid. Masukkan minimal 9 digit angka.");
+      toast.warning("Nomor WhatsApp tidak valid. Masukkan minimal 9 digit angka.");
       return;
     }
     if (!docFileUrl) {
-      alert("Foto berkas identitas (" + docType + ") WAJIB diunggah sebelum melanjutkan ke pemilihan nomor lomba!");
+      toast.warning("Foto berkas identitas (" + docType + ") WAJIB diunggah sebelum melanjutkan ke pemilihan nomor lomba!");
       return;
     }
     setStep(2);
@@ -327,7 +417,7 @@ export default function RegistrationModal({
   // Step 2 Validation -> Go to Step 3
   const handleGoToStep3 = () => {
     if (totalSelectedCount === 0) {
-      alert("Silakan pilih minimal 1 nomor lomba untuk didaftarkan");
+      toast.warning("Silakan pilih minimal 1 nomor lomba untuk didaftarkan");
       return;
     }
     setStep(3);
@@ -336,11 +426,11 @@ export default function RegistrationModal({
   // Submit Final Registration
   const handleSubmitRegistration = async () => {
     if (!senderBankOwner.trim()) {
-      alert("Nama pemilik rekening pengirim wajib diisi");
+      toast.warning("Nama pemilik rekening pengirim wajib diisi");
       return;
     }
     if (!proofFileUrl) {
-      alert("Bukti struk transfer pembayaran WAJIB diunggah!");
+      toast.warning("Bukti struk transfer pembayaran WAJIB diunggah!");
       return;
     }
 
@@ -376,24 +466,26 @@ export default function RegistrationModal({
     setSubmitting(false);
 
     if (res.success && res.data) {
+      toast.success("Pendaftaran berhasil dikirim! Silakan simpan bukti pendaftaran Anda.");
       setReceiptData(res.data);
       setStep(4);
     } else {
-      alert("Gagal mengirim pendaftaran: " + (res.message || "Terjadi kesalahan server"));
+      toast.error("Gagal mengirim pendaftaran: " + (res.message || "Terjadi kesalahan server"));
     }
   };
 
   // Filter events matching selected tournament, athlete gender & KU
-  const eligibleEvents = events.filter((e) => {
-    const matchTourney =
-      !selectedTournamentID || String((e as any).tournament_id) === String(selectedTournamentID);
-    const matchGender = e.gender?.toUpperCase() === gender;
-    const matchKU =
-      e.age_group?.toUpperCase() === detectedKU.toUpperCase() ||
-      e.age_group?.toUpperCase() === "OPEN" ||
-      !e.age_group;
-    return matchTourney && matchGender && matchKU;
-  });
+  const eligibleEvents = useMemo(() => {
+    return events.filter((e) => {
+      const matchTourney =
+        !selectedTournamentID ||
+        String((e as any).tournament_id ?? (e as any).tournamentId ?? "") === String(selectedTournamentID);
+      const g = (e.gender || "").toUpperCase().trim();
+      const matchGender = !g || g === gender || g === "CAMPURAN" || g === "MIXED" || g === "ALL" || g === "SEMUA";
+      const matchKU = isKUMatch(e.age_group, detectedKU, ageValidation.age);
+      return matchTourney && matchGender && matchKU;
+    });
+  }, [events, selectedTournamentID, gender, detectedKU, ageValidation.age]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -429,6 +521,8 @@ export default function RegistrationModal({
     setReceiptData(null);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div
@@ -546,139 +640,208 @@ export default function RegistrationModal({
           {/* =================================================================== */}
           {step === 1 && (
             <form onSubmit={handleGoToStep2} className="space-y-5">
-              {/* Turnamen / Kejuaraan Selector */}
-              <div>
-                <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                  PILIH TURNAMEN / KEJUARAAN INDUK <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={selectedTournamentID}
-                  onChange={(e) => setSelectedTournamentID(e.target.value)}
-                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-black text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-                >
-                  {(tournaments || []).map((t) => (
-                    <option key={t.id} value={t.id}>
-                      🏆 {t.name} ({t.registration_end_date ? `Batas: ${t.registration_end_date}` : ""})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Deadline Status Banner */}
-              {isRegistrationClosed ? (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-900">
-                  <span className="text-lg">🚫</span>
-                  <div>
-                    <h4 className="font-black text-xs">Pendaftaran Turnamen Telah Ditutup</h4>
-                    <p className="text-[11px] text-red-700 font-medium leading-relaxed mt-0.5">
-                      Batas waktu pendaftaran untuk {currentTourney?.name} telah berakhir pada{" "}
-                      <span className="font-black underline">{currentTourney?.registration_end_date}</span>. Pendaftaran baru tidak dapat diproses.
-                    </p>
+              {/* SECTION 1: IDENTITAS ATLET & PERHITUNGAN KU OTOMATIS */}
+              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-4">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <User className="w-4 h-4 text-sky-600" />
+                    <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider">
+                      1. Identitas Atlet & Kelompok Umur (KU)
+                    </h3>
                   </div>
-                </div>
-              ) : (
-                <div className="p-4 bg-sky-50 border border-sky-100 rounded-2xl flex items-start gap-3 text-sky-900">
-                  <ShieldCheck className="w-5 h-5 text-sky-600 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-black text-xs">Ketentuan Data Atlet</h4>
-                    <p className="text-[11px] text-sky-700 font-medium leading-relaxed mt-0.5">
-                      Data yang diisi akan diverifikasi oleh panitia untuk pembagian Kelompok Umur
-                      (KU) dan pencetakan piagam resmi.
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Nama Lengkap Atlet */}
-              <div>
-                <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                  NAMA LENGKAP ATLET <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="CONTOH: MUHAMMAD ALFATIH"
-                  className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-bold text-slate-900 uppercase focus:ring-2 focus:ring-sky-500 focus:outline-none placeholder:normal-case placeholder:font-medium"
-                />
-              </div>
-
-              {/* Jenis Kelamin & Tanggal Lahir */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                    JENIS KELAMIN <span className="text-red-500">*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setGender("PUTRA")}
-                      className={`py-3 px-3 rounded-2xl font-black text-xs transition-all border ${
-                        gender === "PUTRA"
-                          ? "bg-blue-600 text-white border-blue-600 shadow-md"
-                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      🏊‍♂️ Putra (Laki-laki)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setGender("PUTRI")}
-                      className={`py-3 px-3 rounded-2xl font-black text-xs transition-all border ${
-                        gender === "PUTRI"
-                          ? "bg-pink-600 text-white border-pink-600 shadow-md"
-                          : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
-                      }`}
-                    >
-                      🏊‍♀️ Putri (Perempuan)
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
-                    TANGGAL LAHIR & KELOMPOK UMUR (KU) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={birthDate}
-                    onChange={(e) => setBirthDate(e.target.value)}
-                    max={new Date().toISOString().slice(0, 10)}
-                    className={`w-full px-4 py-3 bg-white border rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:outline-none transition-all ${
-                      ageValidation.valid
-                        ? "border-slate-300 focus:ring-sky-500"
-                        : "border-rose-400 bg-rose-50/40 focus:ring-rose-500 text-rose-900"
-                    }`}
-                  />
-                  
-                  {/* Real-time Validasi Usia & KU Card */}
-                  {ageValidation.valid ? (
-                    <div className="mt-2 p-2.5 bg-sky-50/80 border border-sky-200 rounded-xl space-y-1">
-                      <div className="flex items-center justify-between text-[11px]">
-                        <span className="font-extrabold text-sky-950 flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 text-sky-600" />
-                          Usia: <span className="font-black text-sky-700">{ageValidation.age} Tahun</span>
-                        </span>
-                        <span className="px-2 py-0.5 bg-sky-600 text-white rounded-md font-black text-[10px] uppercase tracking-wider shadow-xs">
-                          {ageValidation.ku}
-                        </span>
-                      </div>
-                      <p className="text-[10px] font-medium text-slate-600">
-                        {ageValidation.label} • Acuan Kejuaraan {tournamentYear}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-bold flex items-start gap-1.5">
-                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <span>{ageValidation.error}</span>
-                    </div>
+                  {ageValidation.valid && (
+                    <span className="px-2.5 py-0.5 bg-blue-600 text-white rounded-full font-black text-[10px] uppercase tracking-wider shadow-2xs">
+                      {ageValidation.ku}
+                    </span>
                   )}
                 </div>
+
+                {/* Nama Lengkap Atlet */}
+                <div>
+                  <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
+                    NAMA LENGKAP ATLET <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="CONTOH: MUHAMMAD ALFATIH"
+                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-bold text-slate-900 uppercase focus:ring-2 focus:ring-sky-500 focus:outline-none placeholder:normal-case placeholder:font-medium"
+                  />
+                </div>
+
+                {/* Jenis Kelamin & Tanggal Lahir (Kalkulasi Otomatis KU) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
+                      JENIS KELAMIN <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGender("PUTRA")}
+                        className={`py-3 px-3 rounded-2xl font-black text-xs transition-all border flex items-center justify-center gap-1.5 ${
+                          gender === "PUTRA"
+                            ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        🏊‍♂️ Putra (Laki-laki)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGender("PUTRI")}
+                        className={`py-3 px-3 rounded-2xl font-black text-xs transition-all border flex items-center justify-center gap-1.5 ${
+                          gender === "PUTRI"
+                            ? "bg-pink-600 text-white border-pink-600 shadow-md"
+                            : "bg-white text-slate-700 border-slate-300 hover:bg-slate-50"
+                        }`}
+                      >
+                        🏊‍♀️ Putri (Perempuan)
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
+                      TANGGAL LAHIR (HITUNG KU OTOMATIS) <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={birthDate}
+                      onChange={(e) => setBirthDate(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                      className={`w-full px-4 py-3 bg-white border rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:outline-none transition-all ${
+                        ageValidation.valid
+                          ? "border-slate-300 focus:ring-sky-500"
+                          : "border-rose-400 bg-rose-50/40 focus:ring-rose-500 text-rose-900"
+                      }`}
+                    />
+
+                    {/* Real-time Validasi Usia & KU Card */}
+                    {ageValidation.valid ? (
+                      <div className="mt-2 p-2.5 bg-gradient-to-r from-sky-50 to-blue-50 border border-sky-200 rounded-xl space-y-1 shadow-2xs">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="font-extrabold text-sky-950 flex items-center gap-1">
+                            <Sparkles className="w-3.5 h-3.5 text-sky-600 animate-pulse" />
+                            Usia Dihitung: <span className="font-black text-sky-700">{ageValidation.age} Tahun</span>
+                          </span>
+                          <span className="px-2 py-0.5 bg-sky-600 text-white rounded-md font-black text-[10px] uppercase tracking-wider shadow-xs">
+                            {ageValidation.ku}
+                          </span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-slate-600">
+                          {ageValidation.label} • Acuan Kejuaraan {tournamentYear}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="mt-2 p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-[11px] font-bold flex items-start gap-1.5">
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                        <span>{ageValidation.error}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              {/* Asal Klub & Jenis Berkas */}
+              {/* SECTION 2: PILIH KEJUARAAN / TURNAMEN INDUK */}
+              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="w-4 h-4 text-amber-500" />
+                    <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider">
+                      2. Pilih Kejuaraan / Turnamen Lomba
+                    </h3>
+                  </div>
+                  {ageValidation.valid && (
+                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full border border-sky-200">
+                      Filter: {detectedKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
+                    </span>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
+                    PILIH TURNAMEN INDUK <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedTournamentID}
+                    onChange={(e) => setSelectedTournamentID(e.target.value)}
+                    className="w-full px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-black text-slate-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                  >
+                    {(tournaments || []).map((t) => {
+                      const matchCount = tournamentMatchingStats[String(t.id)] || 0;
+                      return (
+                        <option key={t.id} value={t.id}>
+                          🏆 {t.name} — {matchCount > 0 ? `(${matchCount} Nomor Lomba Cocok ${detectedKU})` : `(0 Nomor Lomba ${detectedKU})`}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                {/* Info Kesesuaian Nomor Lomba untuk Kejuaraan Terpilih */}
+                {ageValidation.valid && (
+                  <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+                    (tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                      : "bg-amber-50 border-amber-200 text-amber-900"
+                  }`}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base shrink-0">
+                        {(tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0 ? "🎯" : "⚠️"}
+                      </span>
+                      <div>
+                        <p className="font-black text-[11px]">
+                          {(tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
+                            ? `Tersedia ${tournamentMatchingStats[String(selectedTournamentID)]} nomor lomba untuk ${detectedKU} (${gender === "PUTRA" ? "Putra" : "Putri"})`
+                            : `Kejuaraan ini belum memiliki nomor lomba untuk kategori ${detectedKU} (${gender === "PUTRA" ? "Putra" : "Putri"}).`}
+                        </p>
+                        <p className="text-[10px] text-slate-500 font-medium">
+                          {(tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
+                            ? "Nomor lomba akan otomatis disaring sesuai usia & KU atlet di Langkah 2."
+                            : "Silakan pilih kejuaraan lain di atas yang memiliki nomor lomba untuk kategori usia ini."}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-lg text-[10px] font-black shrink-0 ${
+                      (tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
+                        ? "bg-emerald-600 text-white"
+                        : "bg-amber-600 text-white"
+                    }`}>
+                      {tournamentMatchingStats[String(selectedTournamentID)] || 0} Nomor
+                    </span>
+                  </div>
+                )}
+
+                {/* Deadline Status Banner */}
+                {isRegistrationClosed ? (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl flex items-start gap-2.5 text-red-900">
+                    <span className="text-base shrink-0">🚫</span>
+                    <div>
+                      <h4 className="font-black text-xs">Pendaftaran Turnamen Telah Ditutup</h4>
+                      <p className="text-[11px] text-red-700 font-medium leading-relaxed mt-0.5">
+                        Batas waktu pendaftaran untuk {currentTourney?.name} telah berakhir pada{" "}
+                        <span className="font-black underline">{currentTourney?.registration_end_date}</span>.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 bg-blue-50/60 border border-blue-100 rounded-xl flex items-center justify-between text-blue-900 text-[11px]">
+                    <span className="font-medium flex items-center gap-1.5">
+                      <Clock className="w-3.5 h-3.5 text-blue-600" />
+                      Batas Akhir Pendaftaran:
+                    </span>
+                    <span className="font-black text-blue-800">
+                      {currentTourney?.registration_end_date || "Sesuai Jadwal Panitia"}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 3: ASAL KLUB & KONTAK PIC */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
@@ -758,7 +921,7 @@ export default function RegistrationModal({
                 </div>
               </div>
 
-              {/* Upload Foto Berkas */}
+              {/* SECTION 4: UPLOAD FOTO BERKAS */}
               <div>
                 <label className="block font-black text-slate-700 uppercase tracking-wider mb-1">
                   UPLOAD FOTO BERKAS ({docType.toUpperCase()}){" "}
@@ -906,7 +1069,7 @@ export default function RegistrationModal({
                     NOMOR LOMBA TERVALIDASI KATEGORI {detectedKU} & OPEN
                   </h3>
                   <p className="text-[10px] font-bold text-slate-400">
-                    Hanya nomor lomba yang sesuai dengan umur atlet ({detectedKU} {gender}) yang dapat dipilih
+                    Hanya menampilkan nomor lomba yang sesuai usia atlet ({ageValidation.age} Thn • {detectedKU} {gender})
                   </p>
                 </div>
                 <span className="px-3 py-1 bg-sky-100 text-sky-700 text-[11px] font-black rounded-full shrink-0">
@@ -917,13 +1080,23 @@ export default function RegistrationModal({
               {/* Event Cards Checklist */}
               <div className="space-y-3 max-h-[340px] overflow-y-auto pr-1">
                 {eligibleEvents.length === 0 ? (
-                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
-                    <p className="font-black text-slate-700 text-xs">
-                      Tidak ada nomor lomba kategori {detectedKU} ({gender}) pada kejuaraan ini.
+                  <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                    <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center mx-auto text-xl">
+                      ⚠️
+                    </div>
+                    <h4 className="font-black text-slate-800 text-xs sm:text-sm">
+                      Tidak Ada Nomor Lomba untuk Kategori {detectedKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
+                    </h4>
+                    <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+                      Kejuaraan <strong>{currentTourney?.name}</strong> tidak menyediakan nomor lomba yang sesuai dengan kelompok umur atlet ({detectedKU} • {ageValidation.age} Tahun).
                     </p>
-                    <p className="text-[11px] text-slate-400">
-                      Silakan periksa kembali tanggal lahir atlet pada Langkah 1 jika terjadi kekeliruan input tahun lahir.
-                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                    >
+                      ← Kembali & Ganti Kejuaraan / Koreksi Tanggal Lahir
+                    </button>
                   </div>
                 ) : (
                   eligibleEvents.map((evt) => {

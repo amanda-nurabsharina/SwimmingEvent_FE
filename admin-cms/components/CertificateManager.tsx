@@ -24,6 +24,7 @@ import {
   Palette,
 } from "lucide-react";
 import { getBukuAcara, getRegistrations, uploadImage } from "../lib/api-admin";
+import { toast } from "./Toast";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
 import QRCode from "qrcode";
 
@@ -31,6 +32,8 @@ function formatEventTitle(name: string) {
   if (!name) return "";
   return name
     .replace(/INDIVIDUALMEDLEY/gi, "INDIVIDUAL MEDLEY")
+    .replace(/FREESTYLE_FIN/gi, "FREESTYLE FIN")
+    .replace(/KICKING_BOARD/gi, "KICKING BOARD")
     .replace(/GAYABEBAS/gi, "GAYA BEBAS")
     .replace(/GAYADADA/gi, "GAYA DADA")
     .replace(/GAYAPUNGGUNG/gi, "GAYA PUNGGUNG")
@@ -43,6 +46,11 @@ function formatEventRaceLine(item: CertificateItem): string {
     stroke = item.eventName;
   }
   stroke = stroke
+    .replace(/FREESTYLE_FIN/gi, "Freestyle FIN")
+    .replace(/FREESTYLE FIN/gi, "Freestyle FIN")
+    .replace(/KICKING_BOARD/gi, "Kicking Board")
+    .replace(/KICKING BOARD/gi, "Kicking Board")
+    .replace(/PAPAN LUNCUR/gi, "Kicking Board")
     .replace(/GAYA DADA/gi, "Breaststroke")
     .replace(/GAYADADA/gi, "Breaststroke")
     .replace(/GAYA BEBAS/gi, "Freestyle")
@@ -265,6 +273,9 @@ export default function CertificateManager({
 
       if (regRes && regRes.success && Array.isArray(regRes.data)) {
         const matchingRegs = regRes.data.filter((r: any) => {
+          if (r.is_active === false || (r.participant && r.participant.is_active === false)) {
+            return false;
+          }
           const rTid = Number(
             r.swimming_event?.tournament_id ||
             r.swimming_event?.tournament?.id ||
@@ -603,11 +614,12 @@ export default function CertificateManager({
       const res = await uploadImage(file);
       if (res && res.success && res.url) {
         saveConfig({ ...config, logoUrl: res.url });
+        toast.success("Logo watermark sertifikat berhasil diunggah!");
       } else {
-        alert("Gagal mengupload logo watermark: " + (res.message || "Unknown error"));
+        toast.error("Gagal mengupload logo watermark: " + (res.message || "Unknown error"));
       }
     } catch (err: any) {
-      alert("Error upload logo: " + err.message);
+      toast.error("Error upload logo: " + err.message);
     } finally {
       setUploadingLogo(false);
     }

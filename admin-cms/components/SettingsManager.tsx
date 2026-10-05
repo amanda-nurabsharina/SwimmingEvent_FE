@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { fetchAdminSiteConfig, saveAdminSiteConfig, uploadImage } from "../lib/api-admin";
 import { Settings, Save, Upload, Phone, Globe, Mail, MapPin, Check, MessageSquare, Share2 } from "lucide-react";
+import { toast } from "./Toast";
 
 export default function SettingsManager({ onRefresh }: { onRefresh: () => void }) {
   const [loading, setLoading] = useState(true);
@@ -66,8 +67,9 @@ export default function SettingsManager({ onRefresh }: { onRefresh: () => void }
     setUploadingLogo(false);
     if (res.success && res.url) {
       setLogoUrl(res.url);
+      toast.success("Logo website berhasil diunggah!");
     } else {
-      alert("Gagal mengunggah logo: " + (res.message || "Error"));
+      toast.error("Gagal mengunggah logo: " + (res.message || "Error"));
     }
   };
 
@@ -93,10 +95,10 @@ export default function SettingsManager({ onRefresh }: { onRefresh: () => void }
     const res = await saveAdminSiteConfig(payload);
     setSaving(false);
     if (res.success) {
-      alert("Pengaturan Umum berhasil diperbarui!");
+      toast.success("Pengaturan Umum berhasil diperbarui!");
       onRefresh();
     } else {
-      alert("Gagal menyimpan pengaturan: " + (res.message || "Error"));
+      toast.error("Gagal menyimpan pengaturan: " + (res.message || "Error"));
     }
   };
 

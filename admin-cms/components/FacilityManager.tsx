@@ -22,6 +22,7 @@ import {
   CheckCircle,
   Eye,
 } from "lucide-react";
+import { toast, confirmDialog } from "./Toast";
 
 export default function FacilityManager({ onRefresh }: { onRefresh?: () => void }) {
   const [activeSubTab, setActiveSubTab] = useState<"facilities" | "section">("facilities");
@@ -80,10 +81,10 @@ export default function FacilityManager({ onRefresh }: { onRefresh?: () => void 
     const res = await saveAdminFacilitySectionConfig(payload);
     setSavingSection(false);
     if (res.success) {
-      alert("Pengaturan Seksi Fasilitas berhasil disimpan!");
+      toast.success("Pengaturan Seksi Fasilitas berhasil disimpan!");
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan: " + res.message);
+      toast.error("Gagal menyimpan: " + res.message);
     }
   };
 
@@ -119,11 +120,12 @@ export default function FacilityManager({ onRefresh }: { onRefresh?: () => void 
       const res = await uploadImage(file);
       if (res.success && res.url) {
         setFormImageUrl(res.url);
+        toast.success("Foto fasilitas berhasil diunggah!");
       } else {
-        alert("Gagal mengunggah foto: " + (res.message || "Unknown error"));
+        toast.error("Gagal mengunggah foto: " + (res.message || "Unknown error"));
       }
     } catch (err) {
-      alert("Terjadi kesalahan saat mengunggah foto");
+      toast.error("Terjadi kesalahan saat mengunggah foto");
     } finally {
       setUploadingImage(false);
     }
@@ -132,7 +134,7 @@ export default function FacilityManager({ onRefresh }: { onRefresh?: () => void 
   const handleSaveFacility = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formTitle.trim()) {
-      alert("Nama fasilitas wajib diisi");
+      toast.warning("Nama fasilitas wajib diisi");
       return;
     }
 
@@ -151,22 +153,32 @@ export default function FacilityManager({ onRefresh }: { onRefresh?: () => void 
     const res = await saveAdminFacility(payload);
     setSavingFacility(false);
     if (res.success) {
+      toast.success(`Fasilitas "${formTitle}" berhasil disimpan!`);
       setIsModalOpen(false);
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menyimpan data fasilitas: " + res.message);
+      toast.error("Gagal menyimpan data fasilitas: " + res.message);
     }
   };
 
   const handleDeleteFacility = async (id: number, facTitle: string) => {
-    if (!confirm(`Apakah Anda yakin ingin menghapus fasilitas "${facTitle}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Fasilitas",
+      message: `Apakah Anda yakin ingin menghapus fasilitas "${facTitle}"? Tindakan ini tidak dapat dibatalkan.`,
+      confirmText: "Ya, Hapus Fasilitas",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
+
     const res = await deleteAdminFacility(id);
     if (res.success) {
+      toast.success("Fasilitas berhasil dihapus!");
       loadData();
       if (onRefresh) onRefresh();
     } else {
-      alert("Gagal menghapus: " + res.message);
+      toast.error("Gagal menghapus: " + res.message);
     }
   };
 

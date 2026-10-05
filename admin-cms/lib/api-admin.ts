@@ -101,6 +101,78 @@ export async function verifyPayment(id: number, status: string) {
   }
 }
 
+export async function softDeleteParticipant(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/participants/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function restoreParticipant(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/participants/${id}/restore`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function hardDeleteParticipant(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/participants/${id}/permanent`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function softDeleteRegistration(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function restoreRegistration(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/restore`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+export async function hardDeleteRegistration(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/permanent`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
 // ----------------------------------------------------------------------
 // 3. BUKU ACARA & RACE RESULTS
 // ----------------------------------------------------------------------

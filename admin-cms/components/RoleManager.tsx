@@ -24,6 +24,7 @@ import {
   updateAdminRole,
   deleteAdminRole,
 } from "../lib/api-admin";
+import { toast, confirmDialog } from "./Toast";
 
 export interface RoleItem {
   id: number;
@@ -183,7 +184,7 @@ export default function RoleManager({ onRefresh }: { onRefresh?: () => void }) {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      alert("Nama role wajib diisi");
+      toast.warning("Nama role wajib diisi", { title: "Validasi Form" });
       return;
     }
 
@@ -197,35 +198,45 @@ export default function RoleManager({ onRefresh }: { onRefresh?: () => void }) {
     setSaving(false);
 
     if (res && res.success) {
+      toast.success(editingRole ? "Role berhasil diperbarui!" : "Role baru berhasil dibuat!");
       setIsModalOpen(false);
       loadRoles();
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menyimpan role");
+      toast.error(res?.message || "Gagal menyimpan role");
     }
   };
 
   const handleDelete = async (role: RoleItem) => {
     if (role.is_system) {
-      alert("Role Super Admin bawaan sistem tidak dapat dihapus.");
+      toast.warning("Role Super Admin bawaan sistem tidak dapat dihapus.", { title: "Aksi Ditolak" });
       return;
     }
 
     if (role.users_count > 0) {
-      alert(
-        `Role "${role.name}" sedang digunakan oleh ${role.users_count} user admin. Silakan pindahkan role user tersebut terlebih dahulu sebelum menghapus.`
+      toast.warning(
+        `Role "${role.name}" sedang digunakan oleh ${role.users_count} user admin. Silakan pindahkan role user tersebut terlebih dahulu sebelum menghapus.`,
+        { title: "Role Masih Digunakan" }
       );
       return;
     }
 
-    if (!confirm(`Apakah Anda yakin ingin menghapus role "${role.name}"?`)) return;
+    const ok = await confirmDialog({
+      title: "Hapus Role",
+      message: `Apakah Anda yakin ingin menghapus role "${role.name}"?`,
+      confirmText: "Ya, Hapus Role",
+      cancelText: "Batal",
+      variant: "danger",
+    });
+    if (!ok) return;
 
     const res = await deleteAdminRole(role.id);
     if (res && res.success) {
+      toast.success(`Role "${role.name}" berhasil dihapus.`);
       loadRoles();
       if (onRefresh) onRefresh();
     } else {
-      alert(res?.message || "Gagal menghapus role");
+      toast.error(res?.message || "Gagal menghapus role");
     }
   };
 
