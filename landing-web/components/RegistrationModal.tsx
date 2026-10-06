@@ -40,10 +40,14 @@ export function isKUMatch(eventKU?: string, athleteKU?: string, athleteAge?: num
   // Normalized: remove whitespace
   if (e.replace(/\s+/g, "") === a.replace(/\s+/g, "")) return true;
 
-  // Match KU number (e.g. "KU 2 (13 - 14 Thn)" matches "KU 2")
-  const eKUMatch = e.match(/KU\s*([1-5])/i);
-  const aKUMatch = a.match(/KU\s*([1-5])/i);
-  if (eKUMatch && aKUMatch && eKUMatch[1] === aKUMatch[1]) return true;
+  // Match KU number/code (e.g. "KU 2 (13 - 14 Thn)" matches "KU 2", "KU 6A" matches "KU 6A")
+  const eKUMatch = e.match(/KU\s*(6[AB]|6|[1-5])/i);
+  const aKUMatch = a.match(/KU\s*(6[AB]|6|[1-5])/i);
+  if (eKUMatch && aKUMatch) {
+    const ek = eKUMatch[1].toUpperCase();
+    const ak = aKUMatch[1].toUpperCase();
+    if (ek === ak || (ek === "6" && ak.startsWith("6"))) return true;
+  }
 
   // Senior matching
   if (
@@ -203,9 +207,15 @@ export default function RegistrationModal({
 
     let ku = "Senior";
     let desc = "Senior (Usia 19 Tahun ke atas)";
-    if (age <= 9) {
+    if (age <= 5) {
+      ku = "KU 6B";
+      desc = "KU 6B (4 - 5 Tahun)";
+    } else if (age <= 7) {
+      ku = "KU 6A";
+      desc = "KU 6A (6 - 7 Tahun)";
+    } else if (age <= 9) {
       ku = "KU 5";
-      desc = "KU 5 (Usia 9 Tahun ke bawah / Pemula)";
+      desc = "KU 5 (8 - 9 Tahun)";
     } else if (age <= 11) {
       ku = "KU 4";
       desc = "KU 4 (Usia 10 - 11 Tahun)";

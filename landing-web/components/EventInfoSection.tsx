@@ -98,12 +98,21 @@ export default function EventInfoSection({
     const s = eventStroke.toUpperCase();
     const t = targetCode.toUpperCase();
     if (s === t) return true;
-    if (t === "FREESTYLE_FIN" && (s.includes("FIN") || s.includes("GAYA BEBAS FIN") || s.includes("FREESTYLE FIN"))) return true;
+    if (t === "FREESTYLE_FIN") {
+      if (s.includes("BACK") || s.includes("PUNGGUNG") || s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY")) return false;
+      return s.includes("FIN") || s.includes("GAYA BEBAS FIN") || s.includes("FREESTYLE FIN");
+    }
+    if (t === "BACKSTROKE_FIN") {
+      return s.includes("FIN") && (s.includes("PUNGGUNG") || s.includes("BACK"));
+    }
+    if (t === "BUTTERFLY_FIN") {
+      return s.includes("FIN") && (s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY"));
+    }
     if (t === "KICKING_BOARD" && (s.includes("KICK") || s.includes("BOARD") || s.includes("PAPAN"))) return true;
     if (t === "FREESTYLE" && !s.includes("FIN") && (s.includes("BEBAS") || s.includes("FREE"))) return true;
     if (t === "BREASTSTROKE" && (s.includes("DADA") || s.includes("BREAST"))) return true;
-    if (t === "BACKSTROKE" && (s.includes("PUNGGUNG") || s.includes("BACK"))) return true;
-    if (t === "BUTTERFLY" && (s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY"))) return true;
+    if (t === "BACKSTROKE" && !s.includes("FIN") && (s.includes("PUNGGUNG") || s.includes("BACK"))) return true;
+    if (t === "BUTTERFLY" && !s.includes("FIN") && (s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY"))) return true;
     if (t === "INDIVIDUALMEDLEY" || t === "MEDLEY") {
       if (s.includes("MEDLEY") || s.includes("GANTI") || s.includes("INDIVIDUAL")) return true;
     }
@@ -278,6 +287,8 @@ export default function EventInfoSection({
               { code: "ALL", label: "Semua" },
               { code: "FREESTYLE", label: "FREESTYLE" },
               { code: "FREESTYLE_FIN", label: "FREESTYLE FIN" },
+              { code: "BACKSTROKE_FIN", label: "BACKSTROKE FINS" },
+              { code: "BUTTERFLY_FIN", label: "BUTTERFLY FINS" },
               { code: "KICKING_BOARD", label: "KICKBOARD" },
               { code: "BREASTSTROKE", label: "BREASTSTROKE" },
               { code: "BACKSTROKE", label: "BACKSTROKE" },
@@ -301,7 +312,7 @@ export default function EventInfoSection({
           {/* KELOMPOK UMUR (KU) FILTER */}
           <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-xs font-bold text-slate-500 px-2">KU:</span>
-            {["ALL", "KU 4", "KU 3", "KU 2", "KU 1", "Senior", "OPEN"].map((ku) => (
+            {["ALL", "KU 6B", "KU 6A", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "Senior", "OPEN"].map((ku) => (
               <button
                 key={ku}
                 onClick={() => setSelectedKU(ku)}

@@ -243,10 +243,10 @@ export default function BukuAcaraViewer({
 
     eventCodes.sort((a, b) => a.code - b.code);
 
-    const standardKUSort = ["KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
+    const standardKUSort = ["KU 6B", "KU 6A", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
     const sortedKUs = Array.from(ageGroups).sort((a, b) => {
-      const ia = standardKUSort.indexOf(a);
-      const ib = standardKUSort.indexOf(b);
+      const ia = standardKUSort.findIndex((k) => a.toUpperCase().includes(k));
+      const ib = standardKUSort.findIndex((k) => b.toUpperCase().includes(k));
       if (ia !== -1 && ib !== -1) return ia - ib;
       if (ia !== -1) return -1;
       if (ib !== -1) return 1;
@@ -282,12 +282,26 @@ export default function BukuAcaraViewer({
         const n = (event.event_name || "").toUpperCase();
         const target = selectedStroke.toUpperCase();
         if (target === "FREESTYLE_FIN") {
+          if ((s.includes("BACK") || s.includes("PUNGGUNG") || s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY")) ||
+              (n.includes("BACK") || n.includes("PUNGGUNG") || n.includes("KUPU") || n.includes("FLY") || n.includes("BUTTERFLY"))) return false;
           if (!s.includes("FIN") && !n.includes("FIN")) return false;
+        } else if (target === "BACKSTROKE_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return false;
+          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
+        } else if (target === "BUTTERFLY_FIN") {
+          if (!s.includes("FIN") && !n.includes("FIN")) return false;
+          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
         } else if (target === "KICKING_BOARD") {
           if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
         } else if (target === "FREESTYLE") {
           if (s.includes("FIN") || n.includes("FIN")) return false;
           if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
+        } else if (target === "BACKSTROKE") {
+          if (s.includes("FIN") || n.includes("FIN")) return false;
+          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
+        } else if (target === "BUTTERFLY") {
+          if (s.includes("FIN") || n.includes("FIN")) return false;
+          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
         } else {
           if (!s.includes(target) && !n.includes(target)) return false;
         }
@@ -741,7 +755,9 @@ export default function BukuAcaraViewer({
                 <option value="KICKING_BOARD">Kicking Board</option>
                 <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                 <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
+                <option value="BACKSTROKE_FIN">Backstroke Fins</option>
                 <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
+                <option value="BUTTERFLY_FIN">Butterfly Fins</option>
                 <option value="INDIVIDUALMEDLEY">Gaya Ganti Perorangan (IM)</option>
               </select>
             </div>
@@ -757,6 +773,7 @@ export default function BukuAcaraViewer({
                 className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
               >
                 <option value="ALL">Semua Jarak</option>
+                <option value="25">25 Meter</option>
                 <option value="50">50 Meter</option>
                 <option value="100">100 Meter</option>
                 <option value="200">200 Meter</option>

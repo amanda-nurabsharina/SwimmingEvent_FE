@@ -707,9 +707,18 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                   </label>
                   <select
                     value={subDistance}
-                    onChange={(e) => setSubDistance(e.target.value)}
+                    onChange={(e) => {
+                      const newDist = e.target.value;
+                      setSubDistance(newDist);
+                      const distNum = newDist.replace(/\D/g, "");
+                      const oldDistNum = subDistance ? subDistance.replace(/\D/g, "") : "50";
+                      if (subEventName.startsWith(`${oldDistNum}m `)) {
+                        setSubEventName(`${distNum}m ${subEventName.slice(`${oldDistNum}m `.length)}`);
+                      }
+                    }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
+                    <option value="25 METER">25 METER</option>
                     <option value="50 METER">50 METER</option>
                     <option value="100 METER">100 METER</option>
                     <option value="200 METER">200 METER</option>
@@ -735,7 +744,9 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                         else if (newStroke === "FREESTYLE") setSubEventName(`${distNum}m Gaya Bebas`);
                         else if (newStroke === "BREASTSTROKE") setSubEventName(`${distNum}m Gaya Dada`);
                         else if (newStroke === "BACKSTROKE") setSubEventName(`${distNum}m Gaya Punggung`);
+                        else if (newStroke === "BACKSTROKE_FIN") setSubEventName(`${distNum}m Backstroke Fins`);
                         else if (newStroke === "BUTTERFLY") setSubEventName(`${distNum}m Gaya Kupu-kupu`);
+                        else if (newStroke === "BUTTERFLY_FIN") setSubEventName(`${distNum}m Butterfly Fins`);
                         else if (newStroke === "INDIVIDUALMEDLEY") setSubEventName(`${distNum}m Gaya Ganti Perorangan`);
                       }
                     }}
@@ -746,7 +757,9 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                     <option value="KICKING_BOARD">Kicking Board</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                     <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
+                    <option value="BACKSTROKE_FIN">Backstroke Fins</option>
                     <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
+                    <option value="BUTTERFLY_FIN">Butterfly Fins</option>
                     <option value="INDIVIDUALMEDLEY">Gaya Ganti Perorangan (IM)</option>
                   </select>
                 </div>
@@ -776,7 +789,9 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                     onChange={(e) => setSubAgeGroup(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 5">KU 5 (≤ 9 Thn / Pemula)</option>
+                    <option value="KU 6B">KU 6B (4 - 5 Thn)</option>
+                    <option value="KU 6A">KU 6A (6 - 7 Thn)</option>
+                    <option value="KU 5">KU 5 (8 - 9 Thn)</option>
                     <option value="KU 4">KU 4 (10 - 11 Thn)</option>
                     <option value="KU 3">KU 3 (12 - 13 Thn)</option>
                     <option value="KU 2">KU 2 (14 - 15 Thn)</option>

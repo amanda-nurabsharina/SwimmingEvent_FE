@@ -33,6 +33,8 @@ function formatEventTitle(name: string) {
   return name
     .replace(/INDIVIDUALMEDLEY/gi, "INDIVIDUAL MEDLEY")
     .replace(/FREESTYLE_FIN/gi, "FREESTYLE FIN")
+    .replace(/BACKSTROKE_FIN/gi, "BACKSTROKE FINS")
+    .replace(/BUTTERFLY_FIN/gi, "BUTTERFLY FINS")
     .replace(/KICKING_BOARD/gi, "KICKING BOARD")
     .replace(/GAYABEBAS/gi, "GAYA BEBAS")
     .replace(/GAYADADA/gi, "GAYA DADA")
@@ -48,6 +50,10 @@ function formatEventRaceLine(item: CertificateItem): string {
   stroke = stroke
     .replace(/FREESTYLE_FIN/gi, "Freestyle FIN")
     .replace(/FREESTYLE FIN/gi, "Freestyle FIN")
+    .replace(/BACKSTROKE_FIN/gi, "Backstroke Fins")
+    .replace(/BACKSTROKE FIN/gi, "Backstroke Fins")
+    .replace(/BUTTERFLY_FIN/gi, "Butterfly Fins")
+    .replace(/BUTTERFLY FIN/gi, "Butterfly Fins")
     .replace(/KICKING_BOARD/gi, "Kicking Board")
     .replace(/KICKING BOARD/gi, "Kicking Board")
     .replace(/PAPAN LUNCUR/gi, "Kicking Board")

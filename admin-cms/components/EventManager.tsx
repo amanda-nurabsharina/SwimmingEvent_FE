@@ -264,11 +264,14 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
             >
               <option value="ALL">Semua KU</option>
-              <option value="KU 4">KU 4 (≤ 10 Thn)</option>
-              <option value="KU 3">KU 3 (11-12 Thn)</option>
-              <option value="KU 2">KU 2 (13-14 Thn)</option>
-              <option value="KU 1">KU 1 (15-17 Thn)</option>
-              <option value="Senior">Senior (≥ 18 Thn)</option>
+              <option value="KU 6B">KU 6B (4 - 5 Tahun)</option>
+              <option value="KU 6A">KU 6A (6 - 7 Tahun)</option>
+              <option value="KU 5">KU 5 (8 - 9 Tahun)</option>
+              <option value="KU 4">KU 4 (10 - 11 Tahun)</option>
+              <option value="KU 3">KU 3 (12 - 13 Tahun)</option>
+              <option value="KU 2">KU 2 (14 - 15 Tahun)</option>
+              <option value="KU 1">KU 1 (16 - 18 Tahun)</option>
+              <option value="Senior">Senior (≥ 19 Tahun)</option>
               <option value="OPEN">OPEN / Umum</option>
             </select>
           </div>
@@ -577,9 +580,18 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                   </label>
                   <select
                     value={formDistance}
-                    onChange={(e) => setFormDistance(e.target.value)}
+                    onChange={(e) => {
+                      const newDist = e.target.value;
+                      setFormDistance(newDist);
+                      const distNum = newDist.replace(/\D/g, "");
+                      const oldDistNum = formDistance ? formDistance.replace(/\D/g, "") : "50";
+                      if (formEventName.startsWith(`${oldDistNum}m `)) {
+                        setFormEventName(`${distNum}m ${formEventName.slice(`${oldDistNum}m `.length)}`);
+                      }
+                    }}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
+                    <option value="25 METER">25 METER</option>
                     <option value="50 METER">50 METER</option>
                     <option value="100 METER">100 METER</option>
                     <option value="200 METER">200 METER</option>
@@ -603,7 +615,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                         else if (newStroke === "FREESTYLE") setFormEventName(`${distNum}m Gaya Bebas`);
                         else if (newStroke === "BREASTSTROKE") setFormEventName(`${distNum}m Gaya Dada`);
                         else if (newStroke === "BACKSTROKE") setFormEventName(`${distNum}m Gaya Punggung`);
+                        else if (newStroke === "BACKSTROKE_FIN") setFormEventName(`${distNum}m Backstroke Fins`);
                         else if (newStroke === "BUTTERFLY") setFormEventName(`${distNum}m Gaya Kupu-kupu`);
+                        else if (newStroke === "BUTTERFLY_FIN") setFormEventName(`${distNum}m Butterfly Fins`);
                         else if (newStroke === "INDIVIDUALMEDLEY") setFormEventName(`${distNum}m Gaya Ganti Perorangan`);
                       }
                     }}
@@ -614,7 +628,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                     <option value="KICKING_BOARD">Kicking Board</option>
                     <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
                     <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
+                    <option value="BACKSTROKE_FIN">Backstroke Fins</option>
                     <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
+                    <option value="BUTTERFLY_FIN">Butterfly Fins</option>
                     <option value="INDIVIDUALMEDLEY">Gaya Ganti (Individual Medley)</option>
                   </select>
                 </div>
@@ -631,7 +647,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                     onChange={(e) => setFormAgeGroup(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 5">KU 5 (≤ 9 Tahun / Pemula)</option>
+                    <option value="KU 6B">KU 6B (4 - 5 Tahun)</option>
+                    <option value="KU 6A">KU 6A (6 - 7 Tahun)</option>
+                    <option value="KU 5">KU 5 (8 - 9 Tahun)</option>
                     <option value="KU 4">KU 4 (10 - 11 Tahun)</option>
                     <option value="KU 3">KU 3 (12 - 13 Tahun)</option>
                     <option value="KU 2">KU 2 (14 - 15 Tahun)</option>
