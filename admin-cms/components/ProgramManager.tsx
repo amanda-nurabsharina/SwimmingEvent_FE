@@ -298,7 +298,7 @@ export default function ProgramManager({ onRefresh }: { onRefresh: () => void })
                     type="text"
                     value={formAgeBadge}
                     onChange={(e) => setFormAgeBadge(e.target.value)}
-                    placeholder="e.g. 4 - 12 Thn atau KU 5 s/d KU 1"
+                    placeholder="e.g. 4 - 12 Thn atau KU 6B s/d KU 1"
                     className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold shadow-sm focus:border-sky-600 focus:outline-none"
                   />
                 </div>

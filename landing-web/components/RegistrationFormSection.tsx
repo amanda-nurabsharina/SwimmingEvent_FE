@@ -10,7 +10,10 @@ interface SwimmingEvent {
   id: number;
   event_code: number;
   event_name: string;
+  distance?: string;
+  stroke?: string;
   gender: string;
+  age_group?: string;
 }
 
 export default function RegistrationFormSection({
@@ -268,7 +271,7 @@ export default function RegistrationFormSection({
                     >
                       {(events || []).map((ev) => (
                         <option key={ev.id} value={ev.id}>
-                          Event #{ev.event_code} - {ev.event_name}
+                          Event #{ev.event_code} - {ev.event_name} ({ev.gender}{ev.age_group ? ` • ${ev.age_group}` : ""})
                         </option>
                       ))}
                     </select>
