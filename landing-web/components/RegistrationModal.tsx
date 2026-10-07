@@ -29,6 +29,17 @@ import { registerParticipant, uploadImage } from "../lib/api";
 import SwimmingTimeInput from "./SwimmingTimeInput";
 import { toast } from "./Toast";
 
+export function isGenderMatch(eventGender?: string, targetGender?: string): boolean {
+  if (!eventGender || !targetGender) return true;
+  const eg = eventGender.toUpperCase().trim();
+  const tg = targetGender.toUpperCase().trim();
+  if (eg === "" || eg === "ALL" || eg === "SEMUA" || eg === "CAMPURAN" || eg === "MIXED") return true;
+  if (eg === tg) return true;
+  if (tg === "PUTRA" && (eg === "PA" || eg === "L" || eg === "LAKI-LAKI" || eg.startsWith("PUTRA"))) return true;
+  if (tg === "PUTRI" && (eg === "PI" || eg === "P" || eg === "PEREMPUAN" || eg.startsWith("PUTRI"))) return true;
+  return false;
+}
+
 export function isKUMatch(eventKU?: string, athleteKU?: string, athleteAge?: number): boolean {
   if (!eventKU) return true;
   const e = eventKU.toUpperCase().trim();
@@ -37,16 +48,40 @@ export function isKUMatch(eventKU?: string, athleteKU?: string, athleteAge?: num
   const a = athleteKU.toUpperCase().trim();
   if (e === a) return true;
 
-  // Normalized: remove whitespace
-  if (e.replace(/\s+/g, "") === a.replace(/\s+/g, "")) return true;
+  // Normalized: remove whitespace and hyphens
+  const cleanE = e.replace(/[\s\-_/]+/g, " ");
+  const cleanA = a.replace(/[\s\-_/]+/g, " ");
+  if (cleanE === cleanA) return true;
 
-  // Match KU number/code (e.g. "KU 2 (13 - 14 Thn)" matches "KU 2", "KU 6A" matches "KU 6A")
-  const eKUMatch = e.match(/KU\s*(6[AB]|6|[1-5])/i);
-  const aKUMatch = a.match(/KU\s*(6[AB]|6|[1-5])/i);
-  if (eKUMatch && aKUMatch) {
-    const ek = eKUMatch[1].toUpperCase();
-    const ak = aKUMatch[1].toUpperCase();
-    if (ek === ak || (ek === "6" && ak.startsWith("6"))) return true;
+  const extractKUCodes = (str: string): string[] => {
+    const codes: string[] = [];
+    // Strip parenthetical text (e.g., "(4 - 5 Thn)" or "(8 - 9 Thn)") so interior digits don't false match
+    const clean = str.replace(/\([^)]*\)/g, " ").toUpperCase();
+
+    if (/KU\s*6\s*A\b|\b6\s*A\b/.test(clean)) codes.push("6A");
+    if (/KU\s*6\s*B\b|\b6\s*B\b/.test(clean)) codes.push("6B");
+    if ((/KU\s*6\b|\b6\b/.test(clean)) && !codes.includes("6A") && !codes.includes("6B")) {
+      codes.push("6");
+    }
+    for (let i = 1; i <= 5; i++) {
+      const reg = new RegExp(`KU\\s*${i}\\b|\\b${i}\\b`);
+      if (reg.test(clean)) codes.push(String(i));
+    }
+    return codes;
+  };
+
+  const eCodes = extractKUCodes(e);
+  const aCodes = extractKUCodes(a);
+
+  if (eCodes.length > 0 && aCodes.length > 0) {
+    for (const ec of eCodes) {
+      for (const ac of aCodes) {
+        if (ec === ac) return true;
+        // KU 6 matches both 6A and 6B
+        if (ec === "6" && (ac === "6A" || ac === "6B")) return true;
+        if (ac === "6" && (ec === "6A" || ec === "6B")) return true;
+      }
+    }
   }
 
   // Senior matching
@@ -57,7 +92,7 @@ export function isKUMatch(eventKU?: string, athleteKU?: string, athleteAge?: num
     return true;
   }
 
-  // Age numeric range matching (e.g. "13 - 14 Thn" or "≤ 9 Thn")
+  // Age numeric range matching fallback (e.g. "10 - 11 Thn", "8 - 9 Thn", "4 - 5 Thn")
   if (athleteAge !== undefined && athleteAge > 0) {
     const leMatch = e.match(/[≤<=]\s*(\d+)/);
     if (leMatch && athleteAge <= parseInt(leMatch[1], 10)) return true;
@@ -206,28 +241,28 @@ export default function RegistrationModal({
     }
 
     let ku = "Senior";
-    let desc = "Senior (Usia 19 Tahun ke atas)";
+    let desc = "Senior (≥ 19 Thn)";
     if (age <= 5) {
       ku = "KU 6B";
-      desc = "KU 6B (4 - 5 Tahun)";
+      desc = "KU 6B (4 - 5 Thn)";
     } else if (age <= 7) {
       ku = "KU 6A";
-      desc = "KU 6A (6 - 7 Tahun)";
+      desc = "KU 6A (6 - 7 Thn)";
     } else if (age <= 9) {
       ku = "KU 5";
-      desc = "KU 5 (8 - 9 Tahun)";
+      desc = "KU 5 (8 - 9 Thn)";
     } else if (age <= 11) {
       ku = "KU 4";
-      desc = "KU 4 (Usia 10 - 11 Tahun)";
+      desc = "KU 4 (10 - 11 Thn)";
     } else if (age <= 13) {
       ku = "KU 3";
-      desc = "KU 3 (Usia 12 - 13 Tahun)";
+      desc = "KU 3 (12 - 13 Thn)";
     } else if (age <= 15) {
       ku = "KU 2";
-      desc = "KU 2 (Usia 14 - 15 Tahun)";
+      desc = "KU 2 (14 - 15 Thn)";
     } else if (age <= 18) {
       ku = "KU 1";
-      desc = "KU 1 (Usia 16 - 18 Tahun)";
+      desc = "KU 1 (16 - 18 Thn)";
     }
 
     return { age, ku, label: desc, valid: true, error: null };
@@ -240,6 +275,8 @@ export default function RegistrationModal({
     }
   }, [ageValidation]);
 
+  const effectiveKU = ageValidation.valid && ageValidation.ku !== "-" ? ageValidation.ku : detectedKU;
+
   // Count matching events per tournament for the current athlete (by KU and gender)
   const tournamentMatchingStats = useMemo(() => {
     const map: { [tourneyId: string]: number } = {};
@@ -248,32 +285,41 @@ export default function RegistrationModal({
     });
 
     (events || []).forEach((e) => {
-      const tId = String(e.tournament_id ?? (e as any).tournamentId ?? "");
-      if (map[tId] !== undefined) {
-        const matchGender = !e.gender || e.gender.toUpperCase() === gender;
-        const matchKU = isKUMatch(e.age_group, detectedKU, ageValidation.age);
-        if (matchGender && matchKU) {
+      const rawTId = e.tournament_id ?? (e as any).tournamentId;
+      const tId = rawTId !== undefined && rawTId !== null && rawTId !== "" ? String(rawTId) : "";
+      const matchGender = isGenderMatch(e.gender, gender);
+      const matchKU = isKUMatch(e.age_group, effectiveKU, ageValidation.age);
+
+      if (matchGender && matchKU) {
+        if (tId && map[tId] !== undefined) {
           map[tId] += 1;
+        } else {
+          // If event has no specific tournament_id or single tournament, attribute to all available tournaments
+          Object.keys(map).forEach((k) => {
+            map[k] += 1;
+          });
         }
       }
     });
 
     return map;
-  }, [tournaments, events, gender, detectedKU, ageValidation.age]);
+  }, [tournaments, events, gender, effectiveKU, ageValidation.age]);
 
-  // When detectedKU or tournaments change, auto-switch to a tournament that has matching events if current has 0
+  // When effectiveKU, gender, or tournaments change, auto-switch to tournament that has matching events for the athlete
   useEffect(() => {
     if (!tournaments || tournaments.length === 0) return;
     const currentCount = tournamentMatchingStats[String(selectedTournamentID)] || 0;
-    if (currentCount === 0) {
-      const availableTourney = tournaments.find(
-        (t) => (tournamentMatchingStats[String(t.id)] || 0) > 0
-      );
-      if (availableTourney) {
-        setSelectedTournamentID(String(availableTourney.id));
+    if (currentCount === 0 || !selectedTournamentID) {
+      const sortedCandidates = [...tournaments]
+        .map((t) => ({ tourney: t, count: tournamentMatchingStats[String(t.id)] || 0 }))
+        .filter((item) => item.count > 0)
+        .sort((a, b) => b.count - a.count);
+
+      if (sortedCandidates.length > 0) {
+        setSelectedTournamentID(String(sortedCandidates[0].tourney.id));
       }
     }
-  }, [tournamentMatchingStats, selectedTournamentID, tournaments]);
+  }, [tournamentMatchingStats, selectedTournamentID, tournaments, effectiveKU, gender]);
 
   // Reset all states when modal is closed
   useEffect(() => {
@@ -460,7 +506,7 @@ export default function RegistrationModal({
       name: name.toUpperCase(),
       gender,
       birth_date: birthDate,
-      age_group: detectedKU,
+      age_group: effectiveKU,
       club,
       verification_doc_type: docType,
       verification_doc_url: docFileUrl,
@@ -487,15 +533,18 @@ export default function RegistrationModal({
   // Filter events matching selected tournament, athlete gender & KU
   const eligibleEvents = useMemo(() => {
     return events.filter((e) => {
+      const rawTId = e.tournament_id ?? (e as any).tournamentId;
       const matchTourney =
         !selectedTournamentID ||
-        String((e as any).tournament_id ?? (e as any).tournamentId ?? "") === String(selectedTournamentID);
-      const g = (e.gender || "").toUpperCase().trim();
-      const matchGender = !g || g === gender || g === "CAMPURAN" || g === "MIXED" || g === "ALL" || g === "SEMUA";
-      const matchKU = isKUMatch(e.age_group, detectedKU, ageValidation.age);
+        rawTId === undefined ||
+        rawTId === null ||
+        rawTId === "" ||
+        String(rawTId) === String(selectedTournamentID);
+      const matchGender = isGenderMatch(e.gender, gender);
+      const matchKU = isKUMatch(e.age_group, effectiveKU, ageValidation.age);
       return matchTourney && matchGender && matchKU;
     });
-  }, [events, selectedTournamentID, gender, detectedKU, ageValidation.age]);
+  }, [events, selectedTournamentID, gender, effectiveKU, ageValidation.age]);
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -762,12 +811,13 @@ export default function RegistrationModal({
                   <div className="flex items-center gap-2">
                     <Trophy className="w-4 h-4 text-amber-500" />
                     <h3 className="font-black text-slate-800 text-xs uppercase tracking-wider">
-                      2. Pilih Kejuaraan / Turnamen Lomba
+                      2. Kejuaraan / Turnamen Lomba
                     </h3>
                   </div>
                   {ageValidation.valid && (
-                    <span className="text-[10px] font-bold text-sky-700 bg-sky-100 px-2 py-0.5 rounded-full border border-sky-200">
-                      Filter: {detectedKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-emerald-600" />
+                      Otomatis Sesuai Umur: {effectiveKU}
                     </span>
                   )}
                 </div>
@@ -785,7 +835,7 @@ export default function RegistrationModal({
                       const matchCount = tournamentMatchingStats[String(t.id)] || 0;
                       return (
                         <option key={t.id} value={t.id}>
-                          🏆 {t.name} — {matchCount > 0 ? `(${matchCount} Nomor Lomba Cocok ${detectedKU})` : `(0 Nomor Lomba ${detectedKU})`}
+                          🏆 {t.name} — {matchCount > 0 ? `(${matchCount} Nomor Lomba Cocok ${effectiveKU})` : `(0 Nomor Lomba ${effectiveKU})`}
                         </option>
                       );
                     })}
@@ -806,8 +856,8 @@ export default function RegistrationModal({
                       <div>
                         <p className="font-black text-[11px]">
                           {(tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
-                            ? `Tersedia ${tournamentMatchingStats[String(selectedTournamentID)]} nomor lomba untuk ${detectedKU} (${gender === "PUTRA" ? "Putra" : "Putri"})`
-                            : `Kejuaraan ini belum memiliki nomor lomba untuk kategori ${detectedKU} (${gender === "PUTRA" ? "Putra" : "Putri"}).`}
+                            ? `Otomatis Dipilih: ${currentTourney?.name} (Tersedia ${tournamentMatchingStats[String(selectedTournamentID)]} nomor lomba untuk ${effectiveKU} ${gender === "PUTRA" ? "Putra" : "Putri"})`
+                            : `Kejuaraan ini belum memiliki nomor lomba untuk kategori ${effectiveKU} (${gender === "PUTRA" ? "Putra" : "Putri"}).`}
                         </p>
                         <p className="text-[10px] text-slate-500 font-medium">
                           {(tournamentMatchingStats[String(selectedTournamentID)] || 0) > 0
@@ -1063,7 +1113,7 @@ export default function RegistrationModal({
                   <p className="text-[11px] text-slate-500 font-medium">
                     Klub: <span className="font-bold text-slate-700">{club}</span> • Usia:{" "}
                     <span className="font-bold text-slate-900">{ageValidation.age} Tahun</span> • Kategori:{" "}
-                    <span className="font-black text-sky-600 px-1.5 py-0.5 bg-sky-100 rounded">{detectedKU}</span>
+                    <span className="font-black text-sky-600 px-1.5 py-0.5 bg-sky-100 rounded">{effectiveKU}</span>
                   </p>
                 </div>
                 <div className="text-right">
@@ -1076,10 +1126,10 @@ export default function RegistrationModal({
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-black text-slate-900 text-xs uppercase tracking-wider">
-                    NOMOR LOMBA TERVALIDASI KATEGORI {detectedKU} & OPEN
+                    NOMOR LOMBA TERVALIDASI KATEGORI {effectiveKU} & OPEN
                   </h3>
                   <p className="text-[10px] font-bold text-slate-400">
-                    Hanya menampilkan nomor lomba yang sesuai usia atlet ({ageValidation.age} Thn • {detectedKU} {gender})
+                    Hanya menampilkan nomor lomba yang sesuai usia atlet ({ageValidation.age} Thn • {effectiveKU} {gender})
                   </p>
                 </div>
                 <span className="px-3 py-1 bg-sky-100 text-sky-700 text-[11px] font-black rounded-full shrink-0">
@@ -1095,10 +1145,10 @@ export default function RegistrationModal({
                       ⚠️
                     </div>
                     <h4 className="font-black text-slate-800 text-xs sm:text-sm">
-                      Tidak Ada Nomor Lomba untuk Kategori {detectedKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
+                      Tidak Ada Nomor Lomba untuk Kategori {effectiveKU} ({gender === "PUTRA" ? "Putra" : "Putri"})
                     </h4>
                     <p className="text-[11px] text-slate-500 max-w-md mx-auto">
-                      Kejuaraan <strong>{currentTourney?.name}</strong> tidak menyediakan nomor lomba yang sesuai dengan kelompok umur atlet ({detectedKU} • {ageValidation.age} Tahun).
+                      Kejuaraan <strong>{currentTourney?.name}</strong> tidak menyediakan nomor lomba yang sesuai dengan kelompok umur atlet ({effectiveKU} • {ageValidation.age} Tahun).
                     </p>
                     <button
                       type="button"

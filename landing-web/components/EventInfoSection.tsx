@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { isKUMatch } from "./RegistrationModal";
 import {
   Filter,
   Trophy,
@@ -119,16 +120,7 @@ export default function EventInfoSection({
     return false;
   };
 
-  const isKUMatch = (eventKU?: string, targetKU?: string) => {
-    if (!targetKU || targetKU === "ALL") return true;
-    if (targetKU === "OPEN") {
-      if (!eventKU || eventKU.toUpperCase() === "OPEN") return true;
-    }
-    if (!eventKU) return false;
-    const normEvent = eventKU.toUpperCase().replace(/\s+/g, "");
-    const normTarget = targetKU.toUpperCase().replace(/\s+/g, "");
-    return normEvent === normTarget || normEvent.includes(normTarget);
-  };
+  // (isKUMatch imported from RegistrationModal)
 
   // Apply secondary filters (Gender, Stroke, KU)
   const filteredEvents = tourneyEvents.filter((e) => {
