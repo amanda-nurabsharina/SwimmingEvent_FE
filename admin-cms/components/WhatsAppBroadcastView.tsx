@@ -43,6 +43,7 @@ import {
   requestWhatsAppPairingCode,
   sendWhatsAppMessage,
   logoutWhatsApp,
+  restartWhatsApp,
   fetchAdminSiteConfig,
 } from "../lib/api-admin";
 import { toast, confirmDialog } from "./Toast";
@@ -239,6 +240,20 @@ export default function WhatsAppBroadcastView({
       });
     } finally {
       if (showLoading) setIsRefreshingWA(false);
+    }
+  };
+
+  // Force restart / regenerate fresh QR code (optionally clearing corrupt session)
+  const handleForceRefreshQR = async (clearSession: boolean = false) => {
+    setIsRefreshingWA(true);
+    try {
+      const res = await restartWhatsApp(clearSession);
+      if (res?.success) {
+        toast.info(clearSession ? "Sesi WhatsApp direset. Membuka QR Code baru..." : "Membuat ulang QR Code baru...");
+      }
+      setTimeout(() => checkWAStatus(true), 1500);
+    } catch {
+      checkWAStatus(true);
     }
   };
 
@@ -1289,18 +1304,68 @@ export default function WhatsAppBroadcastView({
                       <p className="text-[11px] font-bold text-slate-500 animate-pulse">
                         QR Code berganti otomatis jika belum dipindai
                       </p>
+                      <div className="flex items-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleForceRefreshQR(false)}
+                          disabled={isRefreshingWA}
+                          className="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors border border-slate-200"
+                        >
+                          {isRefreshingWA ? "Memperbarui..." : "🔄 Ganti QR"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleForceRefreshQR(true)}
+                          disabled={isRefreshingWA}
+                          className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold rounded-xl transition-colors border border-rose-200"
+                          title="Hapus sesi lama dan mulai scan fresh"
+                        >
+                          ⚠️ Reset Sesi
+                        </button>
+                      </div>
+                    </div>
+                  ) : waStatus.status === "offline" ? (
+                    <div className="space-y-3 py-6 text-center text-slate-500 max-w-xs mx-auto">
+                      <div className="w-12 h-12 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center mx-auto text-xl">
+                        ⚠️
+                      </div>
+                      <h4 className="font-black text-slate-800 text-xs sm:text-sm">
+                        Layanan WhatsApp Gateway Offline
+                      </h4>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Pastikan service <code>wa-gateway</code> sedang berjalan di server (port 5001).
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => checkWAStatus(true)}
+                        className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl transition-colors"
+                      >
+                        Cek Ulang Koneksi
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-3 py-8 text-center text-slate-500">
                       <Loader2 className="w-8 h-8 mx-auto animate-spin text-emerald-600" />
                       <p className="text-xs font-bold">Sedang memuat QR Code WhatsApp...</p>
-                      <button
-                        type="button"
-                        onClick={() => checkWAStatus(true)}
-                        className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl"
-                      >
-                        Muat Ulang QR
-                      </button>
+                      <div className="flex items-center justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleForceRefreshQR(false)}
+                          disabled={isRefreshingWA}
+                          className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 text-xs font-bold rounded-xl transition-colors"
+                        >
+                          {isRefreshingWA ? "Memuat..." : "Muat Ulang QR"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleForceRefreshQR(true)}
+                          disabled={isRefreshingWA}
+                          className="px-3 py-1.5 bg-rose-100 hover:bg-rose-200 text-rose-800 text-xs font-bold rounded-xl transition-colors"
+                          title="Gunakan jika QR tetap tidak muncul atau sesi macet"
+                        >
+                          Reset Sesi Baru
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>

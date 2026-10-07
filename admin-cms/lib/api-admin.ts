@@ -1003,7 +1003,9 @@ export async function fetchRaceResultLogStats(tournamentId?: number) {
 // ----------------------------------------------------------------------
 // 19. WHATSAPP GATEWAY (BAILEYS) API
 // ----------------------------------------------------------------------
-const WA_GATEWAY_URL = process.env.NEXT_PUBLIC_WA_GATEWAY_URL || "http://localhost:5001/api/wa";
+const WA_GATEWAY_URL =
+  process.env.NEXT_PUBLIC_WA_GATEWAY_URL ||
+  (typeof window !== "undefined" ? "/api/wa" : "http://localhost:5001/api/wa");
 
 export async function getWhatsAppStatus() {
   try {
@@ -1011,6 +1013,19 @@ export async function getWhatsAppStatus() {
     return await res.json();
   } catch (error) {
     return { success: false, isConnected: false, message: "WhatsApp Gateway offline" };
+  }
+}
+
+export async function restartWhatsApp(clearSession: boolean = false) {
+  try {
+    const res = await fetch(`${WA_GATEWAY_URL}/restart`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ clearSession }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Gagal me-restart WhatsApp Gateway" };
   }
 }
 
