@@ -304,7 +304,7 @@ export default function EventInfoSection({
           {/* KELOMPOK UMUR (KU) FILTER */}
           <div className="flex items-center gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm">
             <span className="text-xs font-bold text-slate-500 px-2">KU:</span>
-            {["ALL", "KU 6B", "KU 6A", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "Senior", "OPEN"].map((ku) => (
+            {["ALL", "KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "Senior", "OPEN"].map((ku) => (
               <button
                 key={ku}
                 onClick={() => setSelectedKU(ku)}

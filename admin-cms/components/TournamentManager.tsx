@@ -789,8 +789,8 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                     onChange={(e) => setSubAgeGroup(e.target.value)}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 6B">KU 6B (4 - 5 Thn)</option>
-                    <option value="KU 6A">KU 6A (6 - 7 Thn)</option>
+                    <option value="KU 6A">KU 6A (4 - 5 Thn)</option>
+                    <option value="KU 6B">KU 6B (6 - 7 Thn)</option>
                     <option value="KU 5">KU 5 (8 - 9 Thn)</option>
                     <option value="KU 4">KU 4 (10 - 11 Thn)</option>
                     <option value="KU 3">KU 3 (12 - 13 Thn)</option>

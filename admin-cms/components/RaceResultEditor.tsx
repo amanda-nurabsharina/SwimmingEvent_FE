@@ -240,7 +240,7 @@ export default function RaceResultEditor({
 
     eventCodes.sort((a, b) => a.code - b.code);
 
-    const kuOrder = ["KU 6B", "KU 6A", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
+    const kuOrder = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
     const sortedAgeGroups = Array.from(ageGroups).sort((a, b) => {
       const idxA = kuOrder.findIndex((k) => a.toUpperCase().includes(k));
       const idxB = kuOrder.findIndex((k) => b.toUpperCase().includes(k));

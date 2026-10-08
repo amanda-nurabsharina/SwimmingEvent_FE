@@ -243,11 +243,11 @@ export default function RegistrationModal({
     let ku = "Senior";
     let desc = "Senior (≥ 19 Thn)";
     if (age <= 5) {
-      ku = "KU 6B";
-      desc = "KU 6B (4 - 5 Thn)";
-    } else if (age <= 7) {
       ku = "KU 6A";
-      desc = "KU 6A (6 - 7 Thn)";
+      desc = "KU 6A (4 - 5 Thn)";
+    } else if (age <= 7) {
+      ku = "KU 6B";
+      desc = "KU 6B (6 - 7 Thn)";
     } else if (age <= 9) {
       ku = "KU 5";
       desc = "KU 5 (8 - 9 Thn)";

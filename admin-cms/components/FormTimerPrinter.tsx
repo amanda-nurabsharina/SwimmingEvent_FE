@@ -211,7 +211,7 @@ export default function FormTimerPrinter({
 
     eventCodes.sort((a, b) => a.code - b.code);
 
-    const standardKUSort = ["KU 6B", "KU 6A", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
+    const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
     const sortedKUs = Array.from(ageGroups).sort((a, b) => {
       const ia = standardKUSort.findIndex((k) => a.toUpperCase().includes(k));
       const ib = standardKUSort.findIndex((k) => b.toUpperCase().includes(k));

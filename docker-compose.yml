@@ -29,8 +29,11 @@ services:
     restart: always
     ports:
       - "${PORT_ADMIN:-3001}:3001"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://localhost:8080/api/v1}
       - NEXT_PUBLIC_LANDING_URL=${NEXT_PUBLIC_LANDING_URL:-http://localhost:3000}
-      - NEXT_PUBLIC_WA_GATEWAY_URL=${NEXT_PUBLIC_WA_GATEWAY_URL:-http://localhost:5001/api/wa}
+      - NEXT_PUBLIC_WA_GATEWAY_URL=${NEXT_PUBLIC_WA_GATEWAY_URL:-/api/wa}
+      - WA_GATEWAY_INTERNAL_URL=${WA_GATEWAY_INTERNAL_URL:-http://host.docker.internal:5001/api/wa}

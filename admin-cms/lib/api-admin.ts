@@ -1003,9 +1003,18 @@ export async function fetchRaceResultLogStats(tournamentId?: number) {
 // ----------------------------------------------------------------------
 // 19. WHATSAPP GATEWAY (BAILEYS) API
 // ----------------------------------------------------------------------
+// In browser, ALWAYS use the same-origin proxy '/api/wa' so it works over HTTPS without Mixed-Content issues,
+// unless an explicit external public HTTPS gateway URL is provided.
 const WA_GATEWAY_URL =
-  process.env.NEXT_PUBLIC_WA_GATEWAY_URL ||
-  (typeof window !== "undefined" ? "/api/wa" : "http://localhost:5001/api/wa");
+  typeof window !== "undefined"
+    ? (process.env.NEXT_PUBLIC_WA_GATEWAY_URL &&
+       !process.env.NEXT_PUBLIC_WA_GATEWAY_URL.includes("localhost") &&
+       !process.env.NEXT_PUBLIC_WA_GATEWAY_URL.includes("127.0.0.1")
+        ? process.env.NEXT_PUBLIC_WA_GATEWAY_URL
+        : "/api/wa")
+    : (process.env.WA_GATEWAY_INTERNAL_URL ||
+       process.env.WA_GATEWAY_URL ||
+       "http://localhost:5001/api/wa");
 
 export async function getWhatsAppStatus() {
   try {

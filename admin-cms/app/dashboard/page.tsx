@@ -140,15 +140,86 @@ export default function DashboardPage() {
     });
   }, [activeRegistrations, selectedTourneyId]);
 
-  const totalVerified = useMemo(() => {
-    return filteredRegistrations.filter((r) => r.payment_status === "verified").length;
-  }, [filteredRegistrations]);
+  // Group all registrations strictly by Swimmer Person (Participant) matching Kelola Pendaftaran (ParticipantTable)
+  const allSwimmerGroups = useMemo(() => {
+    const groupMap: {
+      [key: string]: {
+        group_key: string;
+        participant: any;
+        items: any[];
+        status: string;
+        is_active: boolean;
+      };
+    } = {};
 
-  const totalPending = useMemo(() => {
-    return filteredRegistrations.filter((r) => r.payment_status === "pending").length;
-  }, [filteredRegistrations]);
+    activeRegistrations.forEach((r) => {
+      const pId = r.participant_id || r.participant?.id;
+      const pName = (r.participant?.name || "Perenang").trim().toUpperCase();
+      const pClub = (r.participant?.club || "").trim().toUpperCase();
+      const groupKey = pId ? `P_${pId}` : `NAME_${pName}_${pClub}`;
 
-  // Total biaya pendaftaran yang masuk (terverifikasi)
+      if (!groupMap[groupKey]) {
+        groupMap[groupKey] = {
+          group_key: groupKey,
+          participant: r.participant || {},
+          items: [],
+          status: "pending",
+          is_active: true,
+        };
+      }
+
+      groupMap[groupKey].items.push(r);
+    });
+
+    return Object.values(groupMap).map((grp) => {
+      const statuses = grp.items.map((i) => i.payment_status);
+      let unifiedStatus = "pending";
+      if (statuses.every((s) => s === "verified")) {
+        unifiedStatus = "verified";
+      } else if (statuses.every((s) => s === "rejected")) {
+        unifiedStatus = "rejected";
+      } else if (statuses.some((s) => s === "verified")) {
+        unifiedStatus = "verified";
+      } else if (statuses.some((s) => s === "rejected")) {
+        unifiedStatus = "rejected";
+      }
+
+      const isParticipantInactive = grp.participant?.is_active === false;
+      const areAllItemsInactive = grp.items.length > 0 && grp.items.every((i) => i.is_active === false);
+      const isGroupActive = !isParticipantInactive && !areAllItemsInactive;
+
+      return {
+        ...grp,
+        status: unifiedStatus,
+        is_active: isGroupActive,
+      };
+    }).filter((g) => g.is_active);
+  }, [activeRegistrations]);
+
+  // Filter Swimmer Groups based on the selected tournament
+  const filteredSwimmerGroups = useMemo(() => {
+    if (!selectedTourneyId || selectedTourneyId === 0) {
+      return allSwimmerGroups;
+    }
+    return allSwimmerGroups.filter((g) =>
+      g.items.some((item) => {
+        const tourneyID = item.swimming_event?.tournament_id || item.tournament_id || item.swimming_event?.tournament?.id;
+        return Number(tourneyID) === Number(selectedTourneyId);
+      })
+    );
+  }, [allSwimmerGroups, selectedTourneyId]);
+
+  // 1. Participant (Perenang / Atlet) Level Counts (Synchronized with Kelola Pendaftaran)
+  const totalSwimmers = filteredSwimmerGroups.length;
+  const verifiedSwimmers = filteredSwimmerGroups.filter((g) => g.status === "verified").length;
+  const pendingSwimmers = filteredSwimmerGroups.filter((g) => g.status === "pending").length;
+
+  // 2. Entries Level Counts (Nomor Lomba)
+  const totalEntries = filteredRegistrations.length;
+  const verifiedEntries = filteredRegistrations.filter((r) => r.payment_status === "verified").length;
+  const pendingEntries = filteredRegistrations.filter((r) => r.payment_status === "pending").length;
+
+  // 3. Total biaya pendaftaran yang masuk (terverifikasi)
   const totalVerifiedFee = useMemo(() => {
     return filteredRegistrations
       .filter((r) => r.payment_status === "verified")
@@ -258,7 +329,7 @@ export default function DashboardPage() {
                     aria-label="Filter Turnamen"
                     className="text-xs font-bold text-slate-800 bg-transparent focus:outline-none cursor-pointer pr-1"
                   >
-                    <option value={0}>Semua Turnamen ({registrations.length})</option>
+                    <option value={0}>Semua Turnamen ({allSwimmerGroups.length} Atlet)</option>
                     {tournaments.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name} {t.is_active ? "★" : ""}
@@ -285,10 +356,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-2xl xl:text-3xl font-black text-slate-900 leading-tight">
-                    {filteredRegistrations.length}
+                    {totalSwimmers}
                   </div>
                   <div className="text-xs text-slate-500 font-bold leading-tight mt-0.5">
-                    Total Pendaftaran
+                    Total Peserta Atlet
+                  </div>
+                  <div className="text-[11px] text-sky-600 font-extrabold mt-1">
+                    {totalEntries} Nomor Lomba
                   </div>
                 </div>
               </div>
@@ -300,10 +374,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-2xl xl:text-3xl font-black text-emerald-700 leading-tight">
-                    {totalVerified}
+                    {verifiedSwimmers}
                   </div>
                   <div className="text-xs text-slate-500 font-bold leading-tight mt-0.5">
                     Terverifikasi Siap Tanding
+                  </div>
+                  <div className="text-[11px] text-emerald-600 font-extrabold mt-1">
+                    {verifiedEntries} Nomor Lomba Lunas
                   </div>
                 </div>
               </div>
@@ -315,10 +392,13 @@ export default function DashboardPage() {
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="text-2xl xl:text-3xl font-black text-amber-700 leading-tight">
-                    {totalPending}
+                    {pendingSwimmers}
                   </div>
                   <div className="text-xs text-slate-500 font-bold leading-tight mt-0.5">
                     Pending Verifikasi Bayar
+                  </div>
+                  <div className="text-[11px] text-amber-600 font-extrabold mt-1">
+                    {pendingEntries > 0 ? `${pendingEntries} Nomor Menunggu` : "Semua Lunas"}
                   </div>
                 </div>
               </div>
@@ -335,8 +415,8 @@ export default function DashboardPage() {
                   <div className="text-xs text-slate-500 font-bold leading-tight mt-0.5">
                     Biaya Masuk Pendaftaran
                   </div>
-                  <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
-                    {totalVerified} peserta lunas
+                  <div className="text-[11px] text-indigo-600 font-extrabold mt-1">
+                    {verifiedSwimmers} atlet lunas ({verifiedEntries} nomor lomba)
                   </div>
                 </div>
               </div>

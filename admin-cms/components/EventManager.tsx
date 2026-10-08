@@ -264,8 +264,8 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
               className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
             >
               <option value="ALL">Semua KU</option>
-              <option value="KU 6B">KU 6B (4 - 5 Thn)</option>
-              <option value="KU 6A">KU 6A (6 - 7 Thn)</option>
+              <option value="KU 6A">KU 6A (4 - 5 Thn)</option>
+              <option value="KU 6B">KU 6B (6 - 7 Thn)</option>
               <option value="KU 5">KU 5 (8 - 9 Thn)</option>
               <option value="KU 4">KU 4 (10 - 11 Thn)</option>
               <option value="KU 3">KU 3 (12 - 13 Thn)</option>
@@ -647,8 +647,8 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                     onChange={(e) => setFormAgeGroup(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
-                    <option value="KU 6B">KU 6B (4 - 5 Thn)</option>
-                    <option value="KU 6A">KU 6A (6 - 7 Thn)</option>
+                    <option value="KU 6A">KU 6A (4 - 5 Thn)</option>
+                    <option value="KU 6B">KU 6B (6 - 7 Thn)</option>
                     <option value="KU 5">KU 5 (8 - 9 Thn)</option>
                     <option value="KU 4">KU 4 (10 - 11 Thn)</option>
                     <option value="KU 3">KU 3 (12 - 13 Thn)</option>

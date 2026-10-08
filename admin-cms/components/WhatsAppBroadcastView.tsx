@@ -288,8 +288,9 @@ export default function WhatsAppBroadcastView({
     setPairingCodeResult("");
     try {
       const res = await requestWhatsAppPairingCode(targetPhone);
-      if (res && res.success && res.code) {
-        setPairingCodeResult(res.code);
+      const code = res?.code || res?.pairingCode;
+      if (res && res.success && code) {
+        setPairingCodeResult(code);
         toast.success("Kode pairing berhasil dibuat! Masukkan kode ini di aplikasi WhatsApp Anda.");
       } else {
         toast.error(res?.message || "Gagal membuat kode pairing. Pastikan WhatsApp Gateway aktif.");
