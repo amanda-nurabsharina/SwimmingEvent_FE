@@ -1336,6 +1336,11 @@ export default function WhatsAppBroadcastView({
                       <p className="text-[11px] text-slate-500 leading-relaxed">
                         Pastikan service <code>wa-gateway</code> sedang berjalan di server (port 5001).
                       </p>
+                      {waStatus.message && (
+                        <p className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-xl font-mono break-all border border-amber-200">
+                          {waStatus.message}
+                        </p>
+                      )}
                       <button
                         type="button"
                         onClick={() => checkWAStatus(true)}

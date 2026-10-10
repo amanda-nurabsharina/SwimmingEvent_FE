@@ -5,10 +5,14 @@ const RAW_CANDIDATES = [
   process.env.WA_GATEWAY_INTERNAL_URL,
   process.env.WA_GATEWAY_URL,
   process.env.NEXT_PUBLIC_WA_GATEWAY_URL,
-  "http://localhost:5001/api/wa",
-  "http://127.0.0.1:5001/api/wa",
-  "http://host.docker.internal:5001/api/wa",
   "http://wa-gateway:5001/api/wa",
+  "http://swimming_wa_gateway:5001/api/wa",
+  "http://swimming-wa-gateway:5001/api/wa",
+  "http://wa:5001/api/wa",
+  "http://whatsapp:5001/api/wa",
+  "http://127.0.0.1:5001/api/wa",
+  "http://localhost:5001/api/wa",
+  "http://host.docker.internal:5001/api/wa",
   "http://172.17.0.1:5001/api/wa",
 ];
 
