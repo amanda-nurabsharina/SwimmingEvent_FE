@@ -30,6 +30,7 @@ import {
   Eye,
   EyeOff,
   ExternalLink,
+  ArrowUpDown,
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
 import { toast } from "./Toast";
@@ -784,215 +785,259 @@ export default function BukuAcaraViewer({
         {/* ============================================================ */}
         {/* 2. SUB-FILTERS: DYNAMIC GAYA & JARAK DALAM TURNAMEN TERPILIH */}
         {/* ============================================================ */}
-        <div className="pt-4 border-t border-slate-100 space-y-3">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-sky-600" /> Sub-Filter Spesifik Lomba pada Turnamen Ini:
-            </span>
-            <span className="text-xs font-bold text-slate-500">
-              Total: <span className="text-slate-900 font-black">{filteredEvents.length}</span> Event
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">
-            {/* Sub-Filter: Tipe Bagan */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Tipe Bagan
-              </label>
-              <select
-                value={selectedCategoryFilter}
-                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Tipe Bagan</option>
-                <option value="HEAT">Heat Angka (1, 2, 3...)</option>
-                <option value="GROUP">Group Abjad (A, B, C...)</option>
-              </select>
+        {/* ============================================================ */}
+        {/* 2. SUB-FILTERS: DYNAMIC GAYA & JARAK DALAM TURNAMEN TERPILIH */}
+        {/* ============================================================ */}
+        <div className="pt-5 border-t border-slate-100 space-y-4">
+          {/* Sub-Filter Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 bg-sky-100 text-sky-700 rounded-lg">
+                <Filter className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Filter Spesifik Nomor Lomba
+                </span>
+                <p className="text-[11px] font-medium text-slate-500">
+                  Saring bagan berdasarkan jadwal, gaya, jarak, KU, nomor lomba, atau nama atlet
+                </p>
+              </div>
             </div>
 
-            {/* Sub-Filter: Tanggal Lomba (Date) */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
-                <Calendar className="w-3 h-3 text-sky-600" /> Tanggal
-              </label>
-              <select
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Tanggal</option>
-                {dynamicFilterOptions.dates.map((d) => (
-                  <option key={d} value={d}>
-                    {d}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <div className="flex items-center gap-2.5">
+              <span className="text-xs font-bold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl border border-slate-200">
+                Menampilkan: <span className="text-sky-700 font-black">{filteredEvents.length}</span> dari {eventGroups.length} Event
+              </span>
 
-            {/* Sub-Filter: Waktu Mulai (Time) */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-amber-600" /> Waktu Mulai
-              </label>
-              <select
-                value={selectedTime}
-                onChange={(e) => setSelectedTime(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Waktu</option>
-                {dynamicFilterOptions.times.map((tm) => (
-                  <option key={tm} value={tm}>
-                    {tm}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sub-Filter: Urutkan (Sorting) */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
-                <Clock className="w-3 h-3 text-emerald-600" /> Urutkan
-              </label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as any)}
-                className="w-full bg-sky-50 border border-sky-300 rounded-xl px-2.5 py-2 text-xs font-black text-sky-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="time_asc">⏰ Waktu: Terpagi → Tersore</option>
-                <option value="time_desc">⏰ Waktu: Tersore → Terpagi</option>
-                <option value="code_asc">🔢 Nomor: #101 → Terbesar</option>
-                <option value="code_desc">🔢 Nomor: Terbesar → Terkecil</option>
-              </select>
-            </div>
-
-            {/* Sub-Filter: Kelompok Umur (KU) */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Kelompok Umur (KU)
-              </label>
-              <select
-                value={selectedKU}
-                onChange={(e) => setSelectedKU(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua KU</option>
-                {dynamicFilterOptions.ageGroups.map((ku) => (
-                  <option key={ku} value={ku}>
-                    {ku}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sub-Filter: Gaya Renang */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Gaya Renang (Stroke)
-              </label>
-              <select
-                value={selectedStroke}
-                onChange={(e) => setSelectedStroke(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Gaya Renang</option>
-                <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
-                <option value="FREESTYLE_FIN">Freestyle FIN</option>
-                <option value="KICKING_BOARD">Kicking Board</option>
-                <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
-                <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
-                <option value="BACKSTROKE_FIN">Backstroke Fins</option>
-                <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
-                <option value="BUTTERFLY_FIN">Butterfly Fins</option>
-                <option value="INDIVIDUALMEDLEY">Gaya Ganti Perorangan (IM)</option>
-              </select>
-            </div>
-
-            {/* Sub-Filter: Jarak Lomba */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Jarak Lomba (Distance)
-              </label>
-              <select
-                value={selectedDistance}
-                onChange={(e) => setSelectedDistance(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Jarak</option>
-                <option value="25">25 Meter</option>
-                <option value="50">50 Meter</option>
-                <option value="100">100 Meter</option>
-                <option value="200">200 Meter</option>
-                <option value="400">400 Meter</option>
-              </select>
-            </div>
-
-            {/* Sub-Filter: Nomor Lomba (Event Code) */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Nomor Lomba (Event)
-              </label>
-              <select
-                value={selectedEventCode}
-                onChange={(e) => setSelectedEventCode(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Nomor Lomba</option>
-                {dynamicFilterOptions.eventCodes.map((ev) => (
-                  <option key={ev.code} value={String(ev.code)}>
-                    {ev.code} - {ev.name} ({ev.gender} {ev.age_group ? `• ${ev.age_group}` : ""})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Sub-Filter: Gender */}
-            <div>
-              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-                Kategori Gender
-              </label>
-              <select
-                value={selectedGender}
-                onChange={(e) => setSelectedGender(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              >
-                <option value="ALL">Semua Gender</option>
-                <option value="PUTRA">Putra</option>
-                <option value="PUTRI">Putri</option>
-              </select>
+              {(selectedKU !== "ALL" ||
+                selectedStroke !== "ALL" ||
+                selectedDistance !== "ALL" ||
+                selectedEventCode !== "ALL" ||
+                selectedGender !== "ALL" ||
+                selectedDate !== "ALL" ||
+                selectedTime !== "ALL" ||
+                selectedCategoryFilter !== "ALL" ||
+                sortBy !== "time_asc" ||
+                search !== "") && (
+                <button
+                  type="button"
+                  onClick={resetFilters}
+                  className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                  title="Kembalikan semua filter ke awal"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset Filter</span>
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Search bar & Reset */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari nama perenang, klub, atau KU..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-              />
-            </div>
-
-            {(selectedKU !== "ALL" ||
-              selectedStroke !== "ALL" ||
-              selectedDistance !== "ALL" ||
-              selectedEventCode !== "ALL" ||
-              selectedGender !== "ALL" ||
-              selectedDate !== "ALL" ||
-              selectedTime !== "ALL" ||
-              selectedCategoryFilter !== "ALL" ||
-              sortBy !== "time_asc" ||
-              search !== "") && (
+          {/* SEARCH BAR (LEGA & PROMINENT) */}
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Cari cepat nama perenang, klub/sekolah, kelompok umur (KU), atau kode nomor lomba..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-8 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none transition-all shadow-2xs"
+            />
+            {search && (
               <button
-                onClick={resetFilters}
-                className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600"
               >
-                <RotateCcw className="w-3 h-3" /> Reset Sub-Filter
+                ✕
               </button>
             )}
+          </div>
+
+          {/* FILTER CONTAINER CARD */}
+          <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-200/90 space-y-3.5">
+            {/* ROW 1: JADWAL & URUTAN LOMBA (4 KOLOM LEGA) */}
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                1. JADWAL, URUTAN & TIPE BAGAN
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Tanggal */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-sky-600" /> Tanggal Lomba
+                  </label>
+                  <select
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Tanggal</option>
+                    {dynamicFilterOptions.dates.map((d) => (
+                      <option key={d} value={d}>
+                        {d}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Waktu Mulai */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Waktu Mulai
+                  </label>
+                  <select
+                    value={selectedTime}
+                    onChange={(e) => setSelectedTime(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Waktu</option>
+                    {dynamicFilterOptions.times.map((tm) => (
+                      <option key={tm} value={tm}>
+                        {tm}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Urutkan */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1 flex items-center gap-1.5">
+                    <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600" /> Urutkan Berdasarkan
+                  </label>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as any)}
+                    className="w-full bg-sky-50/70 border border-sky-300 rounded-xl px-3 py-2 text-xs font-black text-sky-900 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="time_asc">⏰ Waktu: Terpagi → Tersore</option>
+                    <option value="time_desc">⏰ Waktu: Tersore → Terpagi</option>
+                    <option value="code_asc">🔢 Nomor: #101 → Terbesar</option>
+                    <option value="code_desc">🔢 Nomor: Terbesar → Terkecil</option>
+                  </select>
+                </div>
+
+                {/* Tipe Bagan */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1 flex items-center gap-1.5">
+                    <Layers className="w-3.5 h-3.5 text-purple-600" /> Tipe Bagan
+                  </label>
+                  <select
+                    value={selectedCategoryFilter}
+                    onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Tipe Bagan</option>
+                    <option value="HEAT">Heat Angka (1, 2, 3...)</option>
+                    <option value="GROUP">Group Abjad (A, B, C...)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* ROW 2: KATEGORI GAYA, JARAK, KU, GENDER & NOMOR (5 KOLOM LEGA) */}
+            <div className="pt-2 border-t border-slate-200/60">
+              <p className="text-[10px] font-black uppercase tracking-wider text-slate-400 mb-2">
+                2. KATEGORI NOMOR LOMBA, GAYA, JARAK & GENDER
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                {/* Gaya Renang */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                    Gaya Renang (Stroke)
+                  </label>
+                  <select
+                    value={selectedStroke}
+                    onChange={(e) => setSelectedStroke(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Gaya Renang</option>
+                    <option value="FREESTYLE">Gaya Bebas (Freestyle)</option>
+                    <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                    <option value="KICKING_BOARD">Kicking Board</option>
+                    <option value="BREASTSTROKE">Gaya Dada (Breaststroke)</option>
+                    <option value="BACKSTROKE">Gaya Punggung (Backstroke)</option>
+                    <option value="BACKSTROKE_FIN">Backstroke Fins</option>
+                    <option value="BUTTERFLY">Gaya Kupu-kupu (Butterfly)</option>
+                    <option value="BUTTERFLY_FIN">Butterfly Fins</option>
+                    <option value="INDIVIDUALMEDLEY">Gaya Ganti Perorangan (IM)</option>
+                  </select>
+                </div>
+
+                {/* Jarak */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                    Jarak Lomba (Distance)
+                  </label>
+                  <select
+                    value={selectedDistance}
+                    onChange={(e) => setSelectedDistance(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Jarak</option>
+                    <option value="25">25 Meter</option>
+                    <option value="50">50 Meter</option>
+                    <option value="100">100 Meter</option>
+                    <option value="200">200 Meter</option>
+                    <option value="400">400 Meter</option>
+                  </select>
+                </div>
+
+                {/* KU */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                    Kelompok Umur (KU)
+                  </label>
+                  <select
+                    value={selectedKU}
+                    onChange={(e) => setSelectedKU(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua KU</option>
+                    {dynamicFilterOptions.ageGroups.map((ku) => (
+                      <option key={ku} value={ku}>
+                        {ku}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Gender */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                    Kategori Gender
+                  </label>
+                  <select
+                    value={selectedGender}
+                    onChange={(e) => setSelectedGender(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
+                  >
+                    <option value="ALL">Semua Gender</option>
+                    <option value="PUTRA">Putra</option>
+                    <option value="PUTRI">Putri</option>
+                  </select>
+                </div>
+
+                {/* Nomor Lomba */}
+                <div>
+                  <label className="block text-[11px] font-black uppercase text-slate-600 mb-1">
+                    Nomor Lomba (Event)
+                  </label>
+                  <select
+                    value={selectedEventCode}
+                    onChange={(e) => setSelectedEventCode(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs truncate"
+                  >
+                    <option value="ALL">Semua Nomor Lomba</option>
+                    {dynamicFilterOptions.eventCodes.map((ev) => (
+                      <option key={ev.code} value={String(ev.code)}>
+                        #{ev.code} - {ev.name} ({ev.gender})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
