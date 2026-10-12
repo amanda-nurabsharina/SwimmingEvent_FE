@@ -114,3 +114,16 @@ export async function uploadImage(file: File) {
     return { success: false, message: "Upload failed" };
   }
 }
+
+export async function checkRegistrationCode(code: string) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/public/registration-status/${encodeURIComponent(code)}`, {
+      headers: getPublicHeaders(),
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network connection failed" };
+  }
+}
+

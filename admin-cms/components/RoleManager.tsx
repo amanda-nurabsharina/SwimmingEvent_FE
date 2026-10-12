@@ -56,6 +56,7 @@ export const SYSTEM_MODULES = [
     group: "MANAJEMEN KEJUARAAN",
     items: [
       { id: "registrations", label: "Kelola Pendaftaran", desc: "Verifikasi bukti bayar & data pendaftaran peserta" },
+      { id: "starting-list", label: "Starting List Peserta", desc: "Daftar resmi peserta terverifikasi siap tanding & cetak PDF" },
       { id: "buku-acara", label: "Buku Acara & Heat", desc: "Susun seri lomba, lintasan, dan publikasi bagan" },
       { id: "form-timer", label: "Cetak Form Timer Juri", desc: "Cetak blanko pencatat waktu fisik untuk wasit" },
       { id: "tournaments", label: "Master Turnamen", desc: "Tambah & kelola kalender kejuaraan renang" },

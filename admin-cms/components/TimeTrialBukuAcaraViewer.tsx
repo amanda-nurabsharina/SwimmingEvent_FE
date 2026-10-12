@@ -190,6 +190,51 @@ export default function TimeTrialBukuAcaraViewer({
 
   return (
     <div className="space-y-6">
+      {/* DYNAMIC PRINT STYLE INJECTION */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: a4 portrait;
+            margin: 8mm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          aside, nav, header {
+            display: none !important;
+          }
+          .page-break-inside-avoid {
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+          }
+        }
+      `}</style>
+
+      {/* PRINTABLE OFFICIAL PDF HEADER (VISIBLE ON PRINT ONLY) */}
+      <div className="hidden print:block mb-6 border-b-2 border-black pb-4 text-center">
+        <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-1 border-b border-slate-300 pb-1">
+          <span>AKUATIK INDONESIA / MASC SWIM CLUB</span>
+          <span className="font-mono font-black text-slate-900 uppercase">
+            BUKU ACARA TIME TRIAL
+          </span>
+        </div>
+        <h1 className="text-xl font-black uppercase tracking-wider text-black">
+          SUSUNAN SERI (HEAT) & LINTASAN
+        </h1>
+        <h2 className="text-base font-black uppercase mt-0.5 text-black">
+          {currentStroke ? `[${currentStroke.event_code}] ${currentStroke.name} (${currentStroke.distance})` : "TIME TRIAL"}
+        </h2>
+        <p className="text-xs font-bold uppercase text-slate-700 mt-1">
+          {currentSession?.title} • {currentSession?.location} • 📅 {currentStroke?.schedule_date || currentSession?.date || "2026-03-28"} • ⏰ {currentStroke?.schedule_time || "08:00 WIB"}
+        </p>
+      </div>
+
       {/* HEADER */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm print:hidden">
         <div className="flex items-center gap-2.5">
@@ -264,7 +309,7 @@ export default function TimeTrialBukuAcaraViewer({
 
       {/* QUICK INFO BANNER */}
       {currentSession && currentStroke && (
-        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/70 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200/70 p-4 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-xs font-black text-purple-700 bg-white px-2 py-0.5 rounded border border-purple-200">
@@ -273,8 +318,16 @@ export default function TimeTrialBukuAcaraViewer({
               <h2 className="text-base font-black text-slate-900 uppercase">{currentStroke.name}</h2>
               <span className="text-xs font-bold text-slate-500">({currentStroke.distance})</span>
             </div>
-            <p className="text-xs text-purple-900 font-bold mt-1">
-              {currentSession.title} • Lokasi: {currentSession.location} • Max {currentSession.max_lanes} Lintasan
+            <p className="text-xs text-purple-900 font-bold mt-1 flex items-center gap-2 flex-wrap">
+              <span>{currentSession.title} • Lokasi: {currentSession.location} • Max {currentSession.max_lanes} Lintasan</span>
+              <span className="text-[11px] font-black text-sky-700 bg-white/80 px-2 py-0.5 rounded-md border border-sky-200 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-sky-600" />
+                {currentStroke.schedule_date || currentSession.date || "2026-03-28"}
+              </span>
+              <span className="text-[11px] font-black text-amber-700 bg-white/80 px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-amber-600" />
+                {currentStroke.schedule_time || "08:00 WIB"}
+              </span>
             </p>
           </div>
 
@@ -325,13 +378,21 @@ export default function TimeTrialBukuAcaraViewer({
           {heats.map((heat) => (
             <div
               key={heat.id}
-              className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden"
+              className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
             >
               {/* HEAT CARD HEADER */}
               <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5 flex-wrap">
                   <span className="font-mono text-xs font-black text-white bg-purple-600 px-3 py-1 rounded-lg shadow-sm">
                     SERI / HEAT {heat.heat_number}
+                  </span>
+                  <span className="text-[11px] font-bold text-sky-700 bg-white px-2 py-0.5 rounded-md border border-sky-200 flex items-center gap-1 shadow-2xs">
+                    <Calendar className="w-3 h-3 text-sky-600" />
+                    <span>{heat.date || currentStroke?.schedule_date || currentSession?.date || "2026-03-28"}</span>
+                  </span>
+                  <span className="text-[11px] font-bold text-amber-700 bg-white px-2 py-0.5 rounded-md border border-amber-200 flex items-center gap-1 shadow-2xs">
+                    <Clock className="w-3 h-3 text-amber-600" />
+                    <span>Mulai: {heat.start_time || currentStroke?.schedule_time || "08:00 WIB"}</span>
                   </span>
                   {heat.notes && (
                     <span className="text-xs font-bold text-purple-900 bg-purple-100/70 px-2.5 py-0.5 rounded-md">

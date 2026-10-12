@@ -28,6 +28,7 @@ import TimeTrialStrokeManager from "../../components/TimeTrialStrokeManager";
 import TimeTrialSessionManager from "../../components/TimeTrialSessionManager";
 import TimeTrialBukuAcaraViewer from "../../components/TimeTrialBukuAcaraViewer";
 import TimeTrialResultEditor from "../../components/TimeTrialResultEditor";
+import StartingListViewer from "../../components/StartingListViewer";
 import { getRegistrations, getBanners, fetchAdminTournaments, PUBLIC_LANDING_URL } from "../../lib/api-admin";
 import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings, History, MessageSquare, Send, Sparkles, Clock, Wallet, Filter } from "lucide-react";
 
@@ -242,10 +243,10 @@ export default function DashboardPage() {
   }, [filteredRegistrations]);
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-slate-50 print:bg-white print:block">
       <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
 
-      <main className="flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full">
+      <main className="flex-1 p-8 overflow-y-auto max-w-7xl mx-auto w-full print:p-0 print:m-0 print:max-w-none print:w-full print:overflow-visible">
         {/* Dedicated Dashboard Tab View */}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
@@ -559,6 +560,15 @@ export default function DashboardPage() {
             </div>
             <ParticipantTable registrations={registrations} tournaments={tournaments} onRefresh={loadData} />
           </div>
+        )}
+
+        {activeTab === "starting-list" && (
+          <StartingListViewer
+            registrations={registrations}
+            tournaments={tournaments}
+            onRefresh={loadData}
+            initialTournamentId={selectedTourneyId || activeTournament?.id}
+          />
         )}
 
         {activeTab === "buku-acara" && (

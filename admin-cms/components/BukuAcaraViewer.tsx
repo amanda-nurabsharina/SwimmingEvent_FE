@@ -48,6 +48,8 @@ interface HeatItem {
   rank?: number;
   is_empty: boolean;
   is_finalist?: boolean;
+  schedule_date?: string;
+  schedule_time?: string;
 }
 
 interface EventGroup {
@@ -59,9 +61,39 @@ interface EventGroup {
   stroke: string;
   gender: string;
   age_group: string;
+  schedule_date?: string;
+  schedule_time?: string;
   heat_category?: string;
   max_lanes: number;
   heats: HeatItem[];
+}
+
+function parseDateTimeWeight(dateStr?: string, timeStr?: string): number {
+  let dateWeight = 0;
+  if (dateStr && dateStr.trim()) {
+    const parts = dateStr.trim().split("-");
+    if (parts.length === 3) {
+      const yr = parseInt(parts[0], 10) || 2026;
+      const mo = parseInt(parts[1], 10) || 1;
+      const da = parseInt(parts[2], 10) || 1;
+      dateWeight = (yr * 10000 + mo * 100 + da) * 86400000;
+    } else {
+      const d = new Date(dateStr.trim());
+      if (!isNaN(d.getTime())) dateWeight = d.getTime();
+    }
+  }
+
+  let timeWeight = 0;
+  if (timeStr && timeStr.trim()) {
+    const match = timeStr.trim().match(/(\d{1,2})[:.](\d{1,2})/);
+    if (match) {
+      const h = parseInt(match[1], 10);
+      const m = parseInt(match[2], 10);
+      timeWeight = h * 3600000 + m * 60000;
+    }
+  }
+
+  return dateWeight + timeWeight;
 }
 
 interface BukuAcaraViewerProps {
@@ -93,6 +125,9 @@ export default function BukuAcaraViewer({
   const [selectedEventCode, setSelectedEventCode] = useState<string>("ALL");
   const [selectedGender, setSelectedGender] = useState<string>("ALL");
   const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("ALL");
+  const [selectedDate, setSelectedDate] = useState<string>("ALL");
+  const [selectedTime, setSelectedTime] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<"time_asc" | "time_desc" | "code_asc" | "code_desc">("time_asc");
   const [search, setSearch] = useState("");
 
   // 3. LOCK & PUBLISH STATE
@@ -227,9 +262,13 @@ export default function BukuAcaraViewer({
     const strokes = new Set<string>();
     const distances = new Set<string>();
     const ageGroups = new Set<string>();
+    const dates = new Set<string>();
+    const times = new Set<string>();
     const eventCodes: { code: number; name: string; gender: string; age_group: string }[] = [];
 
     eventGroups.forEach((eg) => {
+      if (eg.schedule_date) dates.add(eg.schedule_date.trim());
+      if (eg.schedule_time) times.add(eg.schedule_time.trim());
       if (eg.stroke) strokes.add(eg.stroke.trim());
       if (eg.distance) distances.add(eg.distance.trim());
       if (eg.age_group) ageGroups.add(eg.age_group.trim().toUpperCase());
@@ -253,17 +292,24 @@ export default function BukuAcaraViewer({
       return a.localeCompare(b);
     });
 
+    const sortedDates = Array.from(dates).sort();
+    const sortedTimes = Array.from(times).sort((a, b) => {
+      return parseDateTimeWeight("", a) - parseDateTimeWeight("", b);
+    });
+
     return {
       strokes: Array.from(strokes),
       distances: Array.from(distances),
       eventCodes,
       ageGroups: sortedKUs,
+      dates: sortedDates,
+      times: sortedTimes,
     };
   }, [eventGroups]);
 
-  // Filtered Events
+  // Filtered & Sorted Events
   const filteredEvents = useMemo(() => {
-    return eventGroups.filter((event) => {
+    const filtered = eventGroups.filter((event) => {
       // 0. Filter Tipe Bagan (Heat vs Group)
       if (selectedCategoryFilter !== "ALL") {
         const isEvtGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
@@ -273,6 +319,16 @@ export default function BukuAcaraViewer({
 
       // 0b. Filter Kelompok Umur (KU)
       if (selectedKU !== "ALL" && event.age_group?.toUpperCase() !== selectedKU.toUpperCase()) {
+        return false;
+      }
+
+      // 0c. Filter Tanggal (Date)
+      if (selectedDate !== "ALL" && (event.schedule_date || "2026-03-28") !== selectedDate) {
+        return false;
+      }
+
+      // 0d. Filter Waktu (Time)
+      if (selectedTime !== "ALL" && (event.schedule_time || "08:00 WIB") !== selectedTime) {
         return false;
       }
 
@@ -337,7 +393,39 @@ export default function BukuAcaraViewer({
 
       return true;
     });
-  }, [eventGroups, selectedCategoryFilter, selectedKU, selectedStroke, selectedDistance, selectedEventCode, selectedGender, search]);
+
+    // Sorting berdasarkan Waktu Mulai atau Nomor Lomba
+    return filtered.sort((a, b) => {
+      if (sortBy === "time_asc") {
+        const wtA = parseDateTimeWeight(a.schedule_date, a.schedule_time);
+        const wtB = parseDateTimeWeight(b.schedule_date, b.schedule_time);
+        if (wtA !== wtB) return wtA - wtB;
+        return a.event_code - b.event_code;
+      }
+      if (sortBy === "time_desc") {
+        const wtA = parseDateTimeWeight(a.schedule_date, a.schedule_time);
+        const wtB = parseDateTimeWeight(b.schedule_date, b.schedule_time);
+        if (wtA !== wtB) return wtB - wtA;
+        return b.event_code - a.event_code;
+      }
+      if (sortBy === "code_desc") {
+        return b.event_code - a.event_code;
+      }
+      return a.event_code - b.event_code;
+    });
+  }, [
+    eventGroups,
+    selectedCategoryFilter,
+    selectedKU,
+    selectedDate,
+    selectedTime,
+    sortBy,
+    selectedStroke,
+    selectedDistance,
+    selectedEventCode,
+    selectedGender,
+    search,
+  ]);
 
   const resetFilters = () => {
     setSelectedCategoryFilter("ALL");
@@ -346,6 +434,9 @@ export default function BukuAcaraViewer({
     setSelectedDistance("ALL");
     setSelectedEventCode("ALL");
     setSelectedGender("ALL");
+    setSelectedDate("ALL");
+    setSelectedTime("ALL");
+    setSortBy("time_asc");
     setSearch("");
   };
 
@@ -703,7 +794,7 @@ export default function BukuAcaraViewer({
             </span>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3">
             {/* Sub-Filter: Tipe Bagan */}
             <div>
               <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
@@ -717,6 +808,61 @@ export default function BukuAcaraViewer({
                 <option value="ALL">Semua Tipe Bagan</option>
                 <option value="HEAT">Heat Angka (1, 2, 3...)</option>
                 <option value="GROUP">Group Abjad (A, B, C...)</option>
+              </select>
+            </div>
+
+            {/* Sub-Filter: Tanggal Lomba (Date) */}
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
+                <Calendar className="w-3 h-3 text-sky-600" /> Tanggal
+              </label>
+              <select
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              >
+                <option value="ALL">Semua Tanggal</option>
+                {dynamicFilterOptions.dates.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sub-Filter: Waktu Mulai (Time) */}
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-amber-600" /> Waktu Mulai
+              </label>
+              <select
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              >
+                <option value="ALL">Semua Waktu</option>
+                {dynamicFilterOptions.times.map((tm) => (
+                  <option key={tm} value={tm}>
+                    {tm}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sub-Filter: Urutkan (Sorting) */}
+            <div>
+              <label className="block text-[10px] font-black uppercase text-slate-500 mb-1 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-emerald-600" /> Urutkan
+              </label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as any)}
+                className="w-full bg-sky-50 border border-sky-300 rounded-xl px-2.5 py-2 text-xs font-black text-sky-900 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              >
+                <option value="time_asc">⏰ Waktu: Terpagi → Tersore</option>
+                <option value="time_desc">⏰ Waktu: Tersore → Terpagi</option>
+                <option value="code_asc">🔢 Nomor: #101 → Terbesar</option>
+                <option value="code_desc">🔢 Nomor: Terbesar → Terkecil</option>
               </select>
             </div>
 
@@ -835,10 +981,14 @@ export default function BukuAcaraViewer({
               selectedDistance !== "ALL" ||
               selectedEventCode !== "ALL" ||
               selectedGender !== "ALL" ||
+              selectedDate !== "ALL" ||
+              selectedTime !== "ALL" ||
+              selectedCategoryFilter !== "ALL" ||
+              sortBy !== "time_asc" ||
               search !== "") && (
               <button
                 onClick={resetFilters}
-                className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all flex items-center gap-1"
+                className="px-3 py-1.5 text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded-xl transition-all flex items-center gap-1 cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" /> Reset Sub-Filter
               </button>
@@ -948,6 +1098,17 @@ export default function BukuAcaraViewer({
                         HEAT ANGKA
                       </span>
                     )}
+                    {/* Tanggal & Waktu Mulai Nomor Lomba */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="bg-sky-400/20 text-sky-200 border border-sky-300/30 text-[11px] px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
+                        <Calendar className="w-3 h-3 text-sky-300" />
+                        {event.schedule_date || "2026-03-28"}
+                      </span>
+                      <span className="bg-amber-400/20 text-amber-200 border border-amber-300/30 text-[11px] px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-300" />
+                        {event.schedule_time || "08:00 WIB"}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2 text-xs font-black">
                     <span className={`px-3.5 py-1 rounded-full border font-black uppercase tracking-wider ${
@@ -999,11 +1160,17 @@ export default function BukuAcaraViewer({
                               <span className={`font-medium ${isPutri ? "text-rose-700/80" : "text-slate-500"}`}>{activeSwimmers.length} Atlet Terdaftar</span>
                             </span>
                           </div>
-                          <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white print:hidden ${
-                            isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
-                          }`}>
-                            Kapasitas {event.max_lanes || 3} Lintasan
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1 shadow-2xs">
+                              <Clock className="w-3 h-3 text-sky-600" />
+                              <span>Mulai: {event.schedule_time || "08:00 WIB"}</span>
+                            </span>
+                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white print:hidden ${
+                              isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
+                            }`}>
+                              Kapasitas {event.max_lanes || 3} Lintasan
+                            </span>
+                          </div>
                         </div>
 
                         {/* Table */}

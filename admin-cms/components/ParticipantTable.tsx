@@ -3,6 +3,7 @@
 import { useState, Fragment } from "react";
 import {
   verifyPayment,
+  updateParticipant,
   softDeleteParticipant,
   restoreParticipant,
   hardDeleteParticipant,
@@ -44,6 +45,8 @@ import {
   RotateCcw,
   UserCheck,
   AlertOctagon,
+  Edit2,
+  Save,
 } from "lucide-react";
 
 interface ParticipantTableProps {
@@ -97,6 +100,93 @@ export default function ParticipantTable({
   } | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // Participant Identity Edit State in Modal
+  const [isEditingParticipant, setIsEditingParticipant] = useState(false);
+  const [savingParticipant, setSavingParticipant] = useState(false);
+  const [participantFormData, setParticipantFormData] = useState({
+    name: "",
+    gender: "PUTRA",
+    club: "",
+    pic: "",
+    contact: "",
+    birth_date: "",
+    age_group: "",
+  });
+
+  const deriveKUFromBirthDate = (bDate: string) => {
+    if (!bDate) return "";
+    const birthYear = new Date(bDate).getFullYear();
+    const currentYear = new Date().getFullYear();
+    const age = currentYear - birthYear;
+    if (age <= 5) return "KU 6A";
+    if (age <= 7) return "KU 6B";
+    if (age <= 9) return "KU 5";
+    if (age <= 11) return "KU 4";
+    if (age <= 13) return "KU 3";
+    if (age <= 15) return "KU 2";
+    if (age <= 18) return "KU 1";
+    return "Senior";
+  };
+
+  const startEditingParticipant = () => {
+    if (!selectedGroup?.participant) return;
+    const p = selectedGroup.participant;
+    setParticipantFormData({
+      name: p.name || "",
+      gender: p.gender || "PUTRA",
+      club: p.club || "",
+      pic: p.pic || "",
+      contact: p.contact || "",
+      birth_date: p.birth_date ? String(p.birth_date).substring(0, 10) : "",
+      age_group: p.age_group || "Senior",
+    });
+    setIsEditingParticipant(true);
+  };
+
+  const handleSaveParticipant = async () => {
+    const participantId =
+      selectedGroup?.participant?.id ||
+      selectedGroup?.items?.[0]?.participant_id ||
+      selectedGroup?.items?.[0]?.participant?.id;
+
+    if (!participantId) {
+      toast.error("ID Peserta tidak ditemukan");
+      return;
+    }
+    if (!participantFormData.name.trim()) {
+      toast.error("Nama perenang tidak boleh kosong");
+      return;
+    }
+    setSavingParticipant(true);
+    const res = await updateParticipant(participantId, participantFormData);
+    setSavingParticipant(false);
+    if (res.success) {
+      toast.success("Data identitas atlet berhasil diperbarui");
+      setSelectedGroup((prev) => {
+        if (!prev) return null;
+        const updatedItems = (prev.items || []).map((it: any) => ({
+          ...it,
+          participant: {
+            ...(it.participant || {}),
+            ...participantFormData,
+          },
+        }));
+        return {
+          ...prev,
+          participant: {
+            ...prev.participant,
+            ...participantFormData,
+          },
+          items: updatedItems,
+        };
+      });
+      setIsEditingParticipant(false);
+      onRefresh();
+    } else {
+      toast.error(res.message || "Gagal memperbarui data peserta");
+    }
+  };
+
   const toggleExpand = (groupKey: string) => {
     setExpandedKeys((prev) => ({
       ...prev,
@@ -135,8 +225,16 @@ export default function ParticipantTable({
     const grp = groupMap[groupKey];
     grp.items.push(r);
 
-    if (!grp.payment_proof_url && r.payment_proof_url) {
-      grp.payment_proof_url = r.payment_proof_url;
+    if (r.payment_proof_url) {
+      const existingProofs = (grp.payment_proof_url ? grp.payment_proof_url.split(",") : [])
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      const newProofs = (r.payment_proof_url as string)
+        .split(",")
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      const combined = Array.from(new Set([...existingProofs, ...newProofs]));
+      grp.payment_proof_url = combined.join(",");
     }
     if (r.payment_method && grp.payment_method === "BCA") {
       grp.payment_method = r.payment_method;
@@ -153,7 +251,9 @@ export default function ParticipantTable({
   const swimmerGroups: SwimmerGroup[] = Object.values(groupMap).map((grp) => {
     const statuses = grp.items.map((i) => i.payment_status);
     let unifiedStatus = "pending";
-    if (statuses.every((s) => s === "verified")) {
+    if (statuses.some((s) => s === "pending")) {
+      unifiedStatus = "pending";
+    } else if (statuses.every((s) => s === "verified")) {
       unifiedStatus = "verified";
     } else if (statuses.every((s) => s === "rejected")) {
       unifiedStatus = "rejected";
@@ -261,7 +361,8 @@ export default function ParticipantTable({
         );
         const statuses = updatedItems.map((i) => i.payment_status);
         let unifiedStatus = "pending";
-        if (statuses.every((s) => s === "verified")) unifiedStatus = "verified";
+        if (statuses.some((s) => s === "pending")) unifiedStatus = "pending";
+        else if (statuses.every((s) => s === "verified")) unifiedStatus = "verified";
         else if (statuses.every((s) => s === "rejected")) unifiedStatus = "rejected";
         else if (statuses.some((s) => s === "verified")) unifiedStatus = "verified";
 
@@ -647,10 +748,17 @@ export default function ParticipantTable({
 
                       {/* Total Nomor Lomba Badge */}
                       <td className="p-4 text-center">
-                        <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-black text-xs inline-flex items-center gap-1">
-                          <Trophy className="w-3.5 h-3.5 text-indigo-600" />
-                          <span>{g.items.length} Nomor Lomba</span>
-                        </span>
+                        <div className="inline-flex flex-col items-center gap-1">
+                          <span className="px-3 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-xl font-black text-xs inline-flex items-center gap-1">
+                            <Trophy className="w-3.5 h-3.5 text-indigo-600" />
+                            <span>{g.items.length} Nomor Lomba</span>
+                          </span>
+                          {g.items.some((i) => i.is_additional) && (
+                            <span className="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 rounded-md text-[10px] font-black inline-flex items-center gap-1 shadow-2xs">
+                              <Sparkles className="w-2.5 h-2.5 text-amber-600" /> Ada Tambahan
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Total Biaya */}
@@ -976,13 +1084,18 @@ export default function ParticipantTable({
               </button>
 
               <div className="space-y-1.5 pr-8">
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-3 py-0.5 bg-sky-400/20 text-sky-100 rounded-full text-[10px] font-black tracking-wider uppercase border border-sky-300/30">
                     VERIFIKASI PENDAFTARAN PERENANG
                   </span>
                   <span className="font-mono text-xs text-sky-200 font-black">
                     {selectedGroup.registration_code}
                   </span>
+                  {selectedGroup.items.some((i) => i.is_additional) && (
+                    <span className="px-2.5 py-0.5 bg-amber-400 text-amber-950 rounded-full text-[10px] font-black tracking-wider uppercase border border-amber-300 flex items-center gap-1 shadow-sm">
+                      <Sparkles className="w-3 h-3 text-amber-900" /> ADA NOMOR TAMBAHAN
+                    </span>
+                  )}
                   {!selectedGroup.is_active && (
                     <span className="px-2.5 py-0.5 bg-rose-500/80 text-white rounded-full text-[10px] font-black tracking-wider uppercase border border-rose-300/40">
                       STATUS: NON-AKTIF
@@ -1017,76 +1130,241 @@ export default function ParticipantTable({
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* COLUMN 1: IDENTITAS ATLET & PIC */}
                 <div className="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
-                  <div className="flex items-center gap-2 pb-2 border-b border-slate-200 text-sky-700">
-                    <User className="w-4 h-4" />
-                    <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
-                      Identitas Atlet & PIC
-                    </h3>
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                    <div className="flex items-center gap-2 text-sky-700">
+                      <User className="w-4 h-4" />
+                      <h3 className="font-black text-xs uppercase tracking-wider text-slate-900">
+                        Identitas Atlet & PIC
+                      </h3>
+                    </div>
+                    {!isEditingParticipant ? (
+                      <button
+                        onClick={startEditingParticipant}
+                        type="button"
+                        className="px-3 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded-lg text-[10px] font-black transition flex items-center gap-1 shadow-sm shadow-sky-600/20 cursor-pointer"
+                        title="Edit Data Identitas & Gender"
+                      >
+                        <Edit2 className="w-3 h-3" /> Edit Data
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => setIsEditingParticipant(false)}
+                        type="button"
+                        className="px-2.5 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg text-[10px] font-bold transition cursor-pointer"
+                      >
+                        Batal
+                      </button>
+                    )}
                   </div>
 
-                  <div className="space-y-2.5">
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">NAMA LENGKAP:</span>
-                      <span className="font-black text-slate-900 uppercase block">
-                        {selectedGroup.participant?.name || "-"}
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
+                  {isEditingParticipant ? (
+                    <div className="space-y-3 pt-1">
                       <div>
-                        <span className="text-[10px] text-slate-400 font-bold block">GENDER:</span>
-                        <span className="font-black text-slate-900">
-                          {selectedGroup.participant?.gender || "-"}
-                        </span>
+                        <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                          NAMA LENGKAP: <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={participantFormData.name}
+                          onChange={(e) => setParticipantFormData({ ...participantFormData, name: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs font-black uppercase text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                        />
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 font-bold block">KELOMPOK UMUR:</span>
-                        <span className="font-black text-sky-700">
-                          {selectedGroup.participant?.age_group || "-"}
-                        </span>
-                      </div>
-                    </div>
 
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">TANGGAL LAHIR:</span>
-                      <span className="font-bold text-slate-800">
-                        {selectedGroup.participant?.birth_date || "-"}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">KLUB / KONTINGEN:</span>
-                      <span className="font-black text-slate-900">
-                        {selectedGroup.participant?.club || "-"}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">ORANG TUA / PIC:</span>
-                      <span className="font-bold text-slate-800">
-                        {selectedGroup.participant?.pic || "-"}
-                      </span>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] text-slate-400 font-bold block">WHATSAPP CONTACT:</span>
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <span className="font-mono font-bold text-slate-900">
-                          {selectedGroup.participant?.contact || "-"}
-                        </span>
-                        {selectedGroup.participant?.contact && (
-                          <a
-                            href={`https://wa.me/${selectedGroup.participant.contact.replace(/\D/g, "")}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-black hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                            GENDER: <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={participantFormData.gender}
+                            onChange={(e) => setParticipantFormData({ ...participantFormData, gender: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none cursor-pointer"
                           >
-                            <MessageSquare className="w-3 h-3" /> WA
-                          </a>
-                        )}
+                            <option value="PUTRA">PUTRA</option>
+                            <option value="PUTRI">PUTRI</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                            KELOMPOK UMUR:
+                          </label>
+                          <select
+                            value={participantFormData.age_group}
+                            onChange={(e) => setParticipantFormData({ ...participantFormData, age_group: e.target.value })}
+                            className="w-full px-2 py-1.5 text-xs font-black text-sky-800 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none cursor-pointer"
+                          >
+                            <option value="KU 6A">KU 6A</option>
+                            <option value="KU 6B">KU 6B</option>
+                            <option value="KU 5">KU 5</option>
+                            <option value="KU 4">KU 4</option>
+                            <option value="KU 3">KU 3</option>
+                            <option value="KU 2">KU 2</option>
+                            <option value="KU 1">KU 1</option>
+                            <option value="Senior">Senior</option>
+                            <option value="OPEN">OPEN</option>
+                            {!["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "Senior", "OPEN"].includes(participantFormData.age_group) && participantFormData.age_group && (
+                              <option value={participantFormData.age_group}>{participantFormData.age_group}</option>
+                            )}
+                          </select>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                          TANGGAL LAHIR:
+                        </label>
+                        <input
+                          type="date"
+                          value={participantFormData.birth_date}
+                          onChange={(e) => {
+                            const bDate = e.target.value;
+                            const autoKU = deriveKUFromBirthDate(bDate);
+                            setParticipantFormData({
+                              ...participantFormData,
+                              birth_date: bDate,
+                              age_group: autoKU || participantFormData.age_group,
+                            });
+                          }}
+                          className="w-full px-2.5 py-1.5 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                          KLUB / KONTINGEN:
+                        </label>
+                        <input
+                          type="text"
+                          value={participantFormData.club}
+                          onChange={(e) => setParticipantFormData({ ...participantFormData, club: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                          ORANG TUA / PIC:
+                        </label>
+                        <input
+                          type="text"
+                          value={participantFormData.pic}
+                          onChange={(e) => setParticipantFormData({ ...participantFormData, pic: e.target.value })}
+                          className="w-full px-2.5 py-1.5 text-xs font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="text-[10px] text-slate-500 font-bold block mb-1">
+                          WHATSAPP CONTACT:
+                        </label>
+                        <input
+                          type="tel"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="08xxxxxxxx"
+                          value={participantFormData.contact}
+                          onChange={(e) =>
+                            setParticipantFormData({
+                              ...participantFormData,
+                              contact: e.target.value.replace(/\D/g, ""),
+                            })
+                          }
+                          className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
+                        />
+                      </div>
+
+                      <div className="pt-2 flex items-center gap-2">
+                        <button
+                          onClick={handleSaveParticipant}
+                          disabled={savingParticipant}
+                          type="button"
+                          className="flex-1 py-2 bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-600 hover:to-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-sky-500/20 flex items-center justify-center gap-1.5 transition disabled:opacity-50 cursor-pointer"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          {savingParticipant ? "Menyimpan..." : "Simpan Perubahan"}
+                        </button>
+                        <button
+                          onClick={() => setIsEditingParticipant(false)}
+                          type="button"
+                          className="px-3 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl font-bold text-xs transition cursor-pointer"
+                        >
+                          Batal
+                        </button>
                       </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block">NAMA LENGKAP:</span>
+                        <span className="font-black text-slate-900 uppercase block">
+                          {selectedGroup.participant?.name || "-"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-bold block">GENDER:</span>
+                          <span
+                            className={`inline-block px-2 py-0.5 rounded text-[10px] font-black ${
+                              selectedGroup.participant?.gender === "PUTRA"
+                                ? "bg-blue-100 text-blue-800"
+                                : "bg-pink-100 text-pink-800"
+                            }`}
+                          >
+                            {selectedGroup.participant?.gender || "-"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-slate-400 font-bold block">KELOMPOK UMUR:</span>
+                          <span className="font-black text-sky-700">
+                            {selectedGroup.participant?.age_group || "-"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block">TANGGAL LAHIR:</span>
+                        <span className="font-bold text-slate-800">
+                          {selectedGroup.participant?.birth_date || "-"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block">KLUB / KONTINGEN:</span>
+                        <span className="font-black text-slate-900">
+                          {selectedGroup.participant?.club || "-"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block">ORANG TUA / PIC:</span>
+                        <span className="font-bold text-slate-800">
+                          {selectedGroup.participant?.pic || "-"}
+                        </span>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] text-slate-400 font-bold block">WHATSAPP CONTACT:</span>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className="font-mono font-bold text-slate-900">
+                            {selectedGroup.participant?.contact || "-"}
+                          </span>
+                          {selectedGroup.participant?.contact && (
+                            <a
+                              href={`https://wa.me/${selectedGroup.participant.contact.replace(/\D/g, "")}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-md text-[10px] font-black hover:bg-emerald-200 transition-colors flex items-center gap-1"
+                            >
+                              <MessageSquare className="w-3 h-3" /> WA
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* COLUMN 2: SUB NOMOR LOMBA & VERIFIKASI SATU PER SATU */}
@@ -1104,14 +1382,31 @@ export default function ParticipantTable({
                       const isItemVerified = item.payment_status === "verified";
                       const isItemRejected = item.payment_status === "rejected";
                       const isComplete = checkDocCompleteness(selectedGroup).isComplete;
+                      const isAdditional = !!item.is_additional;
 
                       return (
-                        <div key={item.id} className="p-3 bg-white rounded-xl border border-slate-200 space-y-2">
-                          <div className="flex justify-between items-start">
-                            <span className="font-black text-indigo-700 text-xs block">
-                              #{item.swimming_event?.event_code} - {item.swimming_event?.event_name}
-                            </span>
-                            <span className="font-mono text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                        <div
+                          key={item.id}
+                          className={`p-3 rounded-xl border space-y-2 transition-all ${
+                            isAdditional
+                              ? "bg-amber-50/70 border-amber-300 ring-1 ring-amber-300/40 shadow-xs"
+                              : "bg-white border-slate-200"
+                          }`}
+                        >
+                          <div className="flex justify-between items-start gap-2">
+                            <div>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-black text-indigo-700 text-xs block">
+                                  #{item.swimming_event?.event_code} - {item.swimming_event?.event_name}
+                                </span>
+                                {isAdditional && (
+                                  <span className="px-2 py-0.5 bg-amber-500 text-white rounded-full text-[9px] font-black uppercase tracking-wider flex items-center gap-1 shadow-2xs">
+                                    <Sparkles className="w-2.5 h-2.5 text-amber-100" /> PENDAFTARAN TAMBAHAN
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="font-mono text-[10px] font-black text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
                               Seed: {item.time_seed || "NT"}
                             </span>
                           </div>
@@ -1237,43 +1532,81 @@ export default function ParticipantTable({
                   </div>
 
                   {/* 2. Bukti Transfer Pembayaran */}
-                  <div className="space-y-1.5">
-                    <div className="flex justify-between items-center">
-                      <span className="text-[10px] text-slate-500 font-black uppercase">
-                        2. BUKTI TRANSFER PEMBAYARAN
-                      </span>
-                      {selectedGroup.payment_proof_url ? (
-                        <span className="text-[10px] font-black text-emerald-700">✓ Ada</span>
-                      ) : (
-                        <span className="text-[10px] font-black text-red-600">✕ Belum Upload</span>
-                      )}
-                    </div>
+                  {(() => {
+                    const allProofs = Array.from(
+                      new Set(
+                        [
+                          ...(selectedGroup.payment_proof_url ? selectedGroup.payment_proof_url.split(",") : []),
+                          ...selectedGroup.items.flatMap((i) =>
+                            i.payment_proof_url ? i.payment_proof_url.split(",") : []
+                          ),
+                        ]
+                          .map((u) => u.trim())
+                          .filter(Boolean)
+                      )
+                    );
 
-                    {selectedGroup.payment_proof_url ? (
-                      <div className="bg-white p-2 rounded-xl border border-slate-200 relative group overflow-hidden">
-                        <img
-                          src={selectedGroup.payment_proof_url}
-                          alt="Bukti Transfer"
-                          className="w-full h-28 object-cover rounded-lg"
-                        />
-                        <button
-                          onClick={() =>
-                            openDocPreview(
-                              selectedGroup.payment_proof_url,
-                              `Bukti Transfer: ${selectedGroup.registration_code}`
-                            )
-                          }
-                          className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1 cursor-pointer"
-                        >
-                          <Maximize2 className="w-4 h-4" /> Perbesar
-                        </button>
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] text-slate-500 font-black uppercase">
+                            2. BUKTI TRANSFER PEMBAYARAN {allProofs.length > 0 ? `(${allProofs.length} BERKAS)` : ""}
+                          </span>
+                          {allProofs.length > 0 ? (
+                            <span className="text-[10px] font-black text-emerald-700">✓ {allProofs.length} Terunggah</span>
+                          ) : (
+                            <span className="text-[10px] font-black text-red-600">✕ Belum Upload</span>
+                          )}
+                        </div>
+
+                        {allProofs.length > 0 ? (
+                          <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                            {allProofs.map((proofUrl, idx) => (
+                              <div
+                                key={idx}
+                                className="bg-white p-2 rounded-xl border border-slate-200 relative group overflow-hidden shadow-2xs"
+                              >
+                                <div className="flex items-center justify-between pb-1 text-[10px] font-bold text-slate-600">
+                                  <span>Bukti Transfer #{idx + 1}</span>
+                                  <a
+                                    href={proofUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="text-sky-600 hover:text-sky-800 hover:underline flex items-center gap-1 font-semibold"
+                                  >
+                                    <ExternalLink className="w-3 h-3" /> Buka Tab Baru
+                                  </a>
+                                </div>
+                                <div className="relative h-24 bg-slate-50 rounded-lg overflow-hidden flex items-center justify-center">
+                                  <img
+                                    src={proofUrl}
+                                    alt={`Bukti Transfer #${idx + 1}`}
+                                    className="w-full h-full object-cover rounded-lg"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      openDocPreview(
+                                        proofUrl,
+                                        `Bukti Transfer #${idx + 1}: ${selectedGroup.registration_code}`
+                                      )
+                                    }
+                                    className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1 cursor-pointer"
+                                  >
+                                    <Maximize2 className="w-4 h-4" /> Perbesar
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-red-50 rounded-xl border border-dashed border-red-200 text-center text-red-600 font-bold text-[11px]">
+                            Bukti bayar belum diunggah
+                          </div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="p-4 bg-red-50 rounded-xl border border-dashed border-red-200 text-center text-red-600 font-bold text-[11px]">
-                        Bukti bayar belum diunggah
-                      </div>
-                    )}
-                  </div>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

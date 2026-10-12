@@ -62,6 +62,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
   const [subGender, setSubGender] = useState("PUTRA");
   const [subAgeGroup, setSubAgeGroup] = useState("KU 2");
   const [subFee, setSubFee] = useState<number>(150000);
+  const [subScheduleDate, setSubScheduleDate] = useState("2026-03-28");
   const [subScheduleTime, setSubScheduleTime] = useState("08:00 WIB");
   const [subSaving, setSubSaving] = useState(false);
 
@@ -185,6 +186,8 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
     setSubGender("PUTRA");
     setSubAgeGroup("KU 2");
     setSubFee(150000);
+    const parentTourney = tournaments.find((t) => t.id === tourneyId);
+    setSubScheduleDate(parentTourney?.event_start_date || "2026-03-28");
     setSubScheduleTime("08:00 WIB");
     setIsSubEventModalOpen(true);
   };
@@ -199,6 +202,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
     setSubGender(evt.gender);
     setSubAgeGroup(evt.age_group);
     setSubFee(evt.fee || 150000);
+    setSubScheduleDate(evt.schedule_date || "2026-03-28");
     setSubScheduleTime(evt.schedule_time || "08:00 WIB");
     setIsSubEventModalOpen(true);
   };
@@ -221,6 +225,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
       gender: subGender,
       age_group: subAgeGroup,
       fee: Number(subFee),
+      schedule_date: subScheduleDate,
       schedule_time: subScheduleTime,
       is_active: true,
     };
@@ -439,7 +444,7 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                               </span>
                             </div>
                             <p className="text-[10px] text-slate-500 font-bold truncate">
-                              {evt.age_group || "OPEN"} • {evt.gender} • {evt.distance} ({evt.stroke}) • Jam: {evt.schedule_time || "08:00 WIB"}
+                              {evt.age_group || "OPEN"} • {evt.gender} • {evt.distance} ({evt.stroke}) • 📅 {evt.schedule_date || "2026-03-28"} • Jam: {evt.schedule_time || "08:00 WIB"}
                             </p>
                           </div>
 
@@ -802,17 +807,30 @@ export default function TournamentManager({ onRefresh }: { onRefresh?: () => voi
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Jadwal Waktu Pelaksanaan
-                </label>
-                <input
-                  type="text"
-                  value={subScheduleTime}
-                  onChange={(e) => setSubScheduleTime(e.target.value)}
-                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="Contoh: 08:30 WIB"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Tanggal Pelaksanaan
+                  </label>
+                  <input
+                    type="date"
+                    value={subScheduleDate}
+                    onChange={(e) => setSubScheduleDate(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">
+                    Jadwal Waktu / Jam Mulai
+                  </label>
+                  <input
+                    type="text"
+                    value={subScheduleTime}
+                    onChange={(e) => setSubScheduleTime(e.target.value)}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="Contoh: 08:30 WIB"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">

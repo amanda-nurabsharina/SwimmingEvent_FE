@@ -24,8 +24,10 @@ import {
   ExternalLink,
   Trophy,
   AlertTriangle,
+  Search,
+  Plus,
 } from "lucide-react";
-import { registerParticipant, uploadImage } from "../lib/api";
+import { registerParticipant, uploadImage, checkRegistrationCode } from "../lib/api";
 import SwimmingTimeInput from "./SwimmingTimeInput";
 import { toast } from "./Toast";
 
@@ -165,6 +167,14 @@ export default function RegistrationModal({
     ? todayStr > currentTourney.registration_end_date
     : false;
 
+  // REGISTRATION MODE: "new" (Pendaftaran Baru) vs "existing" (Tambah Nomor Lomba)
+  const [registrationMode, setRegistrationMode] = useState<"new" | "existing">("new");
+  const [existingRegCodeInput, setExistingRegCodeInput] = useState("");
+  const [loadingExistingReg, setLoadingExistingReg] = useState(false);
+  const [existingRegLoaded, setExistingRegLoaded] = useState(false);
+  const [alreadyRegisteredEventIds, setAlreadyRegisteredEventIds] = useState<number[]>([]);
+  const [existingEventsList, setExistingEventsList] = useState<any[]>([]);
+
   // STEP 1 FIELDS
   const [name, setName] = useState("");
   const [gender, setGender] = useState<"PUTRA" | "PUTRI">("PUTRA");
@@ -176,6 +186,65 @@ export default function RegistrationModal({
   const [contact, setContact] = useState("");
   const [docFileUrl, setDocFileUrl] = useState("");
   const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  const handleLookupExistingReg = async () => {
+    const cleanCode = existingRegCodeInput.trim().toUpperCase();
+    if (!cleanCode) {
+      toast.warning("Silakan masukkan kode pendaftaran Anda (contoh: REG-ASC-XXXXX)");
+      return;
+    }
+    setLoadingExistingReg(true);
+    const res = await checkRegistrationCode(cleanCode);
+    setLoadingExistingReg(false);
+
+    if (res.success && res.data && res.data.length > 0) {
+      const regs: any[] = res.data;
+      const p = regs[0]?.participant || {};
+      setName(p.name || "");
+      setGender(p.gender?.toUpperCase() === "PUTRI" ? "PUTRI" : "PUTRA");
+      if (p.birth_date) {
+        setBirthDate(String(p.birth_date).substring(0, 10));
+      }
+      if (p.age_group) {
+        setDetectedKU(p.age_group);
+      }
+      setClub(p.club || "");
+      setPic(p.pic || "");
+      setContact(p.contact || "");
+      setDocType(p.verification_doc_type || "Akte Kelahiran");
+      if (p.verification_doc_url) {
+        setDocFileUrl(p.verification_doc_url);
+      }
+      if (regs[0]?.payment_proof_url) {
+        const urls = regs
+          .flatMap((r: any) => (r.payment_proof_url ? r.payment_proof_url.split(",") : []))
+          .map((u: string) => u.trim())
+          .filter(Boolean);
+        const uniqueUrls = Array.from(new Set(urls)) as string[];
+        setProofFileUrls(uniqueUrls);
+      }
+      if (regs[0]?.sender_bank_owner) {
+        setSenderBankOwner(regs[0].sender_bank_owner);
+      }
+      if (regs[0]?.payment_method) {
+        setPaymentMethod(regs[0].payment_method);
+      }
+
+      const eventIds = regs.map((r: any) => Number(r.swimming_event_id)).filter((id: number) => !isNaN(id));
+      setAlreadyRegisteredEventIds(eventIds);
+      setExistingEventsList(regs.map((r: any) => r.swimming_event).filter(Boolean));
+      setExistingRegLoaded(true);
+
+      const tId = regs[0]?.swimming_event?.tournament_id;
+      if (tId) {
+        setSelectedTournamentID(String(tId));
+      }
+
+      toast.success(`Data perenang ditemukan: ${p.name || cleanCode}! Silakan pilih nomor tambahan.`);
+    } else {
+      toast.error("Kode pendaftaran tidak ditemukan. Pastikan format kode benar (contoh: REG-ASC-12345).");
+    }
+  };
 
   // REFS FOR AUTO-SCROLL TO TOP ON STEP CHANGE
   const modalBodyRef = useRef<HTMLDivElement>(null);
@@ -189,7 +258,7 @@ export default function RegistrationModal({
   // STEP 3 FIELDS
   const [paymentMethod, setPaymentMethod] = useState<"BCA" | "Mandiri" | "QRIS">("BCA");
   const [senderBankOwner, setSenderBankOwner] = useState("");
-  const [proofFileUrl, setProofFileUrl] = useState("");
+  const [proofFileUrls, setProofFileUrls] = useState<string[]>([]);
   const [uploadingProof, setUploadingProof] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [copiedBank, setCopiedBank] = useState(false);
@@ -325,6 +394,12 @@ export default function RegistrationModal({
   useEffect(() => {
     if (!isOpen) {
       setStep(1);
+      setRegistrationMode("new");
+      setExistingRegCodeInput("");
+      setLoadingExistingReg(false);
+      setExistingRegLoaded(false);
+      setAlreadyRegisteredEventIds([]);
+      setExistingEventsList([]);
       setName("");
       setGender("PUTRA");
       setBirthDate("2012-05-14");
@@ -338,7 +413,7 @@ export default function RegistrationModal({
       setSelectedEvents({});
       setPaymentMethod("BCA");
       setSenderBankOwner("");
-      setProofFileUrl("");
+      setProofFileUrls([]);
       setUploadingProof(false);
       setSubmitting(false);
       setCopiedBank(false);
@@ -407,24 +482,47 @@ export default function RegistrationModal({
   };
 
   const handleProofUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
     setUploadingProof(true);
-    const res = await uploadImage(file);
-    setUploadingProof(false);
-    const uploadedUrl = res.url || res.data?.url;
-    if (res.success && uploadedUrl) {
-      setProofFileUrl(uploadedUrl);
-      toast.success("Bukti transfer pembayaran berhasil diunggah!");
-    } else {
-      toast.error("Gagal mengunggah bukti transfer: " + (res.message || "Pastikan format JPG, PNG, WEBP, atau PDF"));
+    const newUrls: string[] = [];
+    let failedCount = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const res = await uploadImage(file);
+      const uploadedUrl = res.url || res.data?.url;
+      if (res.success && uploadedUrl) {
+        newUrls.push(uploadedUrl);
+      } else {
+        failedCount++;
+      }
     }
+
+    setUploadingProof(false);
+    if (newUrls.length > 0) {
+      setProofFileUrls((prev) => [...prev, ...newUrls]);
+      toast.success(
+        newUrls.length === 1
+          ? "File bukti transfer pembayaran berhasil ditambahkan!"
+          : `${newUrls.length} file bukti transfer berhasil ditambahkan!`
+      );
+    }
+    if (failedCount > 0) {
+      toast.error(`${failedCount} file gagal diunggah. Pastikan format JPG, PNG, WEBP, atau PDF`);
+    }
+    e.target.value = "";
+  };
+
+  const handleRemoveProof = (indexToRemove: number) => {
+    setProofFileUrls((prev) => prev.filter((_, idx) => idx !== indexToRemove));
   };
 
   // Selected Events Array & Price Calculation
   const checkedEventEntries = Object.entries(selectedEvents).filter(([_, v]) => v.checked);
-  const totalSelectedCount = checkedEventEntries.length;
-  const totalFee = checkedEventEntries.reduce((sum, [idStr]) => {
+  const newSelectedEntries = checkedEventEntries.filter(([idStr]) => !alreadyRegisteredEventIds.includes(Number(idStr)));
+  const totalSelectedCount = registrationMode === "existing" ? newSelectedEntries.length : checkedEventEntries.length;
+  const totalFee = (registrationMode === "existing" ? newSelectedEntries : checkedEventEntries).reduce((sum, [idStr]) => {
     const foundEvent = events.find((e) => Number(e.id) === Number(idStr));
     return sum + Number(foundEvent?.fee ?? 150000);
   }, 0);
@@ -432,6 +530,14 @@ export default function RegistrationModal({
   // Step 1 Validation -> Go to Step 2
   const handleGoToStep2 = (e: React.FormEvent) => {
     e.preventDefault();
+    if (registrationMode === "existing") {
+      if (!existingRegLoaded) {
+        toast.warning("Silakan masukkan dan periksa kode pendaftaran Anda terlebih dahulu.");
+        return;
+      }
+      setStep(2);
+      return;
+    }
     if (!name.trim()) {
       toast.warning("Nama lengkap atlet wajib diisi");
       return;
@@ -473,7 +579,11 @@ export default function RegistrationModal({
   // Step 2 Validation -> Go to Step 3
   const handleGoToStep3 = () => {
     if (totalSelectedCount === 0) {
-      toast.warning("Silakan pilih minimal 1 nomor lomba untuk didaftarkan");
+      toast.warning(
+        registrationMode === "existing"
+          ? "Silakan pilih minimal 1 nomor lomba tambahan baru untuk didaftarkan"
+          : "Silakan pilih minimal 1 nomor lomba untuk didaftarkan"
+      );
       return;
     }
     setStep(3);
@@ -485,13 +595,14 @@ export default function RegistrationModal({
       toast.warning("Nama pemilik rekening pengirim wajib diisi");
       return;
     }
-    if (!proofFileUrl) {
+    if (proofFileUrls.length === 0) {
       toast.warning("Bukti struk transfer pembayaran WAJIB diunggah!");
       return;
     }
 
     setSubmitting(true);
-    const eventSelections = checkedEventEntries.map(([idStr, val]) => {
+    const activeEntries = registrationMode === "existing" ? newSelectedEntries : checkedEventEntries;
+    const eventSelections = activeEntries.map(([idStr, val]) => {
       const finalSeed =
         val.isNoTime || !val.timeSeed || val.timeSeed.trim() === "" || val.timeSeed === "NT"
           ? "99.99.99"
@@ -502,7 +613,7 @@ export default function RegistrationModal({
       };
     });
 
-    const payload = {
+    const payload: any = {
       name: name.toUpperCase(),
       gender,
       birth_date: birthDate,
@@ -514,15 +625,23 @@ export default function RegistrationModal({
       contact,
       payment_method: paymentMethod,
       sender_bank_owner: senderBankOwner,
-      payment_proof_url: proofFileUrl,
+      payment_proof_url: proofFileUrls.join(","),
       event_selections: eventSelections,
     };
+
+    if (registrationMode === "existing" && existingRegCodeInput.trim()) {
+      payload.registration_code = existingRegCodeInput.trim().toUpperCase();
+    }
 
     const res = await registerParticipant(payload);
     setSubmitting(false);
 
     if (res.success && res.data) {
-      toast.success("Pendaftaran berhasil dikirim! Silakan simpan bukti pendaftaran Anda.");
+      toast.success(
+        registrationMode === "existing"
+          ? "Penambahan nomor lomba berhasil diajukan! Menunggu verifikasi admin."
+          : "Pendaftaran berhasil dikirim! Silakan simpan bukti pendaftaran Anda."
+      );
       setReceiptData(res.data);
       setStep(4);
     } else {
@@ -560,6 +679,12 @@ export default function RegistrationModal({
 
   const handleCloseAndReset = () => {
     setStep(1);
+    setRegistrationMode("new");
+    setExistingRegCodeInput("");
+    setLoadingExistingReg(false);
+    setExistingRegLoaded(false);
+    setAlreadyRegisteredEventIds([]);
+    setExistingEventsList([]);
     setName("");
     setGender("PUTRA");
     setBirthDate("2012-05-14");
@@ -573,7 +698,7 @@ export default function RegistrationModal({
     setSelectedEvents({});
     setPaymentMethod("BCA");
     setSenderBankOwner("");
-    setProofFileUrl("");
+    setProofFileUrls([]);
     setUploadingProof(false);
     setSubmitting(false);
     setCopiedBank(false);
@@ -699,8 +824,153 @@ export default function RegistrationModal({
           {/* =================================================================== */}
           {step === 1 && (
             <form onSubmit={handleGoToStep2} className="space-y-5">
-              {/* SECTION 1: IDENTITAS ATLET & PERHITUNGAN KU OTOMATIS */}
-              <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-4">
+              {/* SEGMENTED TOGGLE: PENDAFTARAN BARU VS TAMBAH NOMOR LOMBA */}
+              <div className="bg-slate-100 p-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRegistrationMode("new");
+                    setExistingRegLoaded(false);
+                    setAlreadyRegisteredEventIds([]);
+                    setExistingEventsList([]);
+                  }}
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    registrationMode === "new"
+                      ? "bg-white text-blue-700 shadow-sm border border-slate-200"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Pendaftaran Baru</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegistrationMode("existing")}
+                  className={`flex-1 py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    registrationMode === "existing"
+                      ? "bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Tambah Nomor Lomba (Sudah Ada Kode)</span>
+                </button>
+              </div>
+
+              {/* JIKA MODE TAMBAH NOMOR LOMBA (SUDAH ADA KODE) */}
+              {registrationMode === "existing" ? (
+                <div className="bg-gradient-to-br from-sky-50 to-blue-50/60 p-5 rounded-2xl border-2 border-sky-300 space-y-4">
+                  <div className="flex items-center gap-2 text-sky-800">
+                    <Sparkles className="w-4 h-4 text-sky-600" />
+                    <h3 className="font-black text-xs uppercase tracking-wider">
+                      Cari Data Pendaftaran Berdasarkan Kode Registrasi
+                    </h3>
+                  </div>
+
+                  {!existingRegLoaded ? (
+                    <div className="space-y-3.5">
+                      <p className="text-[11px] text-slate-600 leading-relaxed font-medium">
+                        Sudah pernah mendaftar dan ingin menambah nomor cabang lomba yang ingin diikuti? Masukkan kode pendaftaran Anda (contoh: <strong className="font-mono text-sky-700">REG-ASC-53846</strong>). Data atlet akan dimuat otomatis dan Anda cukup memilih nomor lomba tambahan sesuai KU.
+                      </p>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <input
+                          type="text"
+                          value={existingRegCodeInput}
+                          onChange={(e) => setExistingRegCodeInput(e.target.value.toUpperCase())}
+                          placeholder="Masukkan Kode (e.g. REG-ASC-XXXXX)"
+                          className="flex-1 px-4 py-3 bg-white border border-slate-300 rounded-2xl text-xs font-mono font-bold text-slate-900 uppercase focus:ring-2 focus:ring-sky-500 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleLookupExistingReg}
+                          disabled={loadingExistingReg}
+                          className="px-5 py-3 bg-sky-600 hover:bg-sky-700 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-1.5 transition-all shadow-md shadow-sky-600/20 disabled:opacity-50 cursor-pointer shrink-0"
+                        >
+                          <Search className="w-4 h-4" />
+                          <span>{loadingExistingReg ? "Mencari..." : "Cek Kode Registrasi"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="p-4 bg-white rounded-xl border border-sky-200 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                          <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 rounded-full text-[10px] font-black uppercase flex items-center gap-1">
+                            <Check className="w-3 h-3 text-emerald-600" /> Data Atlet Terverifikasi
+                          </span>
+                          <span className="font-mono text-xs font-black text-sky-700">
+                            {existingRegCodeInput}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block">NAMA PERENANG:</span>
+                            <span className="font-black text-slate-900 uppercase block">{name}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block">GENDER & KELOMPOK UMUR:</span>
+                            <span className="font-black text-sky-700 block">
+                              {gender} • {effectiveKU} ({ageValidation.age} Tahun)
+                            </span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block">KLUB / ASAL:</span>
+                            <span className="font-bold text-slate-800 block">{club}</span>
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-400 font-bold block">STATUS LOMBA:</span>
+                            <span className="font-black text-emerald-700 block">
+                              {alreadyRegisteredEventIds.length} Nomor Sudah Terdaftar
+                            </span>
+                          </div>
+                        </div>
+
+                        {existingEventsList.length > 0 && (
+                          <div className="pt-2 border-t border-slate-100">
+                            <span className="text-[10px] text-slate-500 font-bold block mb-1.5">
+                              Nomor Lomba yang Telah Terdaftar:
+                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {existingEventsList.map((ev: any, idx: number) => (
+                                <span
+                                  key={idx}
+                                  className="px-2 py-0.5 bg-slate-100 text-slate-700 rounded text-[10px] font-bold border border-slate-200"
+                                >
+                                  #{ev?.event_code} {ev?.event_name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setExistingRegLoaded(false);
+                            setAlreadyRegisteredEventIds([]);
+                            setExistingEventsList([]);
+                          }}
+                          className="text-[11px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                        >
+                          ← Ganti / Cek Kode Lain
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20 cursor-pointer"
+                        >
+                          <span>Lanjut Pilih Nomor Lomba Tambahan</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  {/* SECTION 1: IDENTITAS ATLET & PERHITUNGAN KU OTOMATIS */}
+                  <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200/80 space-y-4">
                 <div className="flex items-center justify-between pb-2 border-b border-slate-200">
                   <div className="flex items-center gap-2">
                     <User className="w-4 h-4 text-sky-600" />
@@ -1096,6 +1366,8 @@ export default function RegistrationModal({
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
+                </>
+              )}
             </form>
           )}
 
@@ -1160,25 +1432,31 @@ export default function RegistrationModal({
                   </div>
                 ) : (
                   eligibleEvents.map((evt) => {
+                    const isAlreadyRegistered = alreadyRegisteredEventIds.includes(evt.id);
                     const selected = selectedEvents[evt.id];
-                    const isChecked = !!selected?.checked;
+                    const isChecked = isAlreadyRegistered || !!selected?.checked;
 
                     return (
                       <div
                         key={evt.id}
                         className={`p-4 rounded-2xl border transition-all ${
-                          isChecked
+                          isAlreadyRegistered
+                            ? "bg-slate-50 border-emerald-300 ring-1 ring-emerald-300/40 opacity-90"
+                            : isChecked
                             ? "bg-sky-50/80 border-sky-400 shadow-sm"
                             : "bg-white border-slate-200 hover:border-slate-300"
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <label className="flex items-start gap-3 cursor-pointer flex-1">
+                          <label className={`flex items-start gap-3 flex-1 ${isAlreadyRegistered ? "cursor-default" : "cursor-pointer"}`}>
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => handleToggleEvent(evt.id)}
-                              className="mt-1 w-4 h-4 rounded text-blue-600 focus:ring-sky-500 cursor-pointer"
+                              disabled={isAlreadyRegistered}
+                              onChange={() => {
+                                if (!isAlreadyRegistered) handleToggleEvent(evt.id);
+                              }}
+                              className="mt-1 w-4 h-4 rounded text-blue-600 focus:ring-sky-500 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                             />
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
@@ -1188,9 +1466,15 @@ export default function RegistrationModal({
                                 <h4 className="font-black text-slate-900 text-xs">
                                   {evt.event_name}
                                 </h4>
-                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full">
-                                  Rp {Number(evt.fee || 150000).toLocaleString("id-ID")}
-                                </span>
+                                {isAlreadyRegistered ? (
+                                  <span className="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full flex items-center gap-1 border border-emerald-300">
+                                    <Check className="w-3 h-3 text-emerald-600" /> Sudah Terdaftar Sebelumnya
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full">
+                                    Rp {Number(evt.fee || 150000).toLocaleString("id-ID")}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[11px] text-slate-400 font-medium mt-1">
                                 {evt.age_group} • {evt.gender} • Jadwal:{" "}
@@ -1199,8 +1483,8 @@ export default function RegistrationModal({
                             </div>
                           </label>
 
-                          {/* Seed Time Input Field (Displays when Checked) */}
-                          {isChecked && (
+                          {/* Seed Time Input Field (Displays when Checked and not already registered) */}
+                          {isChecked && !isAlreadyRegistered && (
                             <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-sky-200 shadow-xs">
                               <span className="text-[10px] font-bold text-slate-500 shrink-0">Seed Time:</span>
                               <SwimmingTimeInput
@@ -1233,14 +1517,23 @@ export default function RegistrationModal({
               {/* Sticky Price Calculation Summary Bar */}
               <div className="p-4 bg-[#091433] rounded-2xl text-white flex items-center justify-between shadow-md">
                 <div>
-                  <p className="text-[10px] text-slate-300 font-medium">Total Biaya Pendaftaran:</p>
+                  <p className="text-[10px] text-slate-300 font-medium">
+                    {registrationMode === "existing" ? "Total Biaya Tambahan Baru:" : "Total Biaya Pendaftaran:"}
+                  </p>
                   <p className="text-xl font-black text-white">
                     Rp {totalFee.toLocaleString("id-ID")}
                   </p>
                 </div>
-                <p className="text-xs font-bold text-sky-400">
-                  {totalSelectedCount} Nomor Lomba Terpilih
-                </p>
+                <div className="text-right">
+                  <p className="text-xs font-bold text-sky-400">
+                    {totalSelectedCount} {registrationMode === "existing" ? "Nomor Tambahan Baru Dipilih" : "Nomor Lomba Terpilih"}
+                  </p>
+                  {registrationMode === "existing" && (
+                    <p className="text-[10px] text-emerald-400 font-medium">
+                      ({alreadyRegisteredEventIds.length} nomor lomba lama sudah terdaftar)
+                    </p>
+                  )}
+                </div>
               </div>
 
               {/* Navigation Controls Step 2 */}
@@ -1270,6 +1563,21 @@ export default function RegistrationModal({
           {/* =================================================================== */}
           {step === 3 && (
             <div className="space-y-5">
+              {/* PENDAFTARAN NOMOR TAMBAHAN NOTICE BANNER */}
+              {registrationMode === "existing" && (
+                <div className="p-4 bg-amber-50/80 border-2 border-amber-300 rounded-2xl flex items-center gap-3 text-amber-950 text-xs shadow-xs">
+                  <Sparkles className="w-5 h-5 text-amber-600 shrink-0" />
+                  <div>
+                    <span className="font-black block uppercase text-[11px] tracking-wide">
+                      PENAMBAHAN NOMOR LOMBA UNTUK KODE: {existingRegCodeInput}
+                    </span>
+                    <span className="text-[11px] font-medium text-amber-900 leading-relaxed block mt-0.5">
+                      Bukti transfer pendaftaran sebelumnya tersimpan otomatis di sistem. Anda dapat tetap menggunakannya, atau klik &quot;Ganti Bukti Bayar&quot; di bawah jika ingin mengunggah bukti transfer baru / tambahan.
+                    </span>
+                  </div>
+                </div>
+              )}
+
               {/* Total Payment Amount Banner */}
               <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex items-center justify-between">
                 <div>
@@ -1473,54 +1781,69 @@ export default function RegistrationModal({
                   <span className="text-red-500 font-black">* WAJIB DIUNGGAH</span>
                 </label>
 
-                {proofFileUrl ? (
-                  <div className="bg-sky-50/60 border-2 border-sky-300 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-black text-sky-800 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                        Pratinjau Bukti Transfer Pembayaran:
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setProofFileUrl("")}
-                        className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-1"
-                      >
-                        <X className="w-3.5 h-3.5" /> Hapus
-                      </button>
-                    </div>
+                {proofFileUrls.length > 0 ? (
+                  <div className="space-y-3">
+                    {proofFileUrls.map((url, idx) => (
+                      <div key={idx} className="bg-sky-50/60 border-2 border-sky-300 rounded-2xl p-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-sky-800 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            {proofFileUrls.length > 1
+                              ? `Pratinjau Bukti Transfer Pembayaran #${idx + 1}:`
+                              : "Pratinjau Bukti Transfer Pembayaran:"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProof(idx)}
+                            className="text-[11px] font-bold text-red-600 hover:text-red-800 flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            <X className="w-3.5 h-3.5" /> Hapus
+                          </button>
+                        </div>
 
-                    <div className="relative rounded-xl overflow-hidden border border-sky-200 bg-white shadow-xs max-h-56 flex items-center justify-center group p-2">
-                      <div className="relative w-full flex items-center justify-center">
-                        <img
-                          src={proofFileUrl}
-                          alt="Bukti Transfer Pembayaran"
-                          className="max-h-48 w-auto object-contain rounded-lg shadow-2xs"
-                        />
-                        <a
-                          href={proofFileUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1.5"
-                        >
-                          <Eye className="w-4 h-4" /> Buka Ukuran Penuh
-                        </a>
+                        <div className="relative rounded-xl overflow-hidden border border-sky-200 bg-white shadow-xs max-h-56 flex items-center justify-center group p-2">
+                          <div className="relative w-full flex items-center justify-center">
+                            <img
+                              src={url}
+                              alt={`Bukti Transfer Pembayaran #${idx + 1}`}
+                              className="max-h-48 w-auto object-contain rounded-lg shadow-2xs"
+                            />
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="absolute inset-0 bg-slate-900/60 text-white font-bold text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-lg gap-1.5"
+                            >
+                              <Eye className="w-4 h-4" /> Buka Ukuran Penuh
+                            </a>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] pt-1">
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="font-bold text-sky-700 hover:underline flex items-center gap-1"
+                          >
+                            <ExternalLink className="w-3 h-3" /> Buka Bukti Bayar {proofFileUrls.length > 1 ? `#${idx + 1} ` : ""}di Tab Baru
+                          </a>
+                          <span className="text-[10px] text-slate-400 font-bold">
+                            File {idx + 1} dari {proofFileUrls.length}
+                          </span>
+                        </div>
                       </div>
-                    </div>
+                    ))}
 
-                    <div className="flex items-center justify-between text-[11px] pt-1">
-                      <a
-                        href={proofFileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-sky-700 hover:underline flex items-center gap-1"
-                      >
-                        <ExternalLink className="w-3 h-3" /> Buka Bukti Bayar di Tab Baru
-                      </a>
-                      <label
-                        htmlFor="proof-upload"
-                        className="font-black text-sky-600 hover:text-sky-800 cursor-pointer underline"
-                      >
-                        Ganti Bukti Bayar
+                    {/* Button Tambah File Bukti Transfer */}
+                    <div className="border-2 border-dashed border-sky-300 hover:border-sky-500 bg-sky-50/60 hover:bg-sky-100/60 rounded-2xl p-3.5 text-center transition-all">
+                      <label htmlFor="proof-upload" className="cursor-pointer flex items-center justify-center gap-2">
+                        <Plus className={`w-4 h-4 text-sky-600 ${uploadingProof ? "animate-spin" : ""}`} />
+                        <span className="font-black text-sky-700 text-xs hover:underline">
+                          {uploadingProof
+                            ? "Sedang mengunggah file bukti tambahan..."
+                            : "+ Tambahkan File Bukti Transfer Lainnya"}
+                        </span>
                       </label>
                     </div>
                   </div>
@@ -1534,7 +1857,7 @@ export default function RegistrationModal({
                             ? "Sedang mengunggah bukti pembayaran..."
                             : "Klik atau seret screenshot bukti transfer ke sini"}
                         </p>
-                        <p className="text-[10px] text-slate-400">Format PNG, JPG, JPEG (Maks. 5MB)</p>
+                        <p className="text-[10px] text-slate-400">Format PNG, JPG, JPEG, PDF (Bisa pilih lebih dari 1 file, Maks. 5MB)</p>
                       </div>
                     </label>
                   </div>
@@ -1545,6 +1868,7 @@ export default function RegistrationModal({
                   onChange={handleProofUpload}
                   className="hidden"
                   id="proof-upload"
+                  multiple
                 />
               </div>
 
@@ -1583,14 +1907,17 @@ export default function RegistrationModal({
 
               <div className="no-print-area space-y-1">
                 <span className="px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full text-xs font-black border border-emerald-200">
-                  Pendaftaran Berhasil Dikirim
+                  {registrationMode === "existing" ? "Penambahan Nomor Berhasil" : "Pendaftaran Berhasil Dikirim"}
                 </span>
                 <h3 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-                  Terima Kasih, Pendaftaran Anda Telah Diterima!
+                  {registrationMode === "existing"
+                    ? "Nomor Lomba Tambahan Berhasil Diajukan!"
+                    : "Terima Kasih, Pendaftaran Anda Telah Diterima!"}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium max-w-md mx-auto leading-relaxed">
-                  Panitia akan memvalidasi bukti transfer dan data atlet. Status atlet otomatis
-                  masuk ke daftar kejuaraan.
+                  {registrationMode === "existing"
+                    ? "Nomor lomba tambahan telah berhasil diajukan dan terhubung ke kode registrasi Anda. Status pendaftaran telah kembali ke PENDING untuk menunggu approval panitia/admin."
+                    : "Panitia akan memvalidasi bukti transfer dan data atlet. Status atlet otomatis masuk ke daftar kejuaraan."}
                 </p>
               </div>
 

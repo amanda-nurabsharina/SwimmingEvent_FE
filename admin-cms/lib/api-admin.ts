@@ -101,6 +101,19 @@ export async function verifyPayment(id: number, status: string) {
   }
 }
 
+export async function updateParticipant(id: number, data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/participants/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating participant" };
+  }
+}
+
 export async function softDeleteParticipant(id: number) {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/participants/${id}`, {

@@ -109,6 +109,7 @@ export default function Sidebar({
       title: "MANAJEMEN KEJUARAAN",
       items: [
         { id: "registrations", label: "Kelola Pendaftaran", icon: Users },
+        { id: "starting-list", label: "Starting List Peserta", icon: ClipboardList },
         { id: "buku-acara", label: "Buku Acara & Heat", icon: Calendar },
         { id: "form-timer", label: "Cetak Form Timer Juri", icon: Printer },
         { id: "tournaments", label: "Master Turnamen", icon: Trophy },
@@ -146,7 +147,7 @@ export default function Sidebar({
     .filter((group) => group.items.length > 0);
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen p-5 flex flex-col justify-between shadow-sm flex-shrink-0 font-sans">
+    <aside className="w-64 bg-white border-r border-slate-200 min-h-screen p-5 flex flex-col justify-between shadow-sm flex-shrink-0 font-sans print:hidden no-print">
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* SIDEBAR LOGO HEADER */}
         <div className="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100 shrink-0">

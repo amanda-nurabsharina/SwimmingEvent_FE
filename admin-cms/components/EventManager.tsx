@@ -17,6 +17,7 @@ import {
   Search,
   Filter,
   Clock,
+  Calendar,
   Trophy,
   Users,
 } from "lucide-react";
@@ -42,6 +43,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
   const [formGender, setFormGender] = useState("PUTRA");
   const [formAgeGroup, setFormAgeGroup] = useState("KU 2");
   const [formFee, setFormFee] = useState(150000);
+  const [formScheduleDate, setFormScheduleDate] = useState("2026-03-28");
   const [formScheduleTime, setFormScheduleTime] = useState("08:00 WIB");
   const [formHeatCategory, setFormHeatCategory] = useState<"HEAT" | "GROUP">("HEAT");
   const [formIsActive, setFormIsActive] = useState(true);
@@ -68,7 +70,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
 
   const openCreateModal = () => {
     setEditingEvent(null);
-    setFormTournamentID(tournaments[0]?.id || 1);
+    const firstTID = tournaments[0]?.id || 1;
+    setFormTournamentID(firstTID);
+    const parentTourney = tournaments.find((t) => t.id === firstTID);
     const maxCode = events.length > 0 ? Math.max(...events.map((e) => e.event_code || 100)) + 1 : 101;
     setFormEventCode(maxCode);
     setFormEventName("50m Gaya Bebas");
@@ -77,6 +81,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
     setFormGender("PUTRA");
     setFormAgeGroup("KU 2");
     setFormFee(150000);
+    setFormScheduleDate(parentTourney?.event_start_date || "2026-10-01");
     setFormScheduleTime("08:00 WIB");
     setFormHeatCategory("HEAT");
     setFormIsActive(true);
@@ -85,7 +90,9 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
 
   const openEditModal = (evt: any) => {
     setEditingEvent(evt);
-    setFormTournamentID(evt.tournament_id || 1);
+    const tourneyId = evt.tournament_id || 1;
+    setFormTournamentID(tourneyId);
+    const parentTourney = tournaments.find((t) => t.id === tourneyId);
     setFormEventCode(evt.event_code || 101);
     setFormEventName(evt.event_name || "");
     setFormDistance(evt.distance || "50 METER");
@@ -93,6 +100,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
     setFormGender(evt.gender || "PUTRA");
     setFormAgeGroup(evt.age_group || "KU 2");
     setFormFee(evt.fee || 150000);
+    setFormScheduleDate(evt.schedule_date || parentTourney?.event_start_date || "2026-10-01");
     setFormScheduleTime(evt.schedule_time || "08:00 WIB");
     setFormHeatCategory(evt.heat_category === "GROUP" || evt.heat_category === "CLUSTER" ? "GROUP" : "HEAT");
     setFormIsActive(evt.is_active ?? true);
@@ -117,6 +125,7 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
       gender: formGender,
       age_group: formAgeGroup,
       fee: Number(formFee),
+      schedule_date: formScheduleDate,
       schedule_time: formScheduleTime,
       heat_category: formHeatCategory,
       is_active: formIsActive,
@@ -325,6 +334,16 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                     </td>
                     <td className="py-3.5 px-4">
                       <div className="font-black text-slate-900 text-sm">{evt.event_name}</div>
+                      <div className="mt-1 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md inline-flex items-center gap-1 border border-amber-200">
+                          <Trophy className="w-3 h-3 text-amber-500" />
+                          <span>{tournaments.find((t) => t.id === evt.tournament_id)?.name || `Turnamen #${evt.tournament_id}`}</span>
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md inline-flex items-center gap-1 border border-slate-200">
+                          <Calendar className="w-3 h-3 text-sky-600" />
+                          <span>{evt.schedule_date || "2026-10-01"}</span>
+                        </span>
+                      </div>
                     </td>
                     <td className="py-3.5 px-4 whitespace-nowrap">
                       {evt.heat_category === "GROUP" || evt.heat_category === "CLUSTER" ? (
@@ -674,18 +693,31 @@ export default function EventManager({ onRefresh }: { onRefresh?: () => void }) 
                 </div>
               </div>
 
-              {/* Jadwal Waktu */}
-              <div>
-                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
-                  Jadwal Waktu Pelaksanaan
-                </label>
-                <input
-                  type="text"
-                  value={formScheduleTime}
-                  onChange={(e) => setFormScheduleTime(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                  placeholder="08:30 WIB"
-                />
+              {/* Tanggal & Jadwal Waktu */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5 flex items-center gap-1">
+                    <Calendar className="w-3.5 h-3.5 text-blue-600" /> Tanggal Pelaksanaan
+                  </label>
+                  <input
+                    type="date"
+                    value={formScheduleDate}
+                    onChange={(e) => setFormScheduleDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black uppercase text-slate-700 mb-1.5 flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-blue-600" /> Waktu / Jam Mulai
+                  </label>
+                  <input
+                    type="text"
+                    value={formScheduleTime}
+                    onChange={(e) => setFormScheduleTime(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    placeholder="08:30 WIB"
+                  />
+                </div>
               </div>
 
               {/* Modal Actions */}
