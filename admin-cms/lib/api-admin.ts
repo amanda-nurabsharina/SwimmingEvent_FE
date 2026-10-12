@@ -1209,3 +1209,301 @@ export async function deleteAdminUser(id: number) {
     return { success: false, message: "Network error deleting user" };
   }
 }
+
+// ----------------------------------------------------------------------
+// 19. MASC CLUB MEMBERS & TIME TRIAL
+// ----------------------------------------------------------------------
+
+// 1. Club Members
+export async function getClubMembers(params?: { search?: string; status?: string; gender?: string }) {
+  try {
+    const q = new URLSearchParams();
+    if (params?.search) q.append("search", params.search);
+    if (params?.status) q.append("status", params.status);
+    if (params?.gender) q.append("gender", params.gender);
+    const res = await fetch(`${API_BASE_URL}/admin/club-members?${q.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching club members" };
+  }
+}
+
+export async function getClubMemberById(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/club-members/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching member" };
+  }
+}
+
+export async function createClubMember(data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/club-members`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating club member" };
+  }
+}
+
+export async function updateClubMember(id: number, data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/club-members/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating club member" };
+  }
+}
+
+export async function deleteClubMember(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/club-members/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting club member" };
+  }
+}
+
+export async function getClubMemberSpeedHistory(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/club-members/${id}/speed-history`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching speed history" };
+  }
+}
+
+// 2. Time Trial Strokes
+export async function getTimeTrialStrokes() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/strokes`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching TT strokes" };
+  }
+}
+
+export async function createTimeTrialStroke(data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/strokes`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating TT stroke" };
+  }
+}
+
+export async function updateTimeTrialStroke(id: number, data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/strokes/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating TT stroke" };
+  }
+}
+
+export async function deleteTimeTrialStroke(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/strokes/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting TT stroke" };
+  }
+}
+
+// 3. Time Trial Sessions
+export async function getTimeTrialSessions() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/sessions`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching TT sessions" };
+  }
+}
+
+export async function getTimeTrialSessionById(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/sessions/${id}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching TT session" };
+  }
+}
+
+export async function createTimeTrialSession(data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/sessions`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating TT session" };
+  }
+}
+
+export async function updateTimeTrialSession(id: number, data: any) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/sessions/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating TT session" };
+  }
+}
+
+export async function deleteTimeTrialSession(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/sessions/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting TT session" };
+  }
+}
+
+// 4. Time Trial Entries
+export async function getTimeTrialEntries(sessionId: number, strokeId?: number) {
+  try {
+    const q = new URLSearchParams();
+    q.append("session_id", String(sessionId));
+    if (strokeId) q.append("stroke_id", String(strokeId));
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/entries?${q.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching TT entries" };
+  }
+}
+
+export async function createTimeTrialEntry(data: { session_id: number; member_id: number; stroke_id: number; seed_time?: string }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/entries`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating TT entry" };
+  }
+}
+
+export async function deleteTimeTrialEntry(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/entries/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting TT entry" };
+  }
+}
+
+// 5. Time Trial Heats & Lanes
+export async function getTimeTrialHeats(sessionId: number, strokeId?: number) {
+  try {
+    const q = new URLSearchParams();
+    q.append("session_id", String(sessionId));
+    if (strokeId) q.append("stroke_id", String(strokeId));
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/heats?${q.toString()}`, {
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error fetching TT heats" };
+  }
+}
+
+export async function createTimeTrialHeat(data: { session_id: number; stroke_id: number; heat_number?: number; notes?: string; max_lanes?: number }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/heats`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error creating TT heat" };
+  }
+}
+
+export async function deleteTimeTrialHeat(id: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/heats/${id}`, {
+      method: "DELETE",
+      headers: getAuthHeaders(),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error deleting TT heat" };
+  }
+}
+
+export async function updateTimeTrialLane(id: number, data: { member_id?: number | null; entry_id?: number | null; result_time?: string; status?: string; coach_notes?: string }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/lanes/${id}`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error updating TT lane" };
+  }
+}
+
+export async function calculateTimeTrialRanks(sessionId: number, strokeId: number) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/time-trial/calculate-ranks`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ session_id: sessionId, stroke_id: strokeId }),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error calculating TT ranks" };
+  }
+}
+

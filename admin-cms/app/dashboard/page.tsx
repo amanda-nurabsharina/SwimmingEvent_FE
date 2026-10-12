@@ -23,6 +23,11 @@ import WhatsAppBroadcastView from "../../components/WhatsAppBroadcastView";
 import CertificateManager from "../../components/CertificateManager";
 import RoleManager from "../../components/RoleManager";
 import UserManager from "../../components/UserManager";
+import MascMemberManager from "../../components/MascMemberManager";
+import TimeTrialStrokeManager from "../../components/TimeTrialStrokeManager";
+import TimeTrialSessionManager from "../../components/TimeTrialSessionManager";
+import TimeTrialBukuAcaraViewer from "../../components/TimeTrialBukuAcaraViewer";
+import TimeTrialResultEditor from "../../components/TimeTrialResultEditor";
 import { getRegistrations, getBanners, fetchAdminTournaments, PUBLIC_LANDING_URL } from "../../lib/api-admin";
 import { Users, Trophy, CheckCircle, RefreshCw, Calendar, CheckSquare, Image as ImageIcon, ArrowRight, Zap, Award, Activity, GraduationCap, Settings, History, MessageSquare, Send, Sparkles, Clock, Wallet, Filter } from "lucide-react";
 
@@ -35,11 +40,21 @@ export default function DashboardPage() {
   const [selectedTourneyId, setSelectedTourneyId] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
+  // Cross-navigation state for Time Trial modules
+  const [ttSessionId, setTtSessionId] = useState<number>(0);
+  const [ttStrokeId, setTtStrokeId] = useState<number>(0);
+
   const handleTabChange = (tab: string) => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       localStorage.setItem("swimming_admin_tab", tab);
     }
+  };
+
+  const handleNavigateTtTab = (tab: string, sessionId?: number, strokeId?: number) => {
+    if (sessionId) setTtSessionId(sessionId);
+    if (strokeId) setTtStrokeId(strokeId);
+    handleTabChange(tab);
   };
 
   const loadData = async () => {
@@ -656,6 +671,34 @@ export default function DashboardPage() {
 
         {activeTab === "users" && (
           <UserManager onRefresh={loadData} />
+        )}
+
+        {/* MASC Club & Time Trial Tabs */}
+        {activeTab === "masc-members" && (
+          <MascMemberManager />
+        )}
+
+        {activeTab === "tt-strokes" && (
+          <TimeTrialStrokeManager />
+        )}
+
+        {activeTab === "time-trial" && (
+          <TimeTrialSessionManager onNavigateTab={handleNavigateTtTab} />
+        )}
+
+        {activeTab === "tt-buku-acara" && (
+          <TimeTrialBukuAcaraViewer
+            initialSessionId={ttSessionId}
+            initialStrokeId={ttStrokeId}
+            onNavigateTab={handleNavigateTtTab}
+          />
+        )}
+
+        {activeTab === "tt-results" && (
+          <TimeTrialResultEditor
+            initialSessionId={ttSessionId}
+            initialStrokeId={ttStrokeId}
+          />
         )}
       </main>
     </div>

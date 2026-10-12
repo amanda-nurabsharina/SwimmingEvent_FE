@@ -27,6 +27,8 @@ import {
   ShieldCheck,
   UserCog,
   Shield,
+  Clock,
+  Zap,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -82,6 +84,16 @@ export default function Sidebar({
       title: "UTAMA",
       items: [
         { id: "dashboard", label: "Dashboard Utama", icon: LayoutDashboard },
+      ],
+    },
+    {
+      title: "KLUB MASC & TIME TRIAL",
+      items: [
+        { id: "masc-members", label: "Anggota MASC Swim", icon: Users },
+        { id: "tt-strokes", label: "Master Gaya Time Trial", icon: Waves },
+        { id: "time-trial", label: "Sesi & Pendaftaran TT", icon: Clock },
+        { id: "tt-buku-acara", label: "Buku Acara Heat (Manual)", icon: Calendar },
+        { id: "tt-results", label: "Catat Speed Time Trial", icon: Zap },
       ],
     },
     {
