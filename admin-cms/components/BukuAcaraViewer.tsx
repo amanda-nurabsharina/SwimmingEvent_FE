@@ -69,24 +69,53 @@ interface EventGroup {
   heats: HeatItem[];
 }
 
+function parseEventCodeNum(code: any): number {
+  if (typeof code === "number") return isNaN(code) ? 0 : code;
+  if (!code) return 0;
+  const num = parseInt(String(code).replace(/[^0-9]/g, ""), 10);
+  return isNaN(num) ? 0 : num;
+}
+
+function compareEventCode(aCode: any, bCode: any, desc = false): number {
+  const numA = parseEventCodeNum(aCode);
+  const numB = parseEventCodeNum(bCode);
+  if (numA !== numB) {
+    return desc ? numB - numA : numA - numB;
+  }
+  const strA = String(aCode ?? "");
+  const strB = String(bCode ?? "");
+  return desc
+    ? strB.localeCompare(strA, undefined, { numeric: true })
+    : strA.localeCompare(strB, undefined, { numeric: true });
+}
+
 function parseDateTimeWeight(dateStr?: string, timeStr?: string): number {
   let dateWeight = 0;
-  if (dateStr && dateStr.trim()) {
-    const parts = dateStr.trim().split("-");
-    if (parts.length === 3) {
-      const yr = parseInt(parts[0], 10) || 2026;
-      const mo = parseInt(parts[1], 10) || 1;
-      const da = parseInt(parts[2], 10) || 1;
+  if (dateStr && String(dateStr).trim()) {
+    const trimmed = String(dateStr).trim();
+    const matchYMD = trimmed.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+    if (matchYMD) {
+      const yr = parseInt(matchYMD[1], 10) || 2026;
+      const mo = parseInt(matchYMD[2], 10) || 1;
+      const da = parseInt(matchYMD[3], 10) || 1;
       dateWeight = (yr * 10000 + mo * 100 + da) * 86400000;
     } else {
-      const d = new Date(dateStr.trim());
-      if (!isNaN(d.getTime())) dateWeight = d.getTime();
+      const matchDMY = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+      if (matchDMY) {
+        const da = parseInt(matchDMY[1], 10) || 1;
+        const mo = parseInt(matchDMY[2], 10) || 1;
+        const yr = parseInt(matchDMY[3], 10) || 2026;
+        dateWeight = (yr * 10000 + mo * 100 + da) * 86400000;
+      } else {
+        const d = new Date(trimmed);
+        if (!isNaN(d.getTime())) dateWeight = d.getTime();
+      }
     }
   }
 
   let timeWeight = 0;
-  if (timeStr && timeStr.trim()) {
-    const match = timeStr.trim().match(/(\d{1,2})[:.](\d{1,2})/);
+  if (timeStr && String(timeStr).trim()) {
+    const match = String(timeStr).trim().match(/(\d{1,2})[:.](\d{1,2})/);
     if (match) {
       const h = parseInt(match[1], 10);
       const m = parseInt(match[2], 10);
@@ -281,7 +310,7 @@ export default function BukuAcaraViewer({
       });
     });
 
-    eventCodes.sort((a, b) => a.code - b.code);
+    eventCodes.sort((a, b) => compareEventCode(a.code, b.code, false));
 
     const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
     const sortedKUs = Array.from(ageGroups).sort((a, b) => {
@@ -324,12 +353,12 @@ export default function BukuAcaraViewer({
       }
 
       // 0c. Filter Tanggal (Date)
-      if (selectedDate !== "ALL" && (event.schedule_date || "2026-03-28") !== selectedDate) {
+      if (selectedDate !== "ALL" && (event.schedule_date || "").trim() !== selectedDate.trim()) {
         return false;
       }
 
       // 0d. Filter Waktu (Time)
-      if (selectedTime !== "ALL" && (event.schedule_time || "08:00 WIB") !== selectedTime) {
+      if (selectedTime !== "ALL" && (event.schedule_time || "").trim() !== selectedTime.trim()) {
         return false;
       }
 
@@ -401,18 +430,18 @@ export default function BukuAcaraViewer({
         const wtA = parseDateTimeWeight(a.schedule_date, a.schedule_time);
         const wtB = parseDateTimeWeight(b.schedule_date, b.schedule_time);
         if (wtA !== wtB) return wtA - wtB;
-        return a.event_code - b.event_code;
+        return compareEventCode(a.event_code, b.event_code, false);
       }
       if (sortBy === "time_desc") {
         const wtA = parseDateTimeWeight(a.schedule_date, a.schedule_time);
         const wtB = parseDateTimeWeight(b.schedule_date, b.schedule_time);
         if (wtA !== wtB) return wtB - wtA;
-        return b.event_code - a.event_code;
+        return compareEventCode(a.event_code, b.event_code, true);
       }
       if (sortBy === "code_desc") {
-        return b.event_code - a.event_code;
+        return compareEventCode(a.event_code, b.event_code, true);
       }
-      return a.event_code - b.event_code;
+      return compareEventCode(a.event_code, b.event_code, false);
     });
   }, [
     eventGroups,
@@ -1096,7 +1125,7 @@ export default function BukuAcaraViewer({
         </div>
       ) : (
         <div className="space-y-6">
-          {filteredEvents.map((event) => {
+          {filteredEvents.map((event, eventIdx) => {
             const isPutri =
               event.gender?.toUpperCase() === "PUTRI" ||
               event.gender?.toUpperCase() === "WANITA" ||
@@ -1109,7 +1138,7 @@ export default function BukuAcaraViewer({
 
             return (
               <div
-                key={event.event_code}
+                key={`${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
                 className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
               >
                 {/* Event Header Banner */}
