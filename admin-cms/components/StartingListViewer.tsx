@@ -217,7 +217,7 @@ export default function StartingListViewer({
   }, [filteredRegistrations]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-0">
       {/* GLOBAL PRINT STYLESHEET */}
       <style jsx global>{`
         @media print {
@@ -235,17 +235,29 @@ export default function StartingListViewer({
           .no-print, aside, nav, header {
             display: none !important;
           }
-          .page-break-inside-avoid {
-            page-break-inside: avoid !important;
-            break-inside: avoid !important;
-          }
           .print-club-block {
-            page-break-inside: avoid !important;
-            margin-bottom: 24px !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-top: 0 !important;
+            margin-bottom: 16px !important;
+          }
+          .print-club-header {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
           }
           table {
             border-collapse: collapse !important;
             width: 100% !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
           th, td {
             border: none !important;
@@ -506,14 +518,14 @@ export default function StartingListViewer({
         </div>
       ) : groupByClub ? (
         /* MODE 1: GROUPED BY CLUB (MATCHING SCREENSHOT) */
-        <div className="space-y-6">
+        <div className="space-y-6 print:space-y-0">
           {groupedByClubData.map(({ club, entries }) => (
             <div
               key={club}
-              className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden print-club-block page-break-inside-avoid print:shadow-none print:border-none print:rounded-none"
+              className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden print-club-block print:shadow-none print:border-none print:rounded-none print:overflow-visible"
             >
               {/* CLUB HEADER BAR (MATCHES 'CLUB PALASO' IN SCREENSHOT) */}
-              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 print:bg-transparent print:border-b-2 print:border-black print:px-0 print:py-1.5">
+              <div className="px-5 py-3.5 bg-slate-50 border-b border-slate-200 print:bg-transparent print:border-b-2 print:border-black print:px-0 print:py-1.5 print-club-header">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="font-mono text-[11px] font-black uppercase text-slate-500 print:text-black">
@@ -530,7 +542,7 @@ export default function StartingListViewer({
               </div>
 
               {/* TABLE ENTRIES */}
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto print:overflow-visible">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-800 font-black uppercase text-[11px] tracking-wide print:bg-transparent print:border-b-2 print:border-black print:text-black">
@@ -603,8 +615,8 @@ export default function StartingListViewer({
         </div>
       ) : (
         /* MODE 2: FLAT LIST OF ALL ENTRIES */
-        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-none print:rounded-none">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden print:shadow-none print:border-none print:rounded-none print:overflow-visible">
+          <div className="overflow-x-auto print:overflow-visible">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="bg-slate-100/60 border-b border-slate-200 text-slate-800 font-black uppercase text-[11px] tracking-wide print:bg-transparent print:border-b-2 print:border-black print:text-black">
