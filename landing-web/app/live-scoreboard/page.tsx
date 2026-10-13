@@ -2,91 +2,442 @@
 
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
-import { getBukuAcara, getTournaments } from "../../lib/api-client";
+import { getBukuAcara, getTournaments, getStartingList } from "../../lib/api-client";
 import {
   Trophy,
   Play,
   Pause,
-  SkipForward,
-  SkipBack,
+  ChevronLeft,
+  ChevronRight,
   Maximize2,
   Minimize2,
-  RefreshCw,
-  Clock,
-  MapPin,
-  ArrowLeft,
   Tv,
+  Users,
+  Timer,
+  Search,
+  Sparkles,
+  Sun,
+  Moon,
+  Clock,
+  Radio,
+  MapPin,
+  CheckCircle2,
 } from "lucide-react";
-import Link from "next/link";
 
-interface HeatItem {
-  registration_id?: number;
+// ==========================================
+// TYPES & INTERFACES
+// ==========================================
+interface ParticipantEntry {
+  id: number | string;
+  eventCode: string | number;
   heat: number;
-  heat_label?: string;
-  heat_category?: string;
-  line: number;
-  nama: string;
-  jenis_kelamin: string;
+  lane: number;
+  seedTime: string;
+  resultTime: string;
+  status: "BELUM TANDING" | "BERLOMBA" | "SELESAI";
+  name: string;
+  ku: string;
+  gender: "L" | "P";
   club: string;
-  time_seed: string;
-  result: string;
   rank?: number;
-  is_empty: boolean;
-  is_finalist?: boolean;
 }
 
-interface EventGroup {
-  event_id: number;
-  tournament_id: number;
-  event_code: number;
-  event_name: string;
-  distance: string;
-  stroke: string;
-  gender: string;
-  age_group: string;
-  heat_category?: string;
-  max_lanes: number;
-  round?: string;
-  heats: HeatItem[];
+interface LivePoolLane {
+  laneNumber: number;
+  blockNumber: number;
+  swimmerName: string;
+  club: string;
+  seedTime: string;
+  resultTime?: string;
+  rank?: number;
+  isRacing: boolean;
 }
 
-interface HeatSlide {
-  eventId: number;
-  eventCode: number;
+interface LivePoolEvent {
+  eventCode: string | number;
   eventName: string;
-  distance: string;
-  stroke: string;
   gender: string;
-  ageGroup: string;
-  heatCategory: string;
-  heatNumber: number;
-  heatLabel: string;
-  totalHeatsInEvent: number;
-  lanes: HeatItem[];
-  hasResults: boolean;
+  ku: string;
+  heatCurrent: number;
+  heatTotal: number;
+  blockRange: string;
+  lanes: LivePoolLane[];
 }
 
+interface CallingRoomEvent {
+  eventCode: string | number;
+  eventName: string;
+  gender: string;
+  ku: string;
+  estimatedTime: string;
+  heatCurrent: number;
+  heatTotal: number;
+  lanes: {
+    laneNumber: number;
+    swimmerName: string;
+    club: string;
+    seedTime: string;
+  }[];
+}
+
+interface PodiumItem {
+  eventCode: string | number;
+  eventName: string;
+  ku: string;
+  rank: number;
+  swimmerName: string;
+  resultTime: string;
+  timeDiff: string;
+  heatLane: string;
+  club: string;
+}
+
+// ==========================================
+// MOCK DATA GENERATOR (180 ATLET & REALISTIC EVENTS)
+// ==========================================
+function generateMockData() {
+  const clubs = [
+    "Barracuda SC",
+    "Tirta Lestari AC",
+    "Kraken Swimming Club",
+    "Millennium Aquatic",
+    "Petrokimia Gresik",
+    "Tirta Taruna 66",
+    "Dolphin Club Jakarta",
+    "Jaq Aquatic SC",
+    "MASC Kota Tangerang",
+    "WDS Aquatic Banten",
+    "Fortius Aquatik",
+    "Lumba Swimming Club",
+    "Tirta Benteng SC",
+  ];
+
+  const firstNames = [
+    "OKA WIJAYA", "DANISH ALFARO", "MUHAMMAD RIZKY", "ALYA NURUL",
+    "EKO PRASETYO", "SYAHRUL RAMADHAN", "BINTANG PRATAMA", "PANJI ASMARA",
+    "ELVIRA ROSA", "NAUFAL HIDAYAT", "BAGAS KURNIAWAN", "FADHIL ARKAN",
+    "TEGAR PRAKOSO", "CITRA AYU DEWI", "QORI ANGGRAINI", "FARHAN MAULANA",
+    "CANTIKA PUTRI", "GILANG RAMADHAN", "UTARI ANANDA", "DIMAS SETIAWAN",
+    "RAFI RADITYA", "GABRIEL NATHAN", "HAFIDZ AL-FATIH", "VINO BASTIAN",
+    "HANNA NABILA", "INDRA KUSUMA", "WAHYU UTOMO", "IQBAL TAWAKAL",
+    "JONATHAN SURYA", "XAVIER PUTRA", "FAHMI KUNCORO", "ANANG SUBARKAH",
+    "AISYAH JANNATY", "FATIMAH ANAS", "KHILMA NUR SYAMSIL", "AFKAR NAUFAL",
+  ];
+
+  const participants: ParticipantEntry[] = [];
+  let pId = 1;
+
+  for (let i = 1; i <= 180; i++) {
+    const fn = firstNames[(i - 1) % firstNames.length];
+    const suffixNum = ((i % 5) + 1);
+    const fullName = `${fn} ${suffixNum}`.trim();
+    const club = clubs[(i - 1) % clubs.length];
+    const isMale = (i % 2 !== 0);
+    const ku = (i % 3 === 0) ? "KU 1" : (i % 3 === 1) ? "KU 2" : "KU 3";
+    const eventNum = 110 + (i % 12);
+    const heatNum = ((i % 6) + 1);
+    const laneNum = ((i % 8) + 1);
+
+    const sec = 30 + ((i * 7) % 45);
+    const cs = (i * 13) % 99;
+    const seedTime = `00.${sec.toString().padStart(2, "0")}.${cs.toString().padStart(2, "0")}`;
+
+    // A few completed results
+    let resultTime = "";
+    let status: "BELUM TANDING" | "BERLOMBA" | "SELESAI" = "BELUM TANDING";
+    let rank: number | undefined = undefined;
+
+    if (i <= 4) {
+      status = "SELESAI";
+      const rSec = sec - 2;
+      resultTime = `02.${rSec.toString().padStart(2, "0")}.${(cs + 10) % 99}`;
+      rank = (i % 2 === 1) ? 1 : 2;
+    }
+
+    participants.push({
+      id: pId++,
+      eventCode: `#${eventNum}`,
+      heat: heatNum,
+      lane: laneNum,
+      seedTime,
+      resultTime,
+      status,
+      name: fullName,
+      ku,
+      gender: isMale ? "L" : "P",
+      club,
+      rank,
+    });
+  }
+
+  // Live pool events (Matching Screenshot 2)
+  const liveEvents: LivePoolEvent[] = [
+    {
+      eventCode: 103,
+      eventName: "100M GAYA KUPU-KUPU",
+      gender: "PUTRA",
+      ku: "KU 2",
+      heatCurrent: 1,
+      heatTotal: 1,
+      blockRange: "Balok Kolam 1-3",
+      lanes: [
+        {
+          laneNumber: 1,
+          blockNumber: 1,
+          swimmerName: "ANUGRAH DAFFA NADESTA",
+          club: "MASC KOTA TANGERANG",
+          seedTime: "01.02.32",
+          isRacing: true,
+        },
+        {
+          laneNumber: 2,
+          blockNumber: 2,
+          swimmerName: "NICHOLAS RAFAEL SINURAT",
+          club: "WDS AQUATIC BANTEN",
+          seedTime: "01.00.45",
+          isRacing: true,
+        },
+        {
+          laneNumber: 3,
+          blockNumber: 3,
+          swimmerName: "DAFFA ATTALA RISQIE",
+          club: "WDS AQUATIC BANTEN",
+          seedTime: "01.18.13",
+          isRacing: true,
+        },
+      ],
+    },
+    {
+      eventCode: 101,
+      eventName: "200M GAYA GANTI PERORANGAN",
+      gender: "PUTRA",
+      ku: "KU 1",
+      heatCurrent: 1,
+      heatTotal: 1,
+      blockRange: "Balok Kolam 4-6",
+      lanes: [
+        {
+          laneNumber: 1,
+          blockNumber: 4,
+          swimmerName: "FAHMI KUNCORO",
+          club: "WDS AQUATIC BANTEN",
+          seedTime: "NT",
+          resultTime: "02.48.20",
+          rank: 2,
+          isRacing: false,
+        },
+        {
+          laneNumber: 2,
+          blockNumber: 5,
+          swimmerName: "ANANG SUBARKAH",
+          club: "MASC KOTA TANGERANG",
+          seedTime: "02.31.37",
+          resultTime: "02.29.50",
+          rank: 1,
+          isRacing: false,
+        },
+        {
+          laneNumber: 3,
+          blockNumber: 6,
+          swimmerName: "GILANG RAMADHAN 5",
+          club: "BARRACUDA SC",
+          seedTime: "00.43.00",
+          isRacing: true,
+        },
+      ],
+    },
+    {
+      eventCode: 102,
+      eventName: "200M GAYA GANTI PERORANGAN",
+      gender: "PUTRI",
+      ku: "KU 1",
+      heatCurrent: 1,
+      heatTotal: 1,
+      blockRange: "Balok Kolam 7-8",
+      lanes: [
+        {
+          laneNumber: 1,
+          blockNumber: 7,
+          swimmerName: "AISYAH JANNATY MAULANA",
+          club: "MASC KOTA TANGERANG",
+          seedTime: "02.42.00",
+          resultTime: "02.38.10",
+          rank: 2,
+          isRacing: false,
+        },
+        {
+          laneNumber: 2,
+          blockNumber: 8,
+          swimmerName: "FATIMAH ANAS",
+          club: "WDS AQUATIC BANTEN",
+          seedTime: "02.34.76",
+          resultTime: "02.33.90",
+          rank: 1,
+          isRacing: false,
+        },
+      ],
+    },
+  ];
+
+  // Calling Room / COC events (Matching Screenshot 2)
+  const callingEvents: CallingRoomEvent[] = [
+    {
+      eventCode: 104,
+      eventName: "100m Gaya Kupu-kupu",
+      gender: "Putri",
+      ku: "KU 2",
+      estimatedTime: "08:45 WIB",
+      heatCurrent: 1,
+      heatTotal: 1,
+      lanes: [
+        {
+          laneNumber: 1,
+          swimmerName: "KHILMA NUR SYAMSIL AISY",
+          club: "FORTIUS AQUATIK",
+          seedTime: "NT",
+        },
+        {
+          laneNumber: 2,
+          swimmerName: "VERONICA AMARISA BUDIANTO",
+          club: "SEKOLAH KRISTEN ORA ET LAB...",
+          seedTime: "NT",
+        },
+      ],
+    },
+    {
+      eventCode: 105,
+      eventName: "50m Gaya Punggung",
+      gender: "Putra",
+      ku: "KU 2",
+      estimatedTime: "09:00 WIB",
+      heatCurrent: 1,
+      heatTotal: 2,
+      lanes: [
+        {
+          laneNumber: 1,
+          swimmerName: "AFKAR NAUFAL FADHIL",
+          club: "TIRTA BENTENG SC",
+          seedTime: "00.44.72",
+        },
+        {
+          laneNumber: 2,
+          swimmerName: "ERLAND FARREL FIRJATULLAH",
+          club: "TIRTA BENTENG SC",
+          seedTime: "00.35.92",
+        },
+      ],
+    },
+    {
+      eventCode: 106,
+      eventName: "50m Gaya Punggung",
+      gender: "Putri",
+      ku: "KU 2",
+      estimatedTime: "09:20 WIB",
+      heatCurrent: 1,
+      heatTotal: 2,
+      lanes: [
+        {
+          laneNumber: 1,
+          swimmerName: "BIANCA NAN DAYU NIKIJULUW",
+          club: "MASC KOTA TANGERANG",
+          seedTime: "00.42.20",
+        },
+        {
+          laneNumber: 2,
+          swimmerName: "SITI VIRLY MAQFIRAH",
+          club: "LUMBA SWIMMING CLUB",
+          seedTime: "00.35.05",
+        },
+      ],
+    },
+  ];
+
+  // Podium items (Matching Screenshot 3)
+  const podiumList: PodiumItem[] = [
+    {
+      eventCode: 101,
+      eventName: "200m Gaya Ganti Perorangan",
+      ku: "KU1",
+      rank: 1,
+      swimmerName: "ANANG SUBARKAH",
+      resultTime: "02.29.50",
+      timeDiff: "0.00",
+      heatLane: "H1-L2",
+      club: "MASC KOTA TAN...",
+    },
+    {
+      eventCode: 101,
+      eventName: "200m Gaya Ganti Perorangan",
+      ku: "KU1",
+      rank: 2,
+      swimmerName: "FAHMI KUNCORO",
+      resultTime: "02.48.20",
+      timeDiff: "+18.70",
+      heatLane: "H1-L1",
+      club: "WDS AQUATIC B...",
+    },
+    {
+      eventCode: 102,
+      eventName: "200m Gaya Ganti Perorangan",
+      ku: "KU1",
+      rank: 1,
+      swimmerName: "FATIMAH ANAS",
+      resultTime: "02.33.90",
+      timeDiff: "0.00",
+      heatLane: "H1-L2",
+      club: "WDS AQUATIC B...",
+    },
+    {
+      eventCode: 102,
+      eventName: "200m Gaya Ganti Perorangan",
+      ku: "KU1",
+      rank: 2,
+      swimmerName: "AISYAH JANNATY MAUL...",
+      resultTime: "02.38.10",
+      timeDiff: "+4.20",
+      heatLane: "H1-L1",
+      club: "MASC KOTA TAN...",
+    },
+  ];
+
+  return { participants, liveEvents, callingEvents, podiumList };
+}
+
+// ==========================================
+// MAIN COMPONENT
+// ==========================================
 function LiveScoreboardContent() {
   const searchParams = useSearchParams();
   const urlTourneyId = searchParams.get("tournament_id");
 
+  // Tournament & Data States
   const [tournaments, setTournaments] = useState<any[]>([]);
   const [selectedTournamentId, setSelectedTournamentId] = useState<number>(0);
-  const [eventGroups, setEventGroups] = useState<EventGroup[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [realEventGroups, setRealEventGroups] = useState<any[]>([]);
+  const [realStartingList, setRealStartingList] = useState<any[]>([]);
+  const [isSimulationMode, setIsSimulationMode] = useState<boolean>(true); // default true for complete 180 atlet demo
 
-  // Slideshow & Playback state
-  const [currentSlideIndex, setCurrentSlideIndex] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [slideDuration, setSlideDuration] = useState<number>(8); // in seconds
-  const [progress, setProgress] = useState(0); // 0 to 100
-  const [isFullscreen, setIsFullscreen] = useState(false);
-  const [currentTimeStr, setCurrentTimeStr] = useState("");
+  // Playback & Slide States
+  const [activeSlide, setActiveSlide] = useState<1 | 2 | 3>(1); // 1 = All Swimmers, 2 = Live & COC, 3 = Podium
+  const [slide1Page, setSlide1Page] = useState<number>(1);
+  const [slide3Page, setSlide3Page] = useState<number>(1);
+  const [isPlaying, setIsPlaying] = useState<boolean>(true);
+  const [slideDuration, setSlideDuration] = useState<number>(6); // Default 6 seconds like screenshot
+  const [progress, setProgress] = useState<number>(0);
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [currentTimeStr, setCurrentTimeStr] = useState<string>("");
+  const [isOutdoorMode, setIsOutdoorMode] = useState<boolean>(false);
+
+  // Pool Mode Filter on Slide 2
+  const [poolMode, setPoolMode] = useState<1 | 2 | 3>(3); // 1 Acara, 2 Acara, 3 Acara (Maks)
+
+  // Search Filter on Slide 1
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   const containerRef = useRef<HTMLDivElement>(null);
   const progressIntervalRef = useRef<any>(null);
 
-  // 1. Digital Clock for venue screen
+  // 1. Digital Clock (Realtime WIB)
   useEffect(() => {
     const updateTime = () => {
       const now = new Date();
@@ -103,7 +454,7 @@ function LiveScoreboardContent() {
     return () => clearInterval(interval);
   }, []);
 
-  // 2. Fetch tournaments
+  // 2. Fetch Tournaments
   useEffect(() => {
     async function loadTourneys() {
       const res = await getTournaments();
@@ -120,91 +471,225 @@ function LiveScoreboardContent() {
     loadTourneys();
   }, [urlTourneyId]);
 
-  // 3. Fetch Buku Acara Data
-  const fetchData = async (tid?: number) => {
+  // 3. Fetch Real Data from API
+  const fetchRealData = async (tid?: number) => {
     const targetId = tid !== undefined ? tid : selectedTournamentId;
     if (targetId <= 0) return;
-    const res = await getBukuAcara(targetId, "preliminary");
-    if (res && res.success && Array.isArray(res.data)) {
-      setEventGroups(res.data);
+    try {
+      const [resBuku, resStart] = await Promise.all([
+        getBukuAcara(targetId, "preliminary"),
+        getStartingList(targetId),
+      ]);
+      if (resBuku?.success && Array.isArray(resBuku.data)) {
+        setRealEventGroups(resBuku.data);
+      }
+      if (resStart?.success && Array.isArray(resStart.data)) {
+        setRealStartingList(resStart.data);
+      }
+    } catch (err) {
+      console.error("Error fetching live scoreboard data:", err);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (selectedTournamentId > 0) {
-      setLoading(true);
-      fetchData(selectedTournamentId);
+      fetchRealData(selectedTournamentId);
     }
   }, [selectedTournamentId]);
 
-  // Background silent auto-poll for live results every 8 seconds
+  // Background auto-refresh for real data every 8s
   useEffect(() => {
     if (selectedTournamentId <= 0) return;
-    const pollInterval = setInterval(() => {
-      fetchData(selectedTournamentId);
+    const interval = setInterval(() => {
+      fetchRealData(selectedTournamentId);
     }, 8000);
-    return () => clearInterval(pollInterval);
+    return () => clearInterval(interval);
   }, [selectedTournamentId]);
 
-  // 4. Generate Slides: Flatten into Heat-by-Heat order according to start order
-  const slides = useMemo(() => {
-    const result: HeatSlide[] = [];
+  // Active Tournament metadata
+  const currentTournament = useMemo(() => {
+    return tournaments.find((t) => t.id === selectedTournamentId) || null;
+  }, [tournaments, selectedTournamentId]);
 
-    // Sort events by event_code ascending (urutan mulai lomba)
-    const sortedEvents = [...eventGroups].sort((a, b) => a.event_code - b.event_code);
+  // Mock data instance
+  const mock = useMemo(() => generateMockData(), []);
 
-    sortedEvents.forEach((ev) => {
-      // Group heats
-      const heatMap: { [heatNum: number]: HeatItem[] } = {};
-      ev.heats.forEach((h) => {
-        if (!heatMap[h.heat]) heatMap[h.heat] = [];
-        heatMap[h.heat].push(h);
+  // Compute Processed Data (Real vs Simulation)
+  const { allParticipants, liveEvents, callingEvents, podiumList } = useMemo(() => {
+    if (isSimulationMode || (realStartingList.length === 0 && realEventGroups.length === 0)) {
+      return {
+        allParticipants: mock.participants,
+        liveEvents: mock.liveEvents,
+        callingEvents: mock.callingEvents,
+        podiumList: mock.podiumList,
+      };
+    }
+
+    // Convert real data
+    const participants: ParticipantEntry[] = [];
+    realEventGroups.forEach((ev: any) => {
+      (ev.heats || []).forEach((h: any) => {
+        if (!h.is_empty) {
+          participants.push({
+            id: h.registration_id || `${ev.event_code}-${h.heat}-${h.line}`,
+            eventCode: `#${ev.event_code}`,
+            heat: h.heat,
+            lane: h.line,
+            seedTime: h.time_seed || "NT",
+            resultTime: h.result && h.result !== "-" ? h.result : "",
+            status: h.result && h.result !== "-" ? "SELESAI" : "BELUM TANDING",
+            name: (h.nama || "").toUpperCase(),
+            ku: ev.age_group || "KU",
+            gender: (h.gender || ev.gender || "PUTRA").toUpperCase().includes("PI") ||
+                    (h.gender || ev.gender || "").toUpperCase().includes("PUTRI")
+              ? "P"
+              : "L",
+            club: h.club || "-",
+            rank: h.rank,
+          });
+        }
       });
+    });
 
-      const heatNumbers = Object.keys(heatMap)
-        .map(Number)
-        .sort((a, b) => a - b);
+    // If Buku Acara hasn't been generated yet, fall back to Starting List
+    if (participants.length === 0 && realStartingList.length > 0) {
+      realStartingList.forEach((r: any, idx: number) => {
+        participants.push({
+          id: r.id || idx + 1,
+          eventCode: r.nomor_lomba ? `#${r.nomor_lomba}` : `#${idx + 101}`,
+          heat: 1,
+          lane: (idx % 6) + 1,
+          seedTime: r.time_seed || "NT",
+          resultTime: r.result || "",
+          status: r.result ? "SELESAI" : "BELUM TANDING",
+          name: (r.nama || "").toUpperCase(),
+          ku: "KU",
+          gender: (r.jenis_kelamin || "").toUpperCase().includes("PUTRI") ? "P" : "L",
+          club: r.club || "-",
+          rank: r.rank,
+        });
+      });
+    }
 
-      const totalHeats = heatNumbers.length;
+    // Live events from real data
+    const liveEvs: LivePoolEvent[] = [];
+    realEventGroups.slice(0, 3).forEach((ev: any, evIdx: number) => {
+      const activeHeat = ev.heats?.[0]?.heat || 1;
+      const heatLanes = (ev.heats || []).filter((h: any) => h.heat === activeHeat && !h.is_empty);
+      liveEvs.push({
+        eventCode: ev.event_code,
+        eventName: ev.event_name,
+        gender: ev.gender,
+        ku: ev.age_group,
+        heatCurrent: activeHeat,
+        heatTotal: Math.max(...(ev.heats || []).map((h: any) => h.heat || 1), 1),
+        blockRange: `Balok Kolam ${evIdx * 3 + 1}-${evIdx * 3 + (heatLanes.length || 3)}`,
+        lanes: heatLanes.map((h: any, lIdx: number) => ({
+          laneNumber: h.line,
+          blockNumber: evIdx * 3 + lIdx + 1,
+          swimmerName: h.nama,
+          club: h.club,
+          seedTime: h.time_seed || "NT",
+          resultTime: h.result !== "-" ? h.result : undefined,
+          rank: h.rank,
+          isRacing: !h.result || h.result === "-",
+        })),
+      });
+    });
 
-      heatNumbers.forEach((hNum) => {
-        const laneItems = heatMap[hNum].sort((a, b) => a.line - b.line);
-        const hasResults = laneItems.some(
-          (item) => !item.is_empty && item.result && item.result !== "-" && item.result.trim() !== ""
-        );
+    // Calling room from remaining events
+    const callEvs: CallingRoomEvent[] = [];
+    realEventGroups.slice(3, 6).forEach((ev: any, evIdx: number) => {
+      const firstHeat = (ev.heats || []).filter((h: any) => h.heat === 1 && !h.is_empty);
+      callEvs.push({
+        eventCode: ev.event_code,
+        eventName: ev.event_name,
+        gender: ev.gender,
+        ku: ev.age_group,
+        estimatedTime: `0${8 + evIdx}:${(evIdx * 20).toString().padStart(2, "0")} WIB`,
+        heatCurrent: 1,
+        heatTotal: Math.max(...(ev.heats || []).map((h: any) => h.heat || 1), 1),
+        lanes: firstHeat.map((h: any) => ({
+          laneNumber: h.line,
+          swimmerName: h.nama,
+          club: h.club,
+          seedTime: h.time_seed || "NT",
+        })),
+      });
+    });
 
-        result.push({
-          eventId: ev.event_id,
+    // Podium items from real completed ranks
+    const podium: PodiumItem[] = [];
+    realEventGroups.forEach((ev: any) => {
+      const winners = (ev.heats || [])
+        .filter((h: any) => !h.is_empty && h.rank && h.rank >= 1 && h.rank <= 3)
+        .sort((a: any, b: any) => (a.rank || 0) - (b.rank || 0));
+
+      winners.forEach((w: any) => {
+        podium.push({
           eventCode: ev.event_code,
           eventName: ev.event_name,
-          distance: ev.distance,
-          stroke: ev.stroke,
-          gender: ev.gender,
-          ageGroup: ev.age_group,
-          heatCategory: ev.heat_category || "HEAT",
-          heatNumber: hNum,
-          heatLabel: laneItems[0]?.heat_label || String(hNum),
-          totalHeatsInEvent: totalHeats,
-          lanes: laneItems,
-          hasResults,
+          ku: ev.age_group,
+          rank: w.rank,
+          swimmerName: w.nama,
+          resultTime: w.result || "-",
+          timeDiff: w.rank === 1 ? "0.00" : "+0.00",
+          heatLane: `H${w.heat}-L${w.line}`,
+          club: w.club,
         });
       });
     });
 
-    return result;
-  }, [eventGroups]);
+    return {
+      allParticipants: participants.length > 0 ? participants : mock.participants,
+      liveEvents: liveEvs.length > 0 ? liveEvs : mock.liveEvents,
+      callingEvents: callEvs.length > 0 ? callEvs : mock.callingEvents,
+      podiumList: podium.length > 0 ? podium : mock.podiumList,
+    };
+  }, [isSimulationMode, realEventGroups, realStartingList, mock]);
 
-  // Keep current slide within bounds
-  useEffect(() => {
-    if (slides.length > 0 && currentSlideIndex >= slides.length) {
-      setCurrentSlideIndex(0);
-    }
-  }, [slides.length, currentSlideIndex]);
+  // Filtered Participants in Slide 1
+  const filteredParticipants = useMemo(() => {
+    if (!searchQuery.trim()) return allParticipants;
+    const q = searchQuery.toLowerCase();
+    return allParticipants.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.club.toLowerCase().includes(q) ||
+        String(p.eventCode).toLowerCase().includes(q) ||
+        p.ku.toLowerCase().includes(q)
+    );
+  }, [allParticipants, searchQuery]);
 
-  // 5. Automatic Slide Progression & Progress Bar
+  // Pagination for Slide 1 (2 Columns x 22 Rows = 44 Per Page)
+  const ROWS_PER_COLUMN = 22;
+  const ITEMS_PER_PAGE = ROWS_PER_COLUMN * 2; // 44
+  const totalSlide1Pages = Math.max(1, Math.ceil(filteredParticipants.length / ITEMS_PER_PAGE));
+
+  // Current page data for Slide 1
+  const slide1PageItems = useMemo(() => {
+    const startIndex = (slide1Page - 1) * ITEMS_PER_PAGE;
+    return filteredParticipants.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredParticipants, slide1Page, ITEMS_PER_PAGE]);
+
+  const leftColumnItems = useMemo(() => slide1PageItems.slice(0, ROWS_PER_COLUMN), [slide1PageItems]);
+  const rightColumnItems = useMemo(() => slide1PageItems.slice(ROWS_PER_COLUMN, ITEMS_PER_PAGE), [slide1PageItems]);
+
+  // Total podium pages (Slide 3)
+  const PODIUM_PER_PAGE = 8;
+  const totalSlide3Pages = Math.max(1, Math.ceil(podiumList.length / PODIUM_PER_PAGE));
+  const slide3PageItems = useMemo(() => {
+    const startIndex = (slide3Page - 1) * PODIUM_PER_PAGE;
+    return podiumList.slice(startIndex, startIndex + PODIUM_PER_PAGE);
+  }, [podiumList, slide3Page]);
+
+  // Slide 3 Columns (Left & Right)
+  const podiumLeftItems = useMemo(() => slide3PageItems.slice(0, 4), [slide3PageItems]);
+  const podiumRightItems = useMemo(() => slide3PageItems.slice(4, 8), [slide3PageItems]);
+
+  // 4. Auto Slide Progression
   useEffect(() => {
-    if (!isPlaying || slides.length <= 1) {
+    if (!isPlaying) {
       setProgress(0);
       return;
     }
@@ -217,8 +702,24 @@ function LiveScoreboardContent() {
     progressIntervalRef.current = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) {
-          // Trigger next slide
-          setCurrentSlideIndex((oldIdx) => (oldIdx + 1) % slides.length);
+          // Advance slide or page
+          if (activeSlide === 1) {
+            if (slide1Page < totalSlide1Pages) {
+              setSlide1Page((p) => p + 1);
+            } else {
+              setSlide1Page(1);
+              setActiveSlide(2);
+            }
+          } else if (activeSlide === 2) {
+            setActiveSlide(3);
+          } else if (activeSlide === 3) {
+            if (slide3Page < totalSlide3Pages) {
+              setSlide3Page((p) => p + 1);
+            } else {
+              setSlide3Page(1);
+              setActiveSlide(1);
+            }
+          }
           return 0;
         }
         return prev + increment;
@@ -228,24 +729,45 @@ function LiveScoreboardContent() {
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
-  }, [currentSlideIndex, isPlaying, slideDuration, slides.length]);
+  }, [isPlaying, slideDuration, activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages]);
 
-  // Handlers for navigation
+  // Handlers for manual step
   const handlePrev = () => {
-    if (slides.length === 0) return;
-    setCurrentSlideIndex((prev) => (prev === 0 ? slides.length - 1 : prev - 1));
     setProgress(0);
+    if (activeSlide === 1) {
+      if (slide1Page > 1) {
+        setSlide1Page((p) => p - 1);
+      } else {
+        setActiveSlide(3);
+      }
+    } else if (activeSlide === 2) {
+      setActiveSlide(1);
+    } else if (activeSlide === 3) {
+      if (slide3Page > 1) {
+        setSlide3Page((p) => p - 1);
+      } else {
+        setActiveSlide(2);
+      }
+    }
   };
 
   const handleNext = () => {
-    if (slides.length === 0) return;
-    setCurrentSlideIndex((prev) => (prev + 1) % slides.length);
     setProgress(0);
-  };
-
-  const togglePlay = () => {
-    setIsPlaying((prev) => !prev);
-    setProgress(0);
+    if (activeSlide === 1) {
+      if (slide1Page < totalSlide1Pages) {
+        setSlide1Page((p) => p + 1);
+      } else {
+        setActiveSlide(2);
+      }
+    } else if (activeSlide === 2) {
+      setActiveSlide(3);
+    } else if (activeSlide === 3) {
+      if (slide3Page < totalSlide3Pages) {
+        setSlide3Page((p) => p + 1);
+      } else {
+        setActiveSlide(1);
+      }
+    }
   };
 
   const toggleFullscreen = () => {
@@ -265,425 +787,1021 @@ function LiveScoreboardContent() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === " " || e.code === "Space") {
         e.preventDefault();
-        togglePlay();
+        setIsPlaying((p) => !p);
+        setProgress(0);
       } else if (e.key === "ArrowRight") {
         handleNext();
       } else if (e.key === "ArrowLeft") {
         handlePrev();
+      } else if (e.key === "PageDown") {
+        if (activeSlide === 1) setSlide1Page((p) => Math.min(totalSlide1Pages, p + 1));
+        if (activeSlide === 3) setSlide3Page((p) => Math.min(totalSlide3Pages, p + 1));
+      } else if (e.key === "PageUp") {
+        if (activeSlide === 1) setSlide1Page((p) => Math.max(1, p - 1));
+        if (activeSlide === 3) setSlide3Page((p) => Math.max(1, p - 1));
       } else if (e.key.toLowerCase() === "f") {
         toggleFullscreen();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [slides.length]);
+  }, [activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages]);
 
-  const currentTournament = useMemo(() => {
-    return tournaments.find((t) => t.id === selectedTournamentId) || null;
-  }, [tournaments, selectedTournamentId]);
-
-  const currentSlide: HeatSlide | undefined = slides[currentSlideIndex];
-
-  // Official swimming lane colors with high contrast in light mode
-  const getLaneColorClass = (laneNumber: number) => {
-    switch (laneNumber) {
-      case 1:
-        return "bg-amber-400 text-amber-950 border-amber-500";
-      case 2:
-        return "bg-blue-600 text-white border-blue-700";
-      case 3:
-        return "bg-rose-600 text-white border-rose-700";
-      case 4:
-        return "bg-white text-slate-900 border-slate-300 ring-2 ring-slate-100";
-      case 5:
-        return "bg-cyan-500 text-cyan-950 border-cyan-600";
-      case 6:
-        return "bg-emerald-600 text-white border-emerald-700";
-      case 7:
-        return "bg-orange-500 text-white border-orange-600";
-      case 8:
-        return "bg-purple-600 text-white border-purple-700";
-      default:
-        return "bg-sky-600 text-white border-sky-700";
-    }
-  };
+  // Active Live Pool Events filtered by poolMode
+  const visibleLiveEvents = useMemo(() => {
+    return liveEvents.slice(0, poolMode);
+  }, [liveEvents, poolMode]);
 
   return (
     <div
       ref={containerRef}
-      className="min-h-screen bg-slate-50 text-slate-900 flex flex-col justify-between selection:bg-blue-500 selection:text-white overflow-hidden font-sans relative"
-      style={{
-        backgroundImage: "radial-gradient(ellipse at top, #e0f2fe 0%, #f8fafc 100%)",
-      }}
+      className={`min-h-screen flex flex-col justify-between selection:bg-blue-600 selection:text-white transition-colors duration-200 ${
+        isOutdoorMode ? "bg-amber-50/40 text-black" : "bg-[#f4f7fb] text-slate-900"
+      }`}
     >
-      {/* 1. TOP PROGRESS BAR (Auto-slide timer visualizer) */}
-      <div className="w-full h-1.5 sm:h-2 bg-slate-200 relative overflow-hidden shrink-0 z-50">
-        <div
-          className={`h-full transition-all duration-75 ${
-            isPlaying
-              ? "bg-gradient-to-r from-blue-600 via-sky-500 to-amber-500 shadow-sm"
-              : "bg-slate-300"
-          }`}
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      {/* 2. TOP VENUE & TOURNAMENT HEADER */}
-      <header className="px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-200/80 bg-white/95 backdrop-blur-md shrink-0 relative z-40 shadow-xs">
-        <div className="flex items-center gap-3 sm:gap-4">
-          <Link
-            href={`/starting-list?tournament_id=${selectedTournamentId}`}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 hover:text-slate-900 transition-colors shadow-2xs"
-            title="Kembali ke Starting List"
-          >
-            <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
-          </Link>
-
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-red-50 border border-red-200 text-red-600 text-[11px] font-black tracking-wider uppercase shadow-2xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-600"></span>
-                </span>
-                LIVE VENUE SCOREBOARD
-              </span>
-              <span className="text-slate-600 text-xs font-semibold flex items-center gap-1 hidden sm:flex">
-                <MapPin className="w-3.5 h-3.5 text-blue-600" />
-                {currentTournament?.location || "Kolam Renang MGCC Modernland Kota Tangerang"}
-              </span>
+      {/* ========================================================= */}
+      {/* 1. TOP HEADER & VENUE CONTROLLER BAR */}
+      {/* ========================================================= */}
+      <header className="bg-white border-b border-slate-200/90 px-4 sm:px-6 py-3 shadow-xs shrink-0 relative z-30">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 max-w-[1750px] mx-auto">
+          {/* LEFT: VENUE BADGE & TOURNAMENT SPECS */}
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="w-12 h-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-500/25">
+              <Tv className="w-6 h-6" />
             </div>
-            <h1 className="text-base sm:text-xl font-black tracking-tight text-slate-900 uppercase mt-0.5">
-              {currentTournament?.name || "TIME TRIAL 2026 MASC KOTA TANGERANG"}
-            </h1>
+
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
+                  TV LIVE 41°
+                </span>
+                <span className="text-[11px] font-bold text-slate-500 truncate max-w-xs sm:max-w-md">
+                  Ruang Tunggu Orang Tua &amp; Ruang Persiapan COC
+                </span>
+              </div>
+
+              <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight leading-tight">
+                {currentTournament?.name || "TIME TRIAL 2026 AKUATIK INDONESIA KOTA TANGERANG"}
+              </h1>
+
+              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-bold text-slate-500">
+                <span>📅 {currentTournament?.event_start_date || "18 Oktober 2026"} •</span>
+                <span className="flex items-center gap-1 text-slate-600">
+                  <MapPin className="w-3 h-3 text-rose-500" />
+                  {currentTournament?.location || "Kolam Renang MGCC Modernland Kota Tangerang"}
+                </span>
+                <span className="text-sky-600 font-extrabold">
+                  • ≈ {currentTournament?.pool_lanes || 6} Lintasan ({currentTournament?.pool_length || "25m"})
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: SLIDE CONTROLLERS, SIMULASI, PLAYBACK */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* 3 SLIDE TABS */}
+            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <button
+                onClick={() => {
+                  setActiveSlide(1);
+                  setProgress(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeSlide === 1
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Users className="w-3.5 h-3.5" />
+                <span>Slide 1: Seluruh Peserta ({allParticipants.length})</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSlide(2);
+                  setProgress(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeSlide === 2
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>Slide 2: Sedang &amp; Akan Berlangsung</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSlide(3);
+                  setProgress(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeSlide === 3
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                <span>Slide 3: Podium Juara ({podiumList.length})</span>
+              </button>
+            </div>
+
+            {/* MINI STEPPER BUTTONS */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                onClick={handlePrev}
+                className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+                title="Slide / Hal Sebelumnya"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <div className="w-12 h-1.5 bg-slate-300 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-600 transition-all duration-75"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <button
+                onClick={handleNext}
+                className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+                title="Slide / Hal Berikutnya"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* MODE KOLAM (1 Acara, 2 Acara, 3 Acara Maks) */}
+            <div className="hidden sm:flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-xl border border-slate-200 text-xs">
+              <span className="text-[10px] font-black uppercase text-slate-500 mr-1">MODE KOLAM:</span>
+              <button
+                onClick={() => setPoolMode(1)}
+                className={`px-2 py-1 rounded-lg font-bold text-xs transition cursor-pointer ${
+                  poolMode === 1 ? "bg-white text-slate-900 shadow-2xs font-black" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                1 Acara
+              </button>
+              <button
+                onClick={() => setPoolMode(2)}
+                className={`px-2 py-1 rounded-lg font-bold text-xs transition cursor-pointer flex items-center gap-1 ${
+                  poolMode === 2 ? "bg-white text-slate-900 shadow-2xs font-black" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <span>⚡ 2 Acara Bersamaan</span>
+              </button>
+              <button
+                onClick={() => setPoolMode(3)}
+                className={`px-2.5 py-1 rounded-lg font-black text-xs transition cursor-pointer ${
+                  poolMode === 3 ? "bg-emerald-600 text-white shadow-xs" : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                3 Acara (Maks)
+              </button>
+            </div>
+
+            {/* TOGGLE SIMULASI DATA */}
+            <button
+              onClick={() => setIsSimulationMode(!isSimulationMode)}
+              className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-xs cursor-pointer ${
+                isSimulationMode
+                  ? "bg-blue-600 text-white hover:bg-blue-700 shadow-blue-500/20"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200"
+              }`}
+              title="Toggle Simulasi Lengkap 180 Atlet vs Data Asli Turnamen"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+              <span>{isSimulationMode ? "Simulasi 180 Atlet" : "Data Turnamen Asli"}</span>
+            </button>
+
+            {/* STATUS PERTANDINGAN */}
+            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Semua Selesai</span>
+            </div>
+
+            {/* PLAY / PAUSE AUTO SLIDE */}
+            <button
+              onClick={() => {
+                setIsPlaying(!isPlaying);
+                setProgress(0);
+              }}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                isPlaying
+                  ? "bg-amber-500 hover:bg-amber-400 text-slate-950"
+                  : "bg-emerald-600 hover:bg-emerald-500 text-white"
+              }`}
+            >
+              {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+              <span>{isPlaying ? "Jeda" : "Lanjut"}</span>
+            </button>
+
+            {/* SLIDE DURATION DROPDOWN */}
+            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+              <Clock className="w-3.5 h-3.5 text-slate-500" />
+              <select
+                value={slideDuration}
+                onChange={(e) => {
+                  setSlideDuration(Number(e.target.value));
+                  setProgress(0);
+                }}
+                className="bg-transparent font-black focus:outline-none cursor-pointer pr-1"
+              >
+                <option value={4}>4 Detik</option>
+                <option value={6}>6 Detik</option>
+                <option value={8}>8 Detik</option>
+                <option value={10}>10 Detik</option>
+                <option value={15}>15 Detik</option>
+              </select>
+            </div>
+
+            {/* FULLSCREEN BUTTON */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm cursor-pointer"
+              title="Layar Penuh (F)"
+            >
+              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            {/* REALTIME WIB DIGITAL CLOCK */}
+            <div className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono font-black text-xs sm:text-sm tracking-wider shadow-inner">
+              {currentTimeStr || "--:--:-- WIB"}
+            </div>
           </div>
         </div>
 
-        {/* Real-time Clock & Slide Status */}
-        <div className="flex items-center gap-3">
-          {slides.length > 0 && (
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-[10px] text-slate-600 font-bold uppercase tracking-wider">
-                PROGRES PERTANDINGAN
-              </span>
-              <span className="text-sm font-mono font-black text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg">
-                Slide {currentSlideIndex + 1} / {slides.length}
-              </span>
-            </div>
-          )}
-
-          <div className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-800 font-mono text-xs sm:text-sm font-black shadow-2xs flex items-center gap-2">
-            <Clock className="w-4 h-4 text-blue-600" />
-            <span>{currentTimeStr || "--:--:-- WIB"}</span>
-          </div>
+        {/* TOP ACCENT PROGRESS BAR (ANIMATED) */}
+        <div className="w-full h-1 bg-slate-100 absolute bottom-0 left-0 right-0 overflow-hidden">
+          <div
+            className={`h-full transition-all duration-75 ${
+              isPlaying ? "bg-amber-400" : "bg-slate-300"
+            }`}
+            style={{ width: `${progress}%` }}
+          />
         </div>
       </header>
 
-      {/* 3. MAIN DISPLAY AREA (JUMBOTRON VENUE CARD) */}
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 flex flex-col justify-center max-w-7xl mx-auto w-full relative z-30">
-        {loading ? (
-          <div className="p-16 text-center space-y-4 my-auto bg-white/80 rounded-3xl border border-slate-200 shadow-sm max-w-md mx-auto">
-            <RefreshCw className="w-12 h-12 text-blue-600 animate-spin mx-auto" />
-            <h2 className="text-xl font-black text-slate-800">Memuat Data Pertandingan...</h2>
-            <p className="text-sm text-slate-500">Menyinkronkan susunan seri dan catatan waktu lomba.</p>
-          </div>
-        ) : slides.length === 0 ? (
-          <div className="p-16 text-center space-y-4 my-auto bg-white rounded-3xl border border-slate-200 shadow-sm max-w-lg mx-auto">
-            <Trophy className="w-16 h-16 text-amber-500 mx-auto" />
-            <h2 className="text-2xl font-black text-slate-900">Belum Ada Susunan Seri / Heat</h2>
-            <p className="text-sm text-slate-500 max-w-md mx-auto">
-              Buku acara turnamen ini belum digenerate atau belum ada perenang yang terverifikasi untuk bertanding.
-            </p>
-          </div>
-        ) : currentSlide ? (
-          <div className="space-y-4 my-auto animate-in fade-in duration-300">
-            {/* Active Event & Heat Banner */}
-            <div className="bg-white p-5 sm:p-6 lg:p-7 rounded-3xl border border-sky-100 shadow-xl shadow-sky-900/5 flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden backdrop-blur-md">
-              {/* Top Accent Gradient Bar */}
-              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-blue-600 via-sky-400 to-amber-400" />
+      {/* ========================================================= */}
+      {/* 2. MAIN DISPLAY CONTENT AREA */}
+      {/* ========================================================= */}
+      <main className="flex-1 p-3 sm:p-5 max-w-[1750px] mx-auto w-full flex flex-col justify-start">
+        {/* ======================================================= */}
+        {/* SLIDE 1: DAFTAR SELURUH NAMA PESERTA & SEED TIME         */}
+        {/* ======================================================= */}
+        {activeSlide === 1 && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {/* SUBHEADER BAR SLIDE 1 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                SLIDE 1: DAFTAR SELURUH NAMA PESERTA &amp; SEED TIME
+              </h2>
 
-              <div className="space-y-2 relative z-10">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-3 py-1 rounded-xl bg-blue-600 text-white font-mono font-black text-xs uppercase tracking-wider shadow-sm shadow-blue-500/20">
-                    NOMOR LOMBA #{currentSlide.eventCode}
-                  </span>
-                  <span className="px-3 py-1 rounded-xl bg-sky-100 border border-sky-200 text-sky-800 font-black text-xs uppercase tracking-wider">
-                    {currentSlide.gender} • {currentSlide.ageGroup}
-                  </span>
-                  {currentSlide.hasResults && (
-                    <span className="px-3 py-1 rounded-xl bg-emerald-100 border border-emerald-300 text-emerald-800 font-black text-xs uppercase flex items-center gap-1.5 shadow-2xs">
-                      <Trophy className="w-3.5 h-3.5 text-emerald-600" /> HASIL TERCATAT
-                    </span>
-                  )}
+              <div className="flex items-center gap-2.5">
+                {/* SEARCH INPUT */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => {
+                      setSearchQuery(e.target.value);
+                      setSlide1Page(1);
+                    }}
+                    placeholder="Cari atlet / #acara.."
+                    className="pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-56"
+                  />
                 </div>
 
-                <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-slate-900 uppercase tracking-tight leading-tight">
-                  {currentSlide.eventName}
-                </h2>
-                <div className="flex flex-wrap items-center gap-2 text-xs sm:text-sm text-slate-600 font-semibold">
-                  <span>Gaya:</span>
-                  <span className="font-extrabold text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg">
-                    {currentSlide.stroke}
+                {/* PAGINATION BADGE & CONTROLS */}
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 font-mono text-xs font-black text-blue-700">
+                    Hal {slide1Page}/{totalSlide1Pages}
                   </span>
-                  <span>• Jarak:</span>
-                  <span className="font-extrabold text-blue-900 bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-lg">
-                    {currentSlide.distance}
-                  </span>
+                  <button
+                    onClick={() => setSlide1Page((p) => Math.max(1, p - 1))}
+                    disabled={slide1Page <= 1}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-700" />
+                  </button>
+                  <button
+                    onClick={() => setSlide1Page((p) => Math.min(totalSlide1Pages, p + 1))}
+                    disabled={slide1Page >= totalSlide1Pages}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                  </button>
                 </div>
-              </div>
-
-              {/* Heat Indicator Box */}
-              <div className="px-6 py-4 rounded-2xl bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-slate-950 border-2 border-amber-300 shadow-lg shadow-amber-500/20 flex flex-col items-center justify-center shrink-0">
-                <span className="text-[10px] font-black uppercase tracking-widest text-amber-950">
-                  {currentSlide.heatCategory === "GROUP" ? "GROUP / KELOMPOK" : "BABAK SERI"}
-                </span>
-                <span className="text-2xl sm:text-3xl font-black font-mono leading-none mt-1">
-                  {currentSlide.heatCategory === "GROUP" ? `GROUP ${currentSlide.heatLabel}` : `SERI ${currentSlide.heatNumber}`}
-                </span>
-                <span className="text-[11px] font-extrabold text-amber-950/80 mt-1">
-                  Dari {currentSlide.totalHeatsInEvent} {currentSlide.heatCategory === "GROUP" ? "Group" : "Seri"}
-                </span>
               </div>
             </div>
 
-            {/* Lanes Table (Stadium Jumbotron Table) */}
-            <div className="overflow-x-auto rounded-3xl border border-slate-200/90 bg-white shadow-xl shadow-slate-200/60">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-100/90 text-slate-700 font-black text-xs sm:text-sm border-b border-slate-200 uppercase tracking-wider">
-                    <th className="p-3.5 sm:p-4 text-center w-24 sm:w-28">LINTASAN</th>
-                    <th className="p-3.5 sm:p-4">NAMA PERENANG</th>
-                    <th className="p-3.5 sm:p-4 hidden sm:table-cell">KLUB / ASAL</th>
-                    <th className="p-3.5 sm:p-4 text-center w-36">TIME SEED</th>
-                    <th className="p-3.5 sm:p-4 text-center w-48 sm:w-60">HASIL WAKTU (RESMI)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {currentSlide.lanes.map((item, idx) => {
-                    const isRank1 = item.rank === 1;
-                    const isRank2 = item.rank === 2;
-                    const isRank3 = item.rank === 3;
+            {/* 2-COLUMN SPLIT TABLE GRID (MATCHING SCREENSHOT 1) */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {/* LEFT TABLE COLUMN */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                {/* TABLE HEADER NAVY BAR */}
+                <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs font-black tracking-wide text-sky-200">
+                    {filteredParticipants.length > 0
+                      ? `${(slide1Page - 1) * ITEMS_PER_PAGE + 1}-${Math.min(
+                          (slide1Page - 1) * ITEMS_PER_PAGE + ROWS_PER_COLUMN,
+                          filteredParticipants.length
+                        )}/${filteredParticipants.length}`
+                      : "0/0"}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300">
+                    {leftColumnItems.length} Baris
+                  </span>
+                </div>
 
-                    return (
-                      <tr
-                        key={idx}
-                        className={`transition-colors ${
-                          item.is_empty
-                            ? "opacity-35 bg-slate-50/50"
-                            : isRank1
-                            ? "bg-amber-50/70 hover:bg-amber-100/60 border-l-4 border-l-amber-500"
-                            : isRank2
-                            ? "bg-slate-50/80 hover:bg-slate-100/60 border-l-4 border-l-slate-400"
-                            : isRank3
-                            ? "bg-orange-50/40 hover:bg-orange-100/50 border-l-4 border-l-amber-700"
-                            : "hover:bg-sky-50/50"
-                        }`}
-                      >
-                        {/* Lane Number Badge */}
-                        <td className="p-3 sm:p-4 text-center">
-                          <span
-                            className={`inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-2xl font-mono font-black text-lg sm:text-xl border-2 shadow-sm ${getLaneColorClass(
-                              item.line
-                            )}`}
-                          >
-                            {item.line}
-                          </span>
-                        </td>
-
-                        {/* Swimmer Name */}
-                        <td className="p-3 sm:p-4">
-                          {item.is_empty ? (
-                            <span className="text-slate-400 italic text-sm font-medium">(Lintasan Kosong)</span>
-                          ) : (
-                            <div className="space-y-0.5">
-                              <span className="font-black text-base sm:text-xl text-slate-900 uppercase tracking-tight block leading-snug">
-                                {item.nama}
-                              </span>
-                              <span className="text-[11px] font-bold text-slate-500 sm:hidden block">
-                                {item.club}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-
-                        {/* Club */}
-                        <td className="p-3 sm:p-4 hidden sm:table-cell">
-                          {item.is_empty ? (
-                            <span className="text-slate-400 font-semibold">-</span>
-                          ) : (
-                            <span className="inline-flex items-center px-3 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs sm:text-sm font-bold shadow-2xs">
-                              {item.club}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Seed Time */}
-                        <td className="p-3 sm:p-4 text-center">
-                          {item.is_empty ? (
-                            <span className="text-slate-400 font-semibold">-</span>
-                          ) : (
-                            <span className="font-mono text-sm sm:text-base font-bold text-slate-600">
-                              {item.time_seed}
-                            </span>
-                          )}
-                        </td>
-
-                        {/* Final Recorded Race Result */}
-                        <td className="p-3 sm:p-4 text-center">
-                          {item.is_empty ? (
-                            <span className="text-slate-400 font-semibold">-</span>
-                          ) : item.result && item.result !== "-" && item.result.trim() !== "" ? (
-                            <div className="inline-flex items-center justify-center gap-2">
-                              <span className="font-mono text-lg sm:text-2xl font-black text-emerald-800 bg-emerald-50 border-2 border-emerald-400 px-3.5 py-1 rounded-xl shadow-xs">
-                                {item.result}
-                              </span>
-                              {isRank1 && (
-                                <span
-                                  className="px-2.5 py-1 bg-amber-400 text-slate-950 rounded-xl shadow-xs font-black text-xs flex items-center gap-1 border border-amber-300"
-                                  title="Juara 1 (Emas)"
-                                >
-                                  🥇 1
-                                </span>
-                              )}
-                              {isRank2 && (
-                                <span
-                                  className="px-2.5 py-1 bg-slate-200 text-slate-800 rounded-xl shadow-xs font-black text-xs flex items-center gap-1 border border-slate-300"
-                                  title="Juara 2 (Perak)"
-                                >
-                                  🥈 2
-                                </span>
-                              )}
-                              {isRank3 && (
-                                <span
-                                  className="px-2.5 py-1 bg-amber-700 text-white rounded-xl shadow-xs font-black text-xs flex items-center gap-1 border border-amber-800"
-                                  title="Juara 3 (Perunggu)"
-                                >
-                                  🥉 3
-                                </span>
-                              )}
-                              {!isRank1 && !isRank2 && !isRank3 && item.rank && (
-                                <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-lg font-bold text-xs border border-slate-200">
-                                  #{item.rank}
-                                </span>
-                              )}
-                            </div>
-                          ) : (
-                            <span className="inline-flex items-center px-3 py-1 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-mono font-bold tracking-wider">
-                              SIAP TANDING
-                            </span>
-                          )}
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
+                        <th className="py-2 px-2.5 text-center w-14"># ACARA</th>
+                        <th className="py-2 px-2 text-center w-16">HEAT-LN</th>
+                        <th className="py-2 px-2 text-center w-16">SEED TIME</th>
+                        <th className="py-2 px-2 text-center w-20">HASIL LOMBA</th>
+                        <th className="py-2 px-3">NAMA LENGKAP MURID</th>
+                        <th className="py-2 px-2 text-center w-12">KU</th>
+                        <th className="py-2 px-2 text-center w-10">JK</th>
+                        <th className="py-2 px-3">KLUB ASAL</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans">
+                      {leftColumnItems.map((item, idx) => (
+                        <tr
+                          key={item.id || idx}
+                          className="hover:bg-sky-50/60 transition-colors"
+                        >
+                          <td className="py-1.5 px-2.5 text-center font-mono font-black text-blue-600">
+                            {item.eventCode}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700">
+                            H{item.heat}-L{item.lane}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono text-slate-600">
+                            {item.seedTime}
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            {item.status === "SELESAI" && item.resultTime ? (
+                              <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
+                                {item.resultTime}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                BELUM TANDING
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-3 font-black text-slate-900 uppercase truncate max-w-[170px]">
+                            {item.name}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-bold text-slate-600">
+                            <span className="border border-slate-200 px-1 py-0.2 rounded text-[10px]">
+                              {item.ku}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            <span
+                              className={`inline-flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] text-white ${
+                                item.gender === "L" ? "bg-blue-600" : "bg-pink-600"
+                              }`}
+                            >
+                              {item.gender}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-700 font-medium truncate max-w-[140px]">
+                            {item.club}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* RIGHT TABLE COLUMN */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                {/* TABLE HEADER NAVY BAR */}
+                <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs font-black tracking-wide text-sky-200">
+                    {filteredParticipants.length > 0 && rightColumnItems.length > 0
+                      ? `${(slide1Page - 1) * ITEMS_PER_PAGE + ROWS_PER_COLUMN + 1}-${Math.min(
+                          slide1Page * ITEMS_PER_PAGE,
+                          filteredParticipants.length
+                        )}/${filteredParticipants.length}`
+                      : "- / -"}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300">
+                    {rightColumnItems.length} Baris
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-[11px]">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
+                        <th className="py-2 px-2.5 text-center w-14"># ACARA</th>
+                        <th className="py-2 px-2 text-center w-16">HEAT-LN</th>
+                        <th className="py-2 px-2 text-center w-16">SEED TIME</th>
+                        <th className="py-2 px-2 text-center w-20">HASIL LOMBA</th>
+                        <th className="py-2 px-3">NAMA LENGKAP MURID</th>
+                        <th className="py-2 px-2 text-center w-12">KU</th>
+                        <th className="py-2 px-2 text-center w-10">JK</th>
+                        <th className="py-2 px-3">KLUB ASAL</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans">
+                      {rightColumnItems.map((item, idx) => (
+                        <tr
+                          key={item.id || idx}
+                          className="hover:bg-sky-50/60 transition-colors"
+                        >
+                          <td className="py-1.5 px-2.5 text-center font-mono font-black text-blue-600">
+                            {item.eventCode}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700">
+                            H{item.heat}-L{item.lane}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-mono text-slate-600">
+                            {item.seedTime}
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            {item.status === "SELESAI" && item.resultTime ? (
+                              <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
+                                {item.resultTime}
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                BELUM TANDING
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1.5 px-3 font-black text-slate-900 uppercase truncate max-w-[170px]">
+                            {item.name}
+                          </td>
+                          <td className="py-1.5 px-2 text-center font-bold text-slate-600">
+                            <span className="border border-slate-200 px-1 py-0.2 rounded text-[10px]">
+                              {item.ku}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-2 text-center">
+                            <span
+                              className={`inline-flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] text-white ${
+                                item.gender === "L" ? "bg-blue-600" : "bg-pink-600"
+                              }`}
+                            >
+                              {item.gender}
+                            </span>
+                          </td>
+                          <td className="py-1.5 px-3 text-slate-700 font-medium truncate max-w-[140px]">
+                            {item.club}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
-          </div>
-        ) : null}
-      </main>
-
-      {/* 4. BOTTOM OPERATOR CONTROL BAR (TV / PROJECTION DOCK) */}
-      <footer className="px-4 sm:px-6 py-3.5 bg-white/95 border-t border-slate-200 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 shrink-0 relative z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.04)]">
-        {/* Play / Pause & Step Buttons */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={togglePlay}
-            className={`px-4 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-sm transition-all active:scale-95 cursor-pointer ${
-              isPlaying
-                ? "bg-amber-500 hover:bg-amber-400 text-slate-950"
-                : "bg-emerald-600 hover:bg-emerald-500 text-white"
-            }`}
-            title="Spasi untuk Play/Pause"
-          >
-            {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 fill-white" />}
-            <span>{isPlaying ? "Jeda Slide" : "Putar Slide"}</span>
-          </button>
-
-          <button
-            onClick={handlePrev}
-            disabled={slides.length <= 1}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 transition-colors disabled:opacity-40 active:scale-95 cursor-pointer"
-            title="Panah Kiri untuk Seri Sebelumnya"
-          >
-            <SkipBack className="w-4 h-4" />
-          </button>
-
-          <button
-            onClick={handleNext}
-            disabled={slides.length <= 1}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 transition-colors disabled:opacity-40 active:scale-95 cursor-pointer"
-            title="Panah Kanan untuk Seri Berikutnya"
-          >
-            <SkipForward className="w-4 h-4" />
-          </button>
-
-          {/* Slide duration selector */}
-          <div className="hidden sm:flex items-center gap-1.5 pl-3 border-l border-slate-200 text-xs font-bold text-slate-500">
-            <span>Durasi:</span>
-            {[5, 8, 12, 15].map((sec) => (
-              <button
-                key={sec}
-                onClick={() => {
-                  setSlideDuration(sec);
-                  setProgress(0);
-                }}
-                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-black transition-colors cursor-pointer ${
-                  slideDuration === sec
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                {sec}s
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Quick Jump Dropdown */}
-        {slides.length > 0 && (
-          <div className="flex-1 max-w-xs sm:max-w-md hidden md:block">
-            <select
-              value={currentSlideIndex}
-              onChange={(e) => {
-                setCurrentSlideIndex(Number(e.target.value));
-                setProgress(0);
-              }}
-              className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
-            >
-              {slides.map((s, idx) => (
-                <option key={idx} value={idx}>
-                  #{s.eventCode} - {s.eventName} ({s.heatCategory === "GROUP" ? `Grp ${s.heatLabel}` : `Seri ${s.heatNumber}`})
-                </option>
-              ))}
-            </select>
           </div>
         )}
 
-        {/* Tournament Switcher & Fullscreen Mode */}
-        <div className="flex items-center gap-2">
-          {tournaments.length > 1 && (
-            <select
-              value={selectedTournamentId}
-              onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
-              className="bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer shadow-2xs"
-            >
-              {tournaments.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} {t.is_active ? "★" : ""}
-                </option>
-              ))}
-            </select>
-          )}
+        {/* ======================================================= */}
+        {/* SLIDE 2: PERLOMBAAN SEDANG BERLANGSUNG & ACARA BERIKUTNYA */}
+        {/* ======================================================= */}
+        {activeSlide === 2 && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {/* SUBHEADER BAR SLIDE 2 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                SLIDE 2: PERLOMBAAN SEDANG BERLANGSUNG &amp; ACARA BERIKUTNYA
+              </h2>
 
+              <div className="flex items-center gap-2 text-xs font-bold text-slate-600">
+                <span className="text-[11px] font-black uppercase text-slate-400">Simulasi Acara Kolam:</span>
+                <button
+                  onClick={() => setPoolMode(1)}
+                  className={`px-3 py-1 rounded-xl transition cursor-pointer ${
+                    poolMode === 1
+                      ? "bg-slate-900 text-white font-black"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  1 Acara
+                </button>
+                <button
+                  onClick={() => setPoolMode(2)}
+                  className={`px-3 py-1 rounded-xl transition cursor-pointer flex items-center gap-1 ${
+                    poolMode === 2
+                      ? "bg-amber-500 text-slate-950 font-black shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  <span>⚡ 2 Acara Serentak (4+4)</span>
+                </button>
+                <button
+                  onClick={() => setPoolMode(3)}
+                  className={`px-3 py-1 rounded-xl transition cursor-pointer ${
+                    poolMode === 3
+                      ? "bg-emerald-600 text-white font-black shadow-xs"
+                      : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+                  }`}
+                >
+                  3 Acara Serentak
+                </button>
+              </div>
+            </div>
+
+            {/* SPLIT 2 KOLOM (KIRI: SEDANG BERLANGSUNG, KANAN: ACARA BERIKUTNYA / COC) */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+              {/* KOLOM KIRI (7/12): ACARA BERLANGSUNG DI KOLAM */}
+              <div className="lg:col-span-7 space-y-3.5">
+                {visibleLiveEvents.map((ev, evIdx) => {
+                  const headerColor =
+                    evIdx === 0
+                      ? "bg-blue-600"
+                      : evIdx === 1
+                      ? "bg-amber-500 text-slate-950"
+                      : "bg-emerald-700";
+
+                  return (
+                    <div
+                      key={ev.eventCode}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden"
+                    >
+                      {/* HEADER CARD ACARA */}
+                      <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2.5 py-0.5 rounded-md font-mono font-black text-xs text-white ${headerColor}`}
+                          >
+                            ACARA #{ev.eventCode}
+                          </span>
+                          <span className="font-black text-slate-900 uppercase text-xs sm:text-sm">
+                            {ev.eventName} • {ev.ku} ({ev.gender})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="border border-slate-200 px-2 py-0.5 rounded-md font-mono font-bold text-slate-600">
+                            HEAT {ev.heatCurrent} / {ev.heatTotal}
+                          </span>
+                          <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md font-bold text-[11px]">
+                            {ev.blockRange}
+                          </span>
+                          <span className="bg-rose-50 border border-rose-200 text-rose-600 px-2 py-0.5 rounded-md font-black text-[10px] flex items-center gap-1 uppercase">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600 animate-ping" />
+                            • LIVE
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* LANES IN ACTIVE EVENT */}
+                      <div className="divide-y divide-slate-100 p-2 space-y-1">
+                        {ev.lanes.map((lane) => (
+                          <div
+                            key={lane.laneNumber}
+                            className="flex items-center justify-between p-2.5 rounded-xl hover:bg-slate-50 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              {/* LANE NUMBER BADGE */}
+                              <div className="w-10 h-9 rounded-xl bg-slate-900 text-white font-mono font-black text-xs flex flex-col items-center justify-center shrink-0">
+                                <span className="text-[9px] text-slate-400">LN</span>
+                                <span>{lane.laneNumber}</span>
+                              </div>
+
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-[10px] text-slate-500 font-bold">
+                                    • Kolam #{lane.blockNumber}
+                                  </span>
+                                  <h3 className="font-black text-slate-900 uppercase text-xs sm:text-sm tracking-tight">
+                                    {lane.swimmerName}
+                                  </h3>
+                                  <span className="text-xs font-bold text-blue-600">
+                                    - {lane.club}
+                                  </span>
+                                </div>
+                                <p className="text-[10px] font-mono font-semibold text-slate-500 mt-0.5">
+                                  Seed: {lane.seedTime}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* RESULT / RACING STATUS */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {lane.isRacing ? (
+                                <span className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono font-black text-xs uppercase tracking-wider shadow-2xs">
+                                  BERLOMBA
+                                </span>
+                              ) : lane.resultTime ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="px-3 py-1 rounded-xl bg-slate-900 text-amber-300 font-mono font-black text-sm shadow-2xs">
+                                    {lane.resultTime}
+                                  </span>
+                                  {lane.rank === 1 && (
+                                    <span className="px-2 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs flex items-center gap-1">
+                                      🥇 1
+                                    </span>
+                                  )}
+                                  {lane.rank === 2 && (
+                                    <span className="px-2 py-0.5 rounded-lg bg-slate-200 text-slate-800 font-black text-xs flex items-center gap-1">
+                                      🥈 2
+                                    </span>
+                                  )}
+                                  {lane.rank === 3 && (
+                                    <span className="px-2 py-0.5 rounded-lg bg-amber-700 text-white font-black text-xs flex items-center gap-1">
+                                      🥉 3
+                                    </span>
+                                  )}
+                                </div>
+                              ) : null}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* KOLOM KANAN (5/12): ACARA BERIKUTNYA / CALLING ROOM / COC */}
+              <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3.5">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                  <h3 className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
+                    ACARA BERIKUTNYA (CALLING ROOM / COC)
+                  </h3>
+                  <button className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-black rounded-lg transition cursor-pointer">
+                    Siapkan Atlet Masuk COC
+                  </button>
+                </div>
+
+                <div className="p-2 bg-blue-50/70 border border-blue-200/80 rounded-xl text-[11px] font-bold text-blue-800">
+                  JADWAL SERENTAK SEDANG BERJALAN DI KOLAM:{" "}
+                  <span className="font-mono font-black">
+                    Acara {visibleLiveEvents.map((e) => `#${e.eventCode}`).join(", ")}
+                  </span>
+                </div>
+
+                {/* CALLING ROOM CARDS */}
+                <div className="space-y-3">
+                  {callingEvents.map((ce) => (
+                    <div
+                      key={ce.eventCode}
+                      className="border border-slate-200 rounded-xl p-3 bg-slate-50/50 space-y-2 hover:border-blue-300 transition"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-blue-600 text-white font-mono font-black text-xs rounded-md">
+                            #{ce.eventCode}
+                          </span>
+                          <div>
+                            <h4 className="font-black text-xs text-slate-900 leading-tight">
+                              {ce.eventName}
+                            </h4>
+                            <p className="text-[10px] font-bold text-slate-500">
+                              {ce.ku} • {ce.gender}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right">
+                          <span className="font-mono text-xs font-black text-slate-800 block">
+                            {ce.estimatedTime}
+                          </span>
+                          <span className="text-[10px] font-semibold text-slate-500">
+                            Heat {ce.heatCurrent} dari {ce.heatTotal}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* MINI TABLE LANES */}
+                      <div className="bg-white rounded-lg border border-slate-200/80 overflow-hidden text-[10px]">
+                        <div className="grid grid-cols-12 bg-slate-100 py-1 px-2 font-black text-slate-600 uppercase border-b border-slate-200">
+                          <span className="col-span-1 text-center">LN</span>
+                          <span className="col-span-5">NAMA PERENANG</span>
+                          <span className="col-span-4">KLUB ASAL</span>
+                          <span className="col-span-2 text-right">SEED</span>
+                        </div>
+                        {ce.lanes.map((l, lIdx) => (
+                          <div
+                            key={l.laneNumber}
+                            className="grid grid-cols-12 py-1 px-2 border-b border-slate-100 last:border-b-0 items-center font-medium"
+                          >
+                            <span className="col-span-1 text-center font-black">
+                              <span
+                                className={`inline-flex items-center justify-center w-4 h-4 rounded text-[9px] text-white ${
+                                  lIdx === 0 ? "bg-rose-500" : "bg-blue-600"
+                                }`}
+                              >
+                                {l.laneNumber}
+                              </span>
+                            </span>
+                            <span className="col-span-5 font-bold uppercase truncate pr-1 text-slate-900">
+                              {l.swimmerName}
+                            </span>
+                            <span className="col-span-4 text-slate-600 truncate pr-1">
+                              {l.club}
+                            </span>
+                            <span className="col-span-2 text-right font-mono text-slate-600">
+                              {l.seedTime}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ======================================================= */}
+        {/* SLIDE 3: PODIUM PERAIH MEDALI & JUARA 1, 2, 3 (HASIL)    */}
+        {/* ======================================================= */}
+        {activeSlide === 3 && (
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {/* SUBHEADER BAR SLIDE 3 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
+                SLIDE 3: PODIUM PERAIH MEDALI &amp; JUARA 1, 2, 3 (HASIL RESMI)
+              </h2>
+
+              <div className="flex items-center gap-2">
+                <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 font-mono text-xs font-black text-amber-800">
+                  Hal {slide3Page}/{totalSlide3Pages}
+                </span>
+                <button
+                  onClick={() => setSlide3Page((p) => Math.max(1, p - 1))}
+                  disabled={slide3Page <= 1}
+                  className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4 text-slate-700" />
+                </button>
+                <button
+                  onClick={() => setSlide3Page((p) => Math.min(totalSlide3Pages, p + 1))}
+                  disabled={slide3Page >= totalSlide3Pages}
+                  className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-700" />
+                </button>
+              </div>
+            </div>
+
+            {/* 2 KOLOM PODIUM RESULT TABLE (MATCHING SCREENSHOT 3) */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              {/* KOLOM KIRI PODIUM */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs font-black tracking-wide text-sky-200">
+                    1-{podiumLeftItems.length}/{podiumList.length}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300">
+                    {podiumLeftItems.length} Juara
+                  </span>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
+                        <th className="py-2.5 px-3 text-center w-16">#ACARA</th>
+                        <th className="py-2.5 px-2 text-center w-16">POSISI</th>
+                        <th className="py-2.5 px-3">NAMA PERENANG</th>
+                        <th className="py-2.5 px-3 text-center w-24">WAKTU RESMI</th>
+                        <th className="py-2.5 px-2 text-center w-16">SELISIH</th>
+                        <th className="py-2.5 px-2 text-center w-16">HEAT-LN</th>
+                        <th className="py-2.5 px-3">KLUB ASAL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {/* GROUP BY EVENT CODE */}
+                      {Array.from(new Set(podiumLeftItems.map((p) => p.eventCode))).map((code) => {
+                        const items = podiumLeftItems.filter((p) => p.eventCode === code);
+                        const first = items[0];
+
+                        return (
+                          <div key={code} className="contents">
+                            {/* EVENT HEADER ROW */}
+                            <tr className="bg-slate-900 text-white font-bold text-xs">
+                              <td colSpan={7} className="py-2 px-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
+                                      ACARA #{first.eventCode}
+                                    </span>
+                                    <span className="font-bold text-slate-200 text-xs">
+                                      {first.eventName} • {first.ku}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] uppercase font-black tracking-wider text-amber-300">
+                                    PODIUM JUARA 1, 2, 3
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+
+                            {items.map((row, rIdx) => (
+                              <tr
+                                key={rIdx}
+                                className="border-b border-slate-100 hover:bg-slate-50 transition font-medium"
+                              >
+                                <td className="py-2 px-3 text-center font-mono font-black text-blue-600">
+                                  #{row.eventCode}
+                                </td>
+                                <td className="py-2 px-2 text-center">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-black text-xs ${
+                                      row.rank === 1
+                                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                        : row.rank === 2
+                                        ? "bg-slate-100 text-slate-800 border border-slate-300"
+                                        : "bg-orange-100 text-amber-900 border border-orange-300"
+                                    }`}
+                                  >
+                                    {row.rank === 1 ? "🥇 1" : row.rank === 2 ? "🥈 2" : "🥉 3"}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 font-black text-slate-900 uppercase">
+                                  {row.swimmerName}
+                                </td>
+                                <td className="py-2 px-3 text-center font-mono font-black text-emerald-700">
+                                  {row.resultTime}
+                                </td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-500">
+                                  {row.timeDiff}
+                                </td>
+                                <td className="py-2 px-2 text-center font-mono text-slate-600">
+                                  {row.heatLane}
+                                </td>
+                                <td className="py-2 px-3 text-slate-700 truncate max-w-[150px]">
+                                  {row.club}
+                                </td>
+                              </tr>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* KOLOM KANAN PODIUM */}
+              <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <span className="font-mono text-xs font-black tracking-wide text-sky-200">
+                    {podiumRightItems.length > 0 ? `5-8/${podiumList.length}` : "-/4"}
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-300">
+                    {podiumRightItems.length} Juara
+                  </span>
+                </div>
+
+                {podiumRightItems.length === 0 ? (
+                  <div className="p-16 text-center space-y-2">
+                    <p className="text-xs font-bold text-slate-400">
+                      Semua hasil selesai pada halaman ini tercantum di tabel kiri.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
+                          <th className="py-2.5 px-3 text-center w-16">#ACARA</th>
+                          <th className="py-2.5 px-2 text-center w-16">POSISI</th>
+                          <th className="py-2.5 px-3">NAMA PERENANG</th>
+                          <th className="py-2.5 px-3 text-center w-24">WAKTU RESMI</th>
+                          <th className="py-2.5 px-2 text-center w-16">SELISIH</th>
+                          <th className="py-2.5 px-2 text-center w-16">HEAT-LN</th>
+                          <th className="py-2.5 px-3">KLUB ASAL</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Array.from(new Set(podiumRightItems.map((p) => p.eventCode))).map((code) => {
+                          const items = podiumRightItems.filter((p) => p.eventCode === code);
+                          const first = items[0];
+
+                          return (
+                            <div key={code} className="contents">
+                              <tr className="bg-slate-900 text-white font-bold text-xs">
+                                <td colSpan={7} className="py-2 px-3">
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
+                                        ACARA #{first.eventCode}
+                                      </span>
+                                      <span className="font-bold text-slate-200 text-xs">
+                                        {first.eventName} • {first.ku}
+                                      </span>
+                                    </div>
+                                    <span className="text-[10px] uppercase font-black tracking-wider text-amber-300">
+                                      PODIUM JUARA 1, 2, 3
+                                    </span>
+                                  </div>
+                                </td>
+                              </tr>
+
+                              {items.map((row, rIdx) => (
+                                <tr
+                                  key={rIdx}
+                                  className="border-b border-slate-100 hover:bg-slate-50 transition font-medium"
+                                >
+                                  <td className="py-2 px-3 text-center font-mono font-black text-blue-600">
+                                    #{row.eventCode}
+                                  </td>
+                                  <td className="py-2 px-2 text-center">
+                                    <span
+                                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-black text-xs ${
+                                        row.rank === 1
+                                          ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                          : row.rank === 2
+                                          ? "bg-slate-100 text-slate-800 border border-slate-300"
+                                          : "bg-orange-100 text-amber-900 border border-orange-300"
+                                      }`}
+                                    >
+                                      {row.rank === 1 ? "🥇 1" : row.rank === 2 ? "🥈 2" : "🥉 3"}
+                                    </span>
+                                  </td>
+                                  <td className="py-2 px-3 font-black text-slate-900 uppercase">
+                                    {row.swimmerName}
+                                  </td>
+                                  <td className="py-2 px-3 text-center font-mono font-black text-emerald-700">
+                                    {row.resultTime}
+                                  </td>
+                                  <td className="py-2 px-2 text-center font-mono text-slate-500">
+                                    {row.timeDiff}
+                                  </td>
+                                  <td className="py-2 px-2 text-center font-mono text-slate-600">
+                                    {row.heatLane}
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-700 truncate max-w-[150px]">
+                                    {row.club}
+                                  </td>
+                                </tr>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* ========================================================= */}
+      {/* 3. BOTTOM FOOTER BAR (KEYBOARD SHORTCUTS & OUTDOOR MODE)   */}
+      {/* ========================================================= */}
+      <footer className="bg-white border-t border-slate-200/90 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0 relative z-30">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-slate-500 font-bold text-[11px]">
+          <span className="text-slate-800 font-black">Shortcut:</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700 font-mono">Spasi</kbd> Jeda</span>
+          <span>•</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700 font-mono">◀ / ▶</kbd> Slide</span>
+          <span>•</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700 font-mono">PgUp / PgDn</kbd> Hal</span>
+          <span>•</span>
+          <span><kbd className="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700 font-mono">F</kbd> Layar Penuh</span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          {/* MODE OUTDOOR ANTI SILAU */}
           <button
-            onClick={toggleFullscreen}
-            className="px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 text-xs font-bold flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer shadow-2xs"
-            title="Tekan F untuk Layar Penuh"
+            onClick={() => setIsOutdoorMode(!isOutdoorMode)}
+            className={`px-3 py-1 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 cursor-pointer ${
+              isOutdoorMode
+                ? "bg-amber-400 text-slate-950 border-amber-500 font-black shadow-xs"
+                : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50"
+            }`}
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isFullscreen ? "Keluar Layar Penuh" : "Layar Penuh TV (F)"}</span>
+            <Sun className="w-3.5 h-3.5 text-amber-500" />
+            <span>Mode Outdoor Anti-Silau</span>
           </button>
+
+          {/* STATUS JEDA MANUAL / AUTO */}
+          <div className="flex items-center gap-1.5 text-xs font-bold">
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isPlaying ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+              }`}
+            />
+            <span className={isPlaying ? "text-emerald-700 font-black" : "text-amber-800 font-bold"}>
+              {isPlaying ? "Auto-Slide Aktif" : "Jeda Manual"}
+            </span>
+          </div>
         </div>
       </footer>
     </div>
@@ -695,7 +1813,7 @@ export default function LiveScoreboardPage() {
     <Suspense
       fallback={
         <div className="min-h-screen bg-slate-50 flex items-center justify-center text-blue-600 font-mono font-bold">
-          Menyiapkan Live Venue Scoreboard...
+          Menyiapkan Live Venue Scoreboard TV...
         </div>
       }
     >
