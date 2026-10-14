@@ -22,6 +22,10 @@ import {
   Zap,
   RotateCcw,
   SlidersHorizontal,
+  Medal,
+  Award,
+  Sparkles,
+  Filter,
 } from "lucide-react";
 
 // ==========================================
@@ -93,6 +97,107 @@ interface PodiumItem {
   club: string;
 }
 
+// Speed time parser helper for single/multi-round swimming competitions
+function parseSpeedTimeToSeconds(timeStr?: string): number {
+  if (!timeStr) return 9999999;
+  const clean = timeStr.trim().toUpperCase();
+  if (
+    clean === "" ||
+    clean === "-" ||
+    clean === "NT" ||
+    clean.includes("DQ") ||
+    clean.includes("DNF") ||
+    clean.includes("DNS") ||
+    clean.includes("RANK") ||
+    clean.startsWith("99")
+  ) {
+    return 9999999;
+  }
+
+  const colonParts = clean.split(":");
+  if (colonParts.length === 3) {
+    if (colonParts[2].includes(".")) {
+      const h = parseFloat(colonParts[0]) || 0;
+      const m = parseFloat(colonParts[1]) || 0;
+      const s = parseFloat(colonParts[2]) || 0;
+      return h * 3600 + m * 60 + s;
+    } else {
+      const m = parseFloat(colonParts[0]) || 0;
+      const s = parseFloat(colonParts[1]) || 0;
+      const cs = parseFloat(colonParts[2].slice(0, 2)) || 0;
+      return m * 60 + s + cs / 100;
+    }
+  } else if (colonParts.length === 2) {
+    const m = parseFloat(colonParts[0]) || 0;
+    const secParts = colonParts[1].split(".");
+    if (secParts.length === 2) {
+      const s = parseFloat(secParts[0]) || 0;
+      const cs = parseFloat(secParts[1].slice(0, 2)) || 0;
+      return m * 60 + s + cs / 100;
+    } else {
+      const s = parseFloat(colonParts[1]) || 0;
+      return m * 60 + s;
+    }
+  } else {
+    const val = parseFloat(clean);
+    return isNaN(val) ? 9999999 : val;
+  }
+}
+
+function formatSpeedDiff(diff: number): string {
+  if (diff <= 0.001) return "0.00s";
+  return `+${diff.toFixed(2)}s`;
+}
+
+interface Slide4EventData {
+  eventCode: string | number;
+  eventName: string;
+  distance: string;
+  stroke: string;
+  gender: string;
+  ageGroup: string;
+  isGroup: boolean;
+  hasResults: boolean;
+  totalSwimmers: number;
+  overallChampions: {
+    rank: 1 | 2 | 3;
+    swimmerName: string;
+    club: string;
+    resultTime: string;
+    timeDiff: string;
+    heatLane: string;
+    heat: number;
+    lane: number;
+    parsedSeconds: number;
+  }[];
+  heatBreakdowns: {
+    heatNum: number;
+    champions: {
+      rank: 1 | 2 | 3;
+      swimmerName: string;
+      club: string;
+      resultTime: string;
+      heatLane: string;
+      lane: number;
+      timeDiff: string;
+    }[];
+  }[];
+  groupBreakdowns: {
+    groupNum: number;
+    groupLabel: string;
+    champions: {
+      rank: 1 | 2 | 3;
+      swimmerName: string;
+      club: string;
+      resultTime: string;
+      lane: number;
+      heatLane: string;
+      timeDiff: string;
+    }[];
+    allSwimmersCount: number;
+  }[];
+}
+
 function LiveScoreboardContent() {
   const searchParams = useSearchParams();
   const urlTourneyId = searchParams.get("tournament_id");
@@ -111,9 +216,13 @@ function LiveScoreboardContent() {
   const [accelerationNotice, setAccelerationNotice] = useState<string | null>(null);
 
   // Playback & Slide States
-  const [activeSlide, setActiveSlide] = useState<1 | 2 | 3>(2); // Default to Slide 2: Live & Calling Room
+  const [activeSlide, setActiveSlide] = useState<1 | 2 | 3 | 4>(2); // Default to Slide 2: Live & Calling Room
   const [slide1Page, setSlide1Page] = useState<number>(1);
   const [slide3Page, setSlide3Page] = useState<number>(1);
+  const [slide4Page, setSlide4Page] = useState<number>(1);
+  const [slide4CategoryFilter, setSlide4CategoryFilter] = useState<"ALL" | "HEAT" | "GROUP">("ALL");
+  const [slide4StatusFilter, setSlide4StatusFilter] = useState<"ALL" | "HAS_RESULTS">("ALL");
+  const [slide4Search, setSlide4Search] = useState<string>("");
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [slideDuration, setSlideDuration] = useState<number>(6);
   const [progress, setProgress] = useState<number>(0);
@@ -522,8 +631,8 @@ function LiveScoreboardContent() {
     );
   }, [allParticipants, searchQuery]);
 
-  // Pagination for Slide 1 (2 Columns x 22 Rows = 44 Per Page)
-  const ROWS_PER_COLUMN = 22;
+  // Pagination for Slide 1 (2 Columns x 20 Rows = 40 Per Page)
+  const ROWS_PER_COLUMN = 20;
   const ITEMS_PER_PAGE = ROWS_PER_COLUMN * 2;
   const totalSlide1Pages = Math.max(1, Math.ceil(filteredParticipants.length / ITEMS_PER_PAGE));
 
@@ -545,6 +654,213 @@ function LiveScoreboardContent() {
 
   const podiumLeftItems = useMemo(() => slide3PageItems.slice(0, 4), [slide3PageItems]);
   const podiumRightItems = useMemo(() => slide3PageItems.slice(4, 8), [slide3PageItems]);
+
+  // Compute Slide 4: Juara 1, 2, 3 per Nomor Lomba (Heat & Group Abjad) Berdasarkan Speed Time
+  const slide4Events = useMemo<Slide4EventData[]>(() => {
+    return sortedEventGroups.map((ev: any) => {
+      const rawCat = String(ev.heat_category || "").toUpperCase();
+      const hasGroupLabel = (ev.heats || []).some(
+        (h: any) =>
+          h.heat_category === "GROUP" ||
+          (typeof h.heat_label === "string" && /^[A-Z]$/i.test(h.heat_label.trim()))
+      );
+      const isGroup = rawCat === "GROUP" || rawCat === "CLUSTER" || hasGroupLabel;
+
+      const activeSwimmers = (ev.heats || []).filter(
+        (h: any) => !h.is_empty && h.nama && h.nama !== "(KOSONG)"
+      );
+
+      let eventHasResults = false;
+
+      if (isGroup) {
+        // Group Abjad logic: swimmers in each group are ranked by speed time
+        const groupMap: { [heatNum: number]: any[] } = {};
+        activeSwimmers.forEach((s: any) => {
+          const hNum = Number(s.heat) || 1;
+          if (!groupMap[hNum]) groupMap[hNum] = [];
+          groupMap[hNum].push(s);
+        });
+
+        const groupNums = Object.keys(groupMap)
+          .map(Number)
+          .sort((a, b) => a - b);
+
+        const groupBreakdowns = groupNums.map((gNum) => {
+          const swimmers = groupMap[gNum] || [];
+          const label =
+            swimmers[0]?.heat_label ||
+            (gNum >= 1 && gNum <= 26 ? String.fromCharCode(64 + gNum) : `Group ${gNum}`);
+
+          const valid = swimmers
+            .map((s: any) => {
+              const sec = parseSpeedTimeToSeconds(s.result);
+              if (sec < 9999990) eventHasResults = true;
+              return { ...s, parsedSec: sec };
+            })
+            .filter((s: any) => s.parsedSec < 9999990)
+            .sort((a: any, b: any) => a.parsedSec - b.parsedSec);
+
+          const fastestSec = valid.length > 0 ? valid[0].parsedSec : 0;
+
+          const champions = valid.slice(0, 3).map((s: any, idx: number) => ({
+            rank: (idx + 1) as 1 | 2 | 3,
+            swimmerName: s.nama,
+            club: s.club || "-",
+            resultTime: s.result,
+            lane: s.line,
+            heatLane: `Line ${s.line}`,
+            timeDiff: idx === 0 ? "WAKTU TERCEPAT" : formatSpeedDiff(s.parsedSec - fastestSec),
+            parsedSeconds: s.parsedSec,
+          }));
+
+          return {
+            groupNum: gNum,
+            groupLabel: label,
+            champions,
+            allSwimmersCount: swimmers.length,
+          };
+        });
+
+        return {
+          eventCode: ev.event_code,
+          eventName: ev.event_name,
+          distance: ev.distance,
+          stroke: ev.stroke,
+          gender: ev.gender,
+          ageGroup: ev.age_group || "OPEN",
+          isGroup: true,
+          hasResults: eventHasResults,
+          totalSwimmers: activeSwimmers.length,
+          overallChampions: [],
+          heatBreakdowns: [],
+          groupBreakdowns,
+        };
+      } else {
+        // Heat Category logic
+        const validOverall = activeSwimmers
+          .map((s: any) => {
+            const sec = parseSpeedTimeToSeconds(s.result);
+            if (sec < 9999990) eventHasResults = true;
+            return { ...s, parsedSec: sec };
+          })
+          .filter((s: any) => s.parsedSec < 9999990)
+          .sort((a: any, b: any) => a.parsedSec - b.parsedSec);
+
+        const fastestSec = validOverall.length > 0 ? validOverall[0].parsedSec : 0;
+
+        const overallChampions = validOverall.slice(0, 3).map((s: any, idx: number) => ({
+          rank: (idx + 1) as 1 | 2 | 3,
+          swimmerName: s.nama,
+          club: s.club || "-",
+          resultTime: s.result,
+          timeDiff: idx === 0 ? "WAKTU TERCEPAT" : formatSpeedDiff(s.parsedSec - fastestSec),
+          heatLane: `Seri ${s.heat} • Line ${s.line}`,
+          heat: s.heat,
+          lane: s.line,
+          parsedSeconds: s.parsedSec,
+        }));
+
+        const heatMap: { [heatNum: number]: any[] } = {};
+        activeSwimmers.forEach((s: any) => {
+          const hNum = Number(s.heat) || 1;
+          if (!heatMap[hNum]) heatMap[hNum] = [];
+          heatMap[hNum].push(s);
+        });
+
+        const heatNums = Object.keys(heatMap)
+          .map(Number)
+          .sort((a, b) => a - b);
+
+        const heatBreakdowns = heatNums.map((hNum) => {
+          const swimmers = heatMap[hNum] || [];
+          const valid = swimmers
+            .map((s: any) => ({ ...s, parsedSec: parseSpeedTimeToSeconds(s.result) }))
+            .filter((s: any) => s.parsedSec < 9999990)
+            .sort((a: any, b: any) => a.parsedSec - b.parsedSec);
+
+          const hFastest = valid.length > 0 ? valid[0].parsedSec : 0;
+
+          const champions = valid.slice(0, 3).map((s: any, idx: number) => ({
+            rank: (idx + 1) as 1 | 2 | 3,
+            swimmerName: s.nama,
+            club: s.club || "-",
+            resultTime: s.result,
+            heatLane: `Seri ${hNum} • Line ${s.line}`,
+            lane: s.line,
+            timeDiff: idx === 0 ? "Tercepat di Seri" : formatSpeedDiff(s.parsedSec - hFastest),
+          }));
+
+          return {
+            heatNum: hNum,
+            champions,
+          };
+        });
+
+        return {
+          eventCode: ev.event_code,
+          eventName: ev.event_name,
+          distance: ev.distance,
+          stroke: ev.stroke,
+          gender: ev.gender,
+          ageGroup: ev.age_group || "OPEN",
+          isGroup: false,
+          hasResults: eventHasResults,
+          totalSwimmers: activeSwimmers.length,
+          overallChampions,
+          heatBreakdowns,
+          groupBreakdowns: [],
+        };
+      }
+    });
+  }, [sortedEventGroups]);
+
+  // Filtered Slide 4 events
+  const filteredSlide4Events = useMemo(() => {
+    let list = slide4Events;
+
+    if (slide4CategoryFilter === "HEAT") {
+      list = list.filter((e) => !e.isGroup);
+    } else if (slide4CategoryFilter === "GROUP") {
+      list = list.filter((e) => e.isGroup);
+    }
+
+    if (slide4StatusFilter === "HAS_RESULTS") {
+      list = list.filter((e) => e.hasResults);
+    }
+
+    if (slide4Search.trim()) {
+      const q = slide4Search.toLowerCase();
+      list = list.filter(
+        (e) =>
+          String(e.eventCode).toLowerCase().includes(q) ||
+          e.eventName.toLowerCase().includes(q) ||
+          e.ageGroup.toLowerCase().includes(q) ||
+          e.gender.toLowerCase().includes(q) ||
+          e.overallChampions.some(
+            (c) => c.swimmerName.toLowerCase().includes(q) || c.club.toLowerCase().includes(q)
+          ) ||
+          e.groupBreakdowns.some((gb) =>
+            gb.champions.some(
+              (c) => c.swimmerName.toLowerCase().includes(q) || c.club.toLowerCase().includes(q)
+            )
+          )
+      );
+    }
+
+    return list;
+  }, [slide4Events, slide4CategoryFilter, slide4StatusFilter, slide4Search]);
+
+  const SLIDE4_PER_PAGE = 2;
+  const totalSlide4Pages = Math.max(1, Math.ceil(filteredSlide4Events.length / SLIDE4_PER_PAGE));
+  const slide4PageItems = useMemo(() => {
+    const start = (slide4Page - 1) * SLIDE4_PER_PAGE;
+    return filteredSlide4Events.slice(start, start + SLIDE4_PER_PAGE);
+  }, [filteredSlide4Events, slide4Page, SLIDE4_PER_PAGE]);
+
+  // Reset slide 4 page on filter change
+  useEffect(() => {
+    setSlide4Page(1);
+  }, [slide4CategoryFilter, slide4StatusFilter, slide4Search]);
 
   // 4. Auto Slide Progression
   useEffect(() => {
@@ -575,6 +891,13 @@ function LiveScoreboardContent() {
               setSlide3Page((p) => p + 1);
             } else {
               setSlide3Page(1);
+              setActiveSlide(4);
+            }
+          } else if (activeSlide === 4) {
+            if (slide4Page < totalSlide4Pages) {
+              setSlide4Page((p) => p + 1);
+            } else {
+              setSlide4Page(1);
               setActiveSlide(1);
             }
           }
@@ -587,7 +910,7 @@ function LiveScoreboardContent() {
     return () => {
       if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
-  }, [isPlaying, slideDuration, activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages]);
+  }, [isPlaying, slideDuration, activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages, slide4Page, totalSlide4Pages]);
 
   // Handlers for manual step
   const handlePrev = () => {
@@ -596,7 +919,7 @@ function LiveScoreboardContent() {
       if (slide1Page > 1) {
         setSlide1Page((p) => p - 1);
       } else {
-        setActiveSlide(3);
+        setActiveSlide(4);
       }
     } else if (activeSlide === 2) {
       setActiveSlide(1);
@@ -605,6 +928,12 @@ function LiveScoreboardContent() {
         setSlide3Page((p) => p - 1);
       } else {
         setActiveSlide(2);
+      }
+    } else if (activeSlide === 4) {
+      if (slide4Page > 1) {
+        setSlide4Page((p) => p - 1);
+      } else {
+        setActiveSlide(3);
       }
     }
   };
@@ -622,6 +951,12 @@ function LiveScoreboardContent() {
     } else if (activeSlide === 3) {
       if (slide3Page < totalSlide3Pages) {
         setSlide3Page((p) => p + 1);
+      } else {
+        setActiveSlide(4);
+      }
+    } else if (activeSlide === 4) {
+      if (slide4Page < totalSlide4Pages) {
+        setSlide4Page((p) => p + 1);
       } else {
         setActiveSlide(1);
       }
@@ -654,13 +989,18 @@ function LiveScoreboardContent() {
       } else if (e.key === "PageDown") {
         if (activeSlide === 1) setSlide1Page((p) => Math.min(totalSlide1Pages, p + 1));
         if (activeSlide === 3) setSlide3Page((p) => Math.min(totalSlide3Pages, p + 1));
+        if (activeSlide === 4) setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1));
+      } else if (e.key === "PageUp") {
+        if (activeSlide === 1) setSlide1Page((p) => Math.max(1, p - 1));
+        if (activeSlide === 3) setSlide3Page((p) => Math.max(1, p - 1));
+        if (activeSlide === 4) setSlide4Page((p) => Math.max(1, p - 1));
       } else if (e.key.toLowerCase() === "f") {
         toggleFullscreen();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages]);
+  }, [activeSlide, slide1Page, totalSlide1Pages, slide3Page, totalSlide3Pages, slide4Page, totalSlide4Pages]);
 
   const visibleLiveEvents = useMemo(() => {
     return liveEvents.slice(0, poolMode);
@@ -774,6 +1114,21 @@ function LiveScoreboardContent() {
               >
                 <Trophy className="w-3.5 h-3.5 text-amber-300" />
                 <span>Slide 3: Podium Juara ({podiumList.length})</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setActiveSlide(4);
+                  setProgress(0);
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                  activeSlide === 4
+                    ? "bg-blue-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+              >
+                <Award className="w-3.5 h-3.5 text-amber-300" />
+                <span>Slide 4: Juara Speed Time ({slide4Events.length})</span>
               </button>
             </div>
 
@@ -1787,6 +2142,529 @@ function LiveScoreboardContent() {
                     </div>
                   )}
                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ======================================================= */}
+        {/* SLIDE 4: JUARA 1, 2, 3 NOMOR LOMBA (SPEED TIME)         */}
+        {/* UNTUK KATEGORI HEAT & GROUP ABJAD                       */}
+        {/* ======================================================= */}
+        {activeSlide === 4 && (
+          <div className="space-y-4 animate-in fade-in duration-200">
+            {/* SUBHEADER BAR SLIDE 4 */}
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
+                <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+                  SLIDE 4: JUARA 1, 2, 3 NOMOR LOMBA (SPEED TIME)
+                </h2>
+                <span className="text-[11px] font-bold text-slate-500 hidden xl:inline">
+                  • Perhitungan Otomatis Catatan Waktu Tercepat untuk Kategori Heat &amp; Group Abjad
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* SEARCH INPUT */}
+                <div className="relative">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={slide4Search}
+                    onChange={(e) => setSlide4Search(e.target.value)}
+                    placeholder="Cari acara / perenang..."
+                    className="pl-8 pr-3 py-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-slate-200 w-36 sm:w-44"
+                  />
+                  {slide4Search && (
+                    <button
+                      onClick={() => setSlide4Search("")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                {/* FILTER KATEGORI: SEMUA / HEAT / GROUP ABJAD */}
+                <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
+                  <button
+                    onClick={() => setSlide4CategoryFilter("ALL")}
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                      slide4CategoryFilter === "ALL"
+                        ? "bg-white text-slate-900 font-black shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Semua ({slide4Events.length})
+                  </button>
+                  <button
+                    onClick={() => setSlide4CategoryFilter("HEAT")}
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                      slide4CategoryFilter === "HEAT"
+                        ? "bg-sky-600 text-white font-black shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Heat ({slide4Events.filter((e) => !e.isGroup).length})
+                  </button>
+                  <button
+                    onClick={() => setSlide4CategoryFilter("GROUP")}
+                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
+                      slide4CategoryFilter === "GROUP"
+                        ? "bg-purple-600 text-white font-black shadow-xs"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    Group Abjad ({slide4Events.filter((e) => e.isGroup).length})
+                  </button>
+                </div>
+
+                {/* TOGGLE HANYA YANG SUDAH ADA HASIL */}
+                <button
+                  onClick={() =>
+                    setSlide4StatusFilter(slide4StatusFilter === "ALL" ? "HAS_RESULTS" : "ALL")
+                  }
+                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    slide4StatusFilter === "HAS_RESULTS"
+                      ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-black"
+                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
+                  }`}
+                >
+                  {slide4StatusFilter === "HAS_RESULTS" ? "✓ Ada Hasil" : "Semua Status"}
+                </button>
+
+                {/* PAGINATION CONTROLS */}
+                <div className="flex items-center gap-1.5">
+                  <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 font-mono text-xs font-black text-amber-800">
+                    Hal {slide4Page}/{totalSlide4Pages}
+                  </span>
+                  <button
+                    onClick={() => setSlide4Page((p) => Math.max(1, p - 1))}
+                    disabled={slide4Page <= 1}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                    title="Hal Sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-700" />
+                  </button>
+                  <button
+                    onClick={() => setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1))}
+                    disabled={slide4Page >= totalSlide4Pages}
+                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                    title="Hal Berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-700" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* EVENT CARDS GRID */}
+            {filteredSlide4Events.length === 0 ? (
+              <div className="p-16 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
+                <Medal className="w-12 h-12 text-slate-300 mx-auto" />
+                <h3 className="font-bold text-slate-700 text-sm">
+                  Tidak Ada Nomor Lomba Sesuai Filter
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Coba ubah filter kategori atau kata kunci pencarian di atas.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+                {slide4PageItems.map((event) => {
+                  const isPutri =
+                    event.gender?.toUpperCase().includes("PI") ||
+                    event.gender?.toUpperCase().includes("PUTRI") ||
+                    event.gender?.toUpperCase() === "P" ||
+                    event.gender?.toUpperCase() === "W";
+
+                  return (
+                    <div
+                      key={event.eventCode}
+                      className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between"
+                    >
+                      {/* CARD HEADER BANNER */}
+                      <div className="bg-[#0b1e38] text-white p-4 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs tracking-wider uppercase font-mono shadow-xs">
+                            ACARA #{event.eventCode}
+                          </span>
+                          <h3 className="text-sm sm:text-base font-black uppercase text-white tracking-wide">
+                            {event.distance} {event.stroke || event.eventName}
+                          </h3>
+                          <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-200 text-[11px] font-black border border-white/20">
+                            {event.ageGroup}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {event.isGroup ? (
+                            <span className="px-2.5 py-0.5 rounded-full bg-purple-600/90 text-white text-[10px] font-black tracking-wider uppercase flex items-center gap-1 shadow-xs border border-purple-400/40">
+                              <Sparkles className="w-3 h-3 text-purple-200" />
+                              <span>GROUP ABJAD</span>
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-0.5 rounded-full bg-sky-600/90 text-white text-[10px] font-black tracking-wider uppercase flex items-center gap-1 shadow-xs border border-sky-400/40">
+                              <Timer className="w-3 h-3 text-sky-200" />
+                              <span>HEAT (TIMED FINAL)</span>
+                            </span>
+                          )}
+
+                          <span
+                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                              isPutri
+                                ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
+                                : "bg-sky-500/20 text-sky-300 border-sky-500/40"
+                            }`}
+                          >
+                            {event.gender}
+                          </span>
+
+                          <span
+                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
+                              event.hasResults
+                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            }`}
+                          >
+                            {event.hasResults ? "✓ Ada Hasil" : "⏳ Menunggu"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* CARD BODY CONTENT */}
+                      <div className="p-4 sm:p-5 space-y-4 bg-slate-50/50 flex-1">
+                        {!event.hasResults ? (
+                          <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center space-y-1.5 my-2">
+                            <Clock className="w-8 h-8 text-amber-500/70 mx-auto" />
+                            <div className="text-xs font-black text-slate-800 uppercase tracking-wide">
+                              Menunggu Pencatatan Hasil Waktu Juri
+                            </div>
+                            <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
+                              Juara 1, 2, dan 3 berdasarkan catatan waktu (speed time) akan dihitung otomatis segera setelah panitia memasukkan hasil lomba ({event.totalSwimmers} perenang terdaftar).
+                            </p>
+                          </div>
+                        ) : !event.isGroup ? (
+                          /* ============================================== */
+                          /* HEAT CATEGORY: PODIUM OVERALL TOP 3            */
+                          /* ============================================== */
+                          <div className="space-y-3.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                                <Trophy className="w-4 h-4 text-amber-500" />
+                                <span>Podium Juara 1, 2, 3 Nomor Lomba (Waktu Tercepat):</span>
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                {event.totalSwimmers} Peserta Lomba
+                              </span>
+                            </div>
+
+                            {/* 3 PODIUM CARDS (EMAS, PERAK, PERUNGGU) */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              {/* 🥇 JUARA 1 (EMAS) */}
+                              {event.overallChampions[0] ? (
+                                <div className="bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between gap-1 mb-2">
+                                      <span className="px-2 py-0.5 bg-amber-400 text-amber-950 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1">
+                                        🥇 JUARA 1
+                                      </span>
+                                      <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">
+                                        EMAS
+                                      </span>
+                                    </div>
+                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
+                                      {event.overallChampions[0].swimmerName}
+                                    </div>
+                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
+                                      {event.overallChampions[0].club}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 pt-2.5 border-t border-amber-200 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Waktu Resmi
+                                      </span>
+                                      <span className="text-base font-mono font-black text-amber-950">
+                                        {event.overallChampions[0].resultTime}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Lintasan
+                                      </span>
+                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
+                                        {event.overallChampions[0].heatLane}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
+                                  Belum ada perenang finis Juara 1
+                                </div>
+                              )}
+
+                              {/* 🥈 JUARA 2 (PERAK) */}
+                              {event.overallChampions[1] ? (
+                                <div className="bg-gradient-to-b from-slate-100/60 to-white border-2 border-slate-300 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between gap-1 mb-2">
+                                      <span className="px-2 py-0.5 bg-slate-200 text-slate-900 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1 border border-slate-300">
+                                        🥈 JUARA 2
+                                      </span>
+                                      <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
+                                        {event.overallChampions[1].timeDiff}
+                                      </span>
+                                    </div>
+                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
+                                      {event.overallChampions[1].swimmerName}
+                                    </div>
+                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
+                                      {event.overallChampions[1].club}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Waktu Resmi
+                                      </span>
+                                      <span className="text-base font-mono font-black text-slate-800">
+                                        {event.overallChampions[1].resultTime}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Lintasan
+                                      </span>
+                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
+                                        {event.overallChampions[1].heatLane}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
+                                  Belum ada perenang finis Juara 2
+                                </div>
+                              )}
+
+                              {/* 🥉 JUARA 3 (PERUNGGU) */}
+                              {event.overallChampions[2] ? (
+                                <div className="bg-gradient-to-b from-orange-50/50 to-white border-2 border-orange-300/80 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-center justify-between gap-1 mb-2">
+                                      <span className="px-2 py-0.5 bg-orange-200 text-orange-950 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1 border border-orange-300">
+                                        🥉 JUARA 3
+                                      </span>
+                                      <span className="text-[9px] font-bold text-orange-800 bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200">
+                                        {event.overallChampions[2].timeDiff}
+                                      </span>
+                                    </div>
+                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
+                                      {event.overallChampions[2].swimmerName}
+                                    </div>
+                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
+                                      {event.overallChampions[2].club}
+                                    </div>
+                                  </div>
+
+                                  <div className="mt-3 pt-2.5 border-t border-orange-200 flex items-center justify-between">
+                                    <div>
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Waktu Resmi
+                                      </span>
+                                      <span className="text-base font-mono font-black text-orange-950">
+                                        {event.overallChampions[2].resultTime}
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
+                                        Lintasan
+                                      </span>
+                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
+                                        {event.overallChampions[2].heatLane}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
+                                  Belum ada perenang finis Juara 3
+                                </div>
+                              )}
+                            </div>
+
+                            {/* PER-HEAT BREAKDOWN STRIP (IF MULTIPLE HEATS) */}
+                            {event.heatBreakdowns.length > 1 && (
+                              <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
+                                <div className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
+                                  <SlidersHorizontal className="w-3 h-3 text-sky-600" />
+                                  <span>Hasil Juara Tercepat Per-Seri (Heat):</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                                  {event.heatBreakdowns.map((hb) => (
+                                    <div
+                                      key={hb.heatNum}
+                                      className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1"
+                                    >
+                                      <div className="font-black text-slate-800 text-[11px] flex items-center justify-between">
+                                        <span>SERI {hb.heatNum}</span>
+                                        <span className="text-[10px] text-slate-500 font-normal">
+                                          {hb.champions.length} finis
+                                        </span>
+                                      </div>
+                                      {hb.champions.slice(0, 3).map((c, cIdx) => (
+                                        <div
+                                          key={cIdx}
+                                          className="flex items-center justify-between text-[11px]"
+                                        >
+                                          <span className="truncate pr-1 font-bold text-slate-700">
+                                            {c.rank === 1 ? "🥇" : c.rank === 2 ? "🥈" : "🥉"}{" "}
+                                            {c.swimmerName}
+                                          </span>
+                                          <span className="font-mono font-black text-slate-900 shrink-0">
+                                            {c.resultTime}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          /* ============================================== */
+                          /* GROUP ABJAD CATEGORY: JUARA 1, 2, 3 PER GROUP   */
+                          /* ============================================== */
+                          <div className="space-y-3.5">
+                            <div className="flex items-center justify-between text-xs bg-purple-50/80 p-2.5 rounded-xl border border-purple-200/80">
+                              <span className="font-black text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
+                                <Sparkles className="w-4 h-4 text-purple-600" />
+                                <span>Juara 1, 2, 3 di Setiap Group Abjad (Waktu Tercepat):</span>
+                              </span>
+                              <span className="text-[11px] font-bold text-purple-700">
+                                Total {event.groupBreakdowns.length} Group
+                              </span>
+                            </div>
+
+                            {/* GRID OF GROUP BOXES */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                              {event.groupBreakdowns.map((grp) => (
+                                <div
+                                  key={grp.groupNum}
+                                  className="bg-white border-2 border-purple-200 rounded-xl p-3.5 shadow-2xs space-y-2.5 relative overflow-hidden"
+                                >
+                                  {/* GROUP HEADER */}
+                                  <div className="flex items-center justify-between border-b border-purple-100 pb-2">
+                                    <span className="px-2.5 py-0.5 bg-purple-600 text-white rounded-lg text-xs font-black tracking-wider uppercase shadow-xs">
+                                      GROUP {grp.groupLabel}
+                                    </span>
+                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded">
+                                      {grp.allSwimmersCount} Perenang
+                                    </span>
+                                  </div>
+
+                                  {/* JUARA 1, 2, 3 ROWS */}
+                                  <div className="space-y-2">
+                                    {/* 🥇 JUARA 1 GROUP */}
+                                    {grp.champions[0] ? (
+                                      <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-300 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded bg-amber-400 text-amber-950 font-black text-[9px]">
+                                              🥇 1
+                                            </span>
+                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
+                                              {grp.champions[0].swimmerName}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
+                                            {grp.champions[0].club} • Line {grp.champions[0].lane}
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <div className="font-mono font-black text-xs text-amber-950">
+                                            {grp.champions[0].resultTime}
+                                          </div>
+                                          <div className="text-[9px] font-bold text-amber-700">
+                                            Waktu Tercepat
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="p-2 text-center text-slate-400 text-[11px] italic">
+                                        Belum ada finis di Group {grp.groupLabel}
+                                      </div>
+                                    )}
+
+                                    {/* 🥈 JUARA 2 GROUP */}
+                                    {grp.champions[1] ? (
+                                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-black text-[9px]">
+                                              🥈 2
+                                            </span>
+                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
+                                              {grp.champions[1].swimmerName}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
+                                            {grp.champions[1].club} • Line {grp.champions[1].lane}
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <div className="font-mono font-black text-xs text-slate-800">
+                                            {grp.champions[1].resultTime}
+                                          </div>
+                                          <div className="text-[9px] font-bold text-slate-500">
+                                            {grp.champions[1].timeDiff}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : null}
+
+                                    {/* 🥉 JUARA 3 GROUP */}
+                                    {grp.champions[2] ? (
+                                      <div className="p-2 rounded-lg bg-orange-50/50 border border-orange-200 flex items-center justify-between gap-2">
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="px-1.5 py-0.5 rounded bg-orange-200 text-orange-950 font-black text-[9px]">
+                                              🥉 3
+                                            </span>
+                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
+                                              {grp.champions[2].swimmerName}
+                                            </span>
+                                          </div>
+                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
+                                            {grp.champions[2].club} • Line {grp.champions[2].lane}
+                                          </div>
+                                        </div>
+                                        <div className="text-right shrink-0">
+                                          <div className="font-mono font-black text-xs text-orange-950">
+                                            {grp.champions[2].resultTime}
+                                          </div>
+                                          <div className="text-[9px] font-bold text-orange-700">
+                                            {grp.champions[2].timeDiff}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

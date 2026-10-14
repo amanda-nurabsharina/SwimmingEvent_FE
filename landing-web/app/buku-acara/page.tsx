@@ -899,7 +899,7 @@ function BukuAcaraContent() {
                                         ? "bg-rose-50/90 text-rose-900 border-rose-200/80"
                                         : "bg-sky-50/80 text-sky-950 border-sky-200/80"
                                     }`}>
-                                      <th className={`py-2.5 px-3 w-16 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
+                                      <th className={`py-2.5 px-2 w-20 min-w-[5rem] text-center border-r whitespace-nowrap ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
                                         {isGroup ? "GROUP" : "SERI"}
                                       </th>
                                       <th className={`py-2.5 px-3 w-14 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>LINE</th>
@@ -925,10 +925,10 @@ function BukuAcaraContent() {
                                             isEmpty ? "bg-slate-50/40 text-slate-400" : "hover:bg-sky-50/40"
                                           }`}
                                         >
-                                          <td className="py-2.5 px-3 text-center font-black text-slate-800 border-r border-slate-100">
+                                          <td className="py-2.5 px-2 text-center font-black text-slate-800 border-r border-slate-100 whitespace-nowrap">
                                             <span
-                                              className={`px-2 py-0.5 rounded-lg text-xs font-black ${
-                                                isGroup ? "bg-purple-100 text-purple-900" : "bg-sky-100 text-sky-900"
+                                              className={`inline-flex items-center justify-center whitespace-nowrap min-w-[3.5rem] px-2.5 py-1 rounded-lg text-xs font-black tracking-wide ${
+                                                isGroup ? "bg-purple-100 text-purple-900 border border-purple-200/80 shadow-2xs" : "bg-sky-100 text-sky-900 border border-sky-200/80 shadow-2xs"
                                               }`}
                                             >
                                               {isGroup ? `Grp ${rowLabel}` : `H${item.heat}`}

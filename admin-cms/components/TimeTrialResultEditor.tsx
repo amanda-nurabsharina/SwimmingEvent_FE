@@ -46,6 +46,7 @@ export default function TimeTrialResultEditor({
   const [loading, setLoading] = useState<boolean>(true);
   const [loadingHeats, setLoadingHeats] = useState<boolean>(false);
   const [savingLanes, setSavingLanes] = useState<Record<number, boolean>>({});
+  const [savingHeatId, setSavingHeatId] = useState<number | null>(null);
 
   // Local state for modified results: laneId -> { result_time, status, coach_notes }
   const [laneResults, setLaneResults] = useState<
@@ -164,6 +165,34 @@ export default function TimeTrialResultEditor({
     } else {
       toast.error(res.message || "Gagal menyimpan hasil");
     }
+  };
+
+  // Save all lanes in a specific heat
+  const handleSaveHeatLanes = async (heat: any) => {
+    const occupiedLanes = (heat.lanes || []).filter((l: any) => l.member_id && l.member);
+    if (occupiedLanes.length === 0) return;
+
+    setSavingHeatId(heat.id);
+    const savePromises = occupiedLanes.map((lane: any) => {
+      const data = laneResults[lane.id] || {
+        result_time: lane.result_time,
+        status: lane.status || "OK",
+        coach_notes: lane.coach_notes || "",
+      };
+      return updateTimeTrialLane(lane.id, {
+        result_time: data.result_time,
+        status: data.status,
+        coach_notes: data.coach_notes,
+      });
+    });
+
+    await Promise.all(savePromises);
+    if (selectedSessionId && selectedStrokeId) {
+      await calculateTimeTrialRanks(selectedSessionId, selectedStrokeId);
+    }
+    setSavingHeatId(null);
+    toast.success(`Catatan waktu Seri ${heat.heat_number} berhasil disimpan & ranking diperbarui!`);
+    fetchHeats();
   };
 
   // Save all and recalculate ranking
@@ -475,9 +504,30 @@ export default function TimeTrialResultEditor({
                           </span>
                         )}
                       </div>
-                      <span className="text-[11px] font-bold text-slate-400">
-                        {occupiedLanes.length} Perenang
-                      </span>
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[11px] font-bold text-slate-400">
+                          {occupiedLanes.length} Perenang
+                        </span>
+                        <button
+                          type="button"
+                          disabled={savingHeatId === heat.id}
+                          onClick={() => handleSaveHeatLanes(heat)}
+                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                          title="Simpan seluruh catatan waktu di heat ini sekaligus"
+                        >
+                          {savingHeatId === heat.id ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                              <span>Menyimpan...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Save className="w-3.5 h-3.5" />
+                              <span>Simpan Waktu Seri {heat.heat_number}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
                     </div>
 
                     {/* LANES INPUT TABLE */}

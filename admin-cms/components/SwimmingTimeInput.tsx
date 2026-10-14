@@ -12,6 +12,7 @@ export interface SwimmingTimeInputProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   showLabels?: boolean;
+  dataRegId?: number | string;
 }
 
 export default function SwimmingTimeInput({
@@ -24,6 +25,7 @@ export default function SwimmingTimeInput({
   size = "md",
   className = "",
   showLabels = false,
+  dataRegId,
 }: SwimmingTimeInputProps) {
   const mmRef = useRef<HTMLInputElement>(null);
   const ssRef = useRef<HTMLInputElement>(null);
@@ -85,12 +87,20 @@ export default function SwimmingTimeInput({
     const val = e.target.value.replace(/\D/g, "").slice(0, 2);
     setMm(val);
     emitChange(val, ss, ms);
+    if (val.length === 2 && ssRef.current) {
+      ssRef.current.focus();
+      ssRef.current.select();
+    }
   };
 
   const handleSsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, "").slice(0, 2);
     setSs(val);
     emitChange(mm, val, ms);
+    if (val.length === 2 && msRef.current) {
+      msRef.current.focus();
+      msRef.current.select();
+    }
   };
 
   const handleMsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -239,6 +249,7 @@ export default function SwimmingTimeInput({
           maxLength={2}
           disabled={disabled}
           value={mm}
+          data-reg-id={dataRegId}
           onFocus={(e) => {
             setIsFocused(true);
             e.target.select();

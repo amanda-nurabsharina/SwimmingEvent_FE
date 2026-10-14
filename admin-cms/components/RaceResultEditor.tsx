@@ -115,6 +115,17 @@ export default function RaceResultEditor({
   const [rank, setRank] = useState(1);
   const [savingResultId, setSavingResultId] = useState<number | null>(null);
 
+  // 3b. BULK / EDITABLE TABLE RESULT RECORDING STATE (PER HEAT / GROUP)
+  const [bulkEditingHeats, setBulkEditingHeats] = useState<Set<string>>(new Set());
+  const [bulkValues, setBulkValues] = useState<{
+    [regId: number]: {
+      time: string;
+      status: "OK" | "DQ" | "DNF" | "DNS";
+      rank: number;
+    };
+  }>({});
+  const [savingHeatKey, setSavingHeatKey] = useState<string | null>(null);
+
   // 4. SWAP / PINDAH MODAL STATE
   const [swapModalOpen, setSwapModalOpen] = useState(false);
   const [swimmerToMove, setSwimmerToMove] = useState<{
@@ -446,6 +457,225 @@ export default function RaceResultEditor({
       if (onRefresh) onRefresh();
     } else {
       toast.error(res?.message || "Gagal menyimpan hasil lomba");
+    }
+  };
+
+  // Helper to normalize input time string
+  const normalizeSwimTime = (raw: string): string => {
+    if (!raw) return "-";
+    const clean = raw.trim();
+    if (clean === "" || clean === "-" || clean === "00.00.00" || clean === "00:00.00" || clean === "OK") return "-";
+    if (clean === "DQ" || clean === "DNF" || clean === "DNS") return clean;
+
+    const normalized = clean.replace(/:/g, ".");
+    const parts = normalized.split(".");
+    if (parts.length === 2) {
+      const s = parts[0].padStart(2, "0");
+      const ms = parts[1].padEnd(2, "0").slice(0, 2);
+      return `00.${s}.${ms}`;
+    } else if (parts.length >= 3) {
+      const m = parts[0].padStart(2, "0");
+      const s = parts[1].padStart(2, "0");
+      const ms = parts[2].padEnd(2, "0").slice(0, 2);
+      return `${m}.${s}.${ms}`;
+    }
+    return clean;
+  };
+
+  // Helper to parse swim time to seconds for auto-rank
+  const parseTimeToSeconds = (timeStr?: string): number => {
+    if (!timeStr) return 9999999;
+    const clean = timeStr.trim().toUpperCase();
+    if (
+      clean === "" ||
+      clean === "-" ||
+      clean === "00.00.00" ||
+      clean === "NT" ||
+      clean.includes("DQ") ||
+      clean.includes("DNF") ||
+      clean.includes("DNS")
+    ) {
+      return 9999999;
+    }
+    const normalized = clean.replace(/:/g, ".");
+    const parts = normalized.split(".");
+    if (parts.length >= 3) {
+      const min = parseFloat(parts[0]) || 0;
+      const sec = parseFloat(parts[1]) || 0;
+      const ms = parseFloat(parts[2].slice(0, 2)) || 0;
+      return min * 60 + sec + ms / 100;
+    } else if (parts.length === 2) {
+      const sec = parseFloat(parts[0]) || 0;
+      const ms = parseFloat(parts[1].slice(0, 2)) || 0;
+      return sec + ms / 100;
+    }
+    const val = parseFloat(normalized);
+    return isNaN(val) ? 9999999 : val;
+  };
+
+  // Start bulk editable mode for a heat / group
+  const handleStartBulkHeat = (heatKey: string, items: HeatItem[]) => {
+    setBulkEditingHeats((prev) => {
+      const next = new Set(prev);
+      next.add(heatKey);
+      return next;
+    });
+
+    setBulkValues((prev) => {
+      const updated = { ...prev };
+      items.forEach((item) => {
+        if (!item.registration_id || item.is_empty || item.nama === "(KOSONG)") return;
+        let timeVal = item.result && item.result !== "-" ? item.result : "";
+        let statusVal: "OK" | "DQ" | "DNF" | "DNS" = "OK";
+        if (timeVal.includes("DQ")) {
+          statusVal = "DQ";
+          timeVal = "";
+        } else if (timeVal.includes("DNF")) {
+          statusVal = "DNF";
+          timeVal = "";
+        } else if (timeVal.includes("DNS")) {
+          statusVal = "DNS";
+          timeVal = "";
+        }
+
+        updated[item.registration_id] = {
+          time: timeVal,
+          status: statusVal,
+          rank: item.rank || 0,
+        };
+      });
+      return updated;
+    });
+
+    setTimeout(() => {
+      const firstActive = items.find((i) => i.registration_id && !i.is_empty && i.nama !== "(KOSONG)");
+      if (firstActive?.registration_id) {
+        const el = document.querySelector(`input[data-reg-id="${firstActive.registration_id}"]`) as HTMLInputElement | null;
+        if (el) {
+          el.focus();
+          el.select();
+        }
+      }
+    }, 60);
+  };
+
+  // Cancel bulk editable mode for a heat / group
+  const handleCancelBulkHeat = (heatKey: string) => {
+    setBulkEditingHeats((prev) => {
+      const next = new Set(prev);
+      next.delete(heatKey);
+      return next;
+    });
+  };
+
+  // Update time for a registration in bulk mode
+  const handleBulkTimeChange = (regId: number, val: string) => {
+    setBulkValues((prev) => ({
+      ...prev,
+      [regId]: {
+        ...(prev[regId] || { status: "OK", rank: 0 }),
+        time: val,
+      },
+    }));
+  };
+
+  // Update status for a registration in bulk mode
+  const handleBulkStatusChange = (regId: number, statusVal: "OK" | "DQ" | "DNF" | "DNS") => {
+    setBulkValues((prev) => ({
+      ...prev,
+      [regId]: {
+        ...(prev[regId] || { time: "", rank: 0 }),
+        status: statusVal,
+        time: statusVal !== "OK" ? "" : prev[regId]?.time || "",
+      },
+    }));
+  };
+
+  // Update rank for a registration in bulk mode
+  const handleBulkRankChange = (regId: number, rankVal: number) => {
+    setBulkValues((prev) => ({
+      ...prev,
+      [regId]: {
+        ...(prev[regId] || { time: "", status: "OK" }),
+        rank: rankVal,
+      },
+    }));
+  };
+
+  // Auto-Rank all swimmers in this heat based on entered times
+  const handleAutoRankHeat = (items: HeatItem[]) => {
+    const active = items.filter((i) => i.registration_id && !i.is_empty && i.nama !== "(KOSONG)");
+    const evaluated = active.map((item) => {
+      const row = bulkValues[item.registration_id!] || { time: item.result || "", status: "OK", rank: 0 };
+      const sec = row.status === "OK" ? parseTimeToSeconds(row.time) : 9999999;
+      return { regId: item.registration_id!, sec, status: row.status };
+    });
+
+    const valid = evaluated.filter((e) => e.sec < 9999990).sort((a, b) => a.sec - b.sec);
+
+    setBulkValues((prev) => {
+      const updated = { ...prev };
+      valid.forEach((item, idx) => {
+        if (updated[item.regId]) {
+          updated[item.regId].rank = idx + 1;
+        }
+      });
+      return updated;
+    });
+
+    toast.success(`Berhasil mengurutkan ranking untuk ${valid.length} perenang finis!`);
+  };
+
+  // Focus next lane input on Enter key
+  const focusNextBulkInput = (currentRegId: number, items: HeatItem[]) => {
+    const active = items.filter((i) => i.registration_id && !i.is_empty && i.nama !== "(KOSONG)");
+    const currIdx = active.findIndex((i) => i.registration_id === currentRegId);
+    if (currIdx >= 0 && currIdx < active.length - 1) {
+      const nextRegId = active[currIdx + 1].registration_id;
+      const el = document.querySelector(`input[data-reg-id="${nextRegId}"]`) as HTMLInputElement | null;
+      if (el) {
+        el.focus();
+        el.select();
+      }
+    }
+  };
+
+  // Save all results in a heat / group
+  const handleSaveBulkHeat = async (heatKey: string, items: HeatItem[], label: string | number) => {
+    if (!isLocked) {
+      toast.warning(
+        "Buku Acara belum dikunci! Untuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu.",
+        { title: "Buku Acara Belum Dikunci" }
+      );
+      return;
+    }
+
+    const active = items.filter((i) => i.registration_id && !i.is_empty && i.nama !== "(KOSONG)");
+    if (active.length === 0) return;
+
+    setSavingHeatKey(heatKey);
+
+    const savePromises = active.map(async (item) => {
+      const row = bulkValues[item.registration_id!];
+      if (!row) return;
+      let finalTime = normalizeSwimTime(row.time);
+      if (row.status !== "OK") {
+        finalTime = row.status;
+      }
+      return recordRaceResult(item.registration_id!, finalTime, row.rank, row.status, "preliminary");
+    });
+
+    const results = await Promise.all(savePromises);
+    setSavingHeatKey(null);
+
+    const hasFailure = results.some((r) => r && !r.success);
+    if (hasFailure) {
+      toast.error("Sebagian catatan waktu gagal disimpan");
+    } else {
+      toast.success(`Seluruh catatan waktu ${label} berhasil disimpan!`);
+      handleCancelBulkHeat(heatKey);
+      fetchBaganData(selectedTournamentId);
+      if (onRefresh) onRefresh();
     }
   };
 
@@ -1081,11 +1311,77 @@ export default function RaceResultEditor({
                                 <span className={`font-semibold ${isPutri ? "text-rose-700/80" : "text-slate-500"}`}>{activeSwimmers.length} Atlet Terdaftar</span>
                               </span>
                             </div>
-                            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white ${
-                              isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
-                            }`}>
-                              Kapasitas {event.max_lanes || 3} Lintasan
-                            </span>
+
+                            <div className="flex items-center gap-2">
+                              {bulkEditingHeats.has(`${event.event_code}-heat-${group.heatNum}`) ? (
+                                <>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleAutoRankHeat(group.items)}
+                                    className="px-2.5 py-1 bg-amber-400 hover:bg-amber-500 text-amber-950 text-xs font-black rounded-xl shadow-xs transition flex items-center gap-1 cursor-pointer"
+                                    title="Otomatis tentukan ranking 1, 2, 3... berdasarkan catatan waktu tercepat di heat ini"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5" />
+                                    <span>Auto Rank</span>
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={savingHeatKey === `${event.event_code}-heat-${group.heatNum}`}
+                                    onClick={() => handleSaveBulkHeat(`${event.event_code}-heat-${group.heatNum}`, group.items, isGroup ? `Group ${labelDisplay}` : `Seri ${group.heatNum}`)}
+                                    className="px-3.5 py-1 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                                  >
+                                    {savingHeatKey === `${event.event_code}-heat-${group.heatNum}` ? (
+                                      <>
+                                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                        <span>Menyimpan...</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Save className="w-3.5 h-3.5" />
+                                        <span>Simpan Waktu {isGroup ? `Group ${labelDisplay}` : `Seri ${group.heatNum}`}</span>
+                                      </>
+                                    )}
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    disabled={savingHeatKey === `${event.event_code}-heat-${group.heatNum}`}
+                                    onClick={() => handleCancelBulkHeat(`${event.event_code}-heat-${group.heatNum}`)}
+                                    className="px-2 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                                  >
+                                    <X className="w-3.5 h-3.5" />
+                                    <span>Batal</span>
+                                  </button>
+                                </>
+                              ) : (
+                                <>
+                                  {activeSwimmers.length > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleStartBulkHeat(`${event.event_code}-heat-${group.heatNum}`, group.items)}
+                                      className={`px-3 py-1 text-xs font-black rounded-xl shadow-xs transition flex items-center gap-1.5 cursor-pointer ${
+                                        isGroup
+                                          ? "bg-purple-600 hover:bg-purple-700 text-white"
+                                          : isPutri
+                                          ? "bg-rose-600 hover:bg-rose-700 text-white"
+                                          : "bg-sky-600 hover:bg-sky-700 text-white"
+                                      }`}
+                                      title="Klik untuk membuka input waktu semua perenang di heat ini secara langsung (editable table)"
+                                    >
+                                      <Zap className="w-3.5 h-3.5" />
+                                      <span>Catat Waktu {isGroup ? `Group ${labelDisplay}` : `Seri ${group.heatNum}`}</span>
+                                    </button>
+                                  )}
+                                </>
+                              )}
+
+                              <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white ${
+                                isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
+                              }`}>
+                                Kapasitas {event.max_lanes || 3} Lintasan
+                              </span>
+                            </div>
                           </div>
 
                           {/* Table for this Heat/Cluster */}
@@ -1097,7 +1393,7 @@ export default function RaceResultEditor({
                                     ? "bg-rose-50/90 text-rose-900 border-rose-200/80"
                                     : "bg-sky-50/80 text-sky-950 border-sky-200/80"
                                 }`}>
-                                  <th className={`py-2.5 px-3 w-16 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
+                                  <th className={`py-2.5 px-2 w-20 min-w-[5rem] text-center border-r whitespace-nowrap ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
                                     {isGroup ? "GROUP" : "SERI"}
                                   </th>
                                   <th className={`py-2.5 px-3 w-20 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>LINE</th>
@@ -1113,6 +1409,10 @@ export default function RaceResultEditor({
                               <tbody className="divide-y divide-slate-100">
                                 {group.items.map((item, rIdx) => {
                                   const isEmpty = item.is_empty || item.nama === "(KOSONG)";
+                                  const heatKey = `${event.event_code}-heat-${group.heatNum}`;
+                                  const isBulkEditing = bulkEditingHeats.has(heatKey);
+                                  const isBulkRow = isBulkEditing && !isEmpty && Boolean(item.registration_id);
+                                  const bulkRow = item.registration_id ? bulkValues[item.registration_id] : undefined;
                                   const isEditing = editingId === item.registration_id;
                                   const rowLabel = isGroup
                                     ? item.heat_label || String.fromCharCode(64 + item.heat)
@@ -1130,10 +1430,10 @@ export default function RaceResultEditor({
                                       }`}
                                     >
                                       {/* HEAT / GROUP */}
-                                      <td className="py-3 px-3 text-center font-black text-slate-800 border-r border-slate-100">
+                                      <td className="py-3 px-2 text-center font-black text-slate-800 border-r border-slate-100 whitespace-nowrap">
                                         <span
-                                          className={`px-2.5 py-1 rounded-lg text-xs font-black ${
-                                            isGroup ? "bg-purple-100 text-purple-900" : "bg-sky-100 text-sky-900"
+                                          className={`inline-flex items-center justify-center whitespace-nowrap min-w-[3.5rem] px-2.5 py-1 rounded-lg text-xs font-black tracking-wide ${
+                                            isGroup ? "bg-purple-100 text-purple-900 border border-purple-200/80 shadow-2xs" : "bg-sky-100 text-sky-900 border border-sky-200/80 shadow-2xs"
                                           }`}
                                         >
                                           {isGroup ? `Grp ${rowLabel}` : `H${item.heat}`}
@@ -1209,9 +1509,39 @@ export default function RaceResultEditor({
                                       </td>
 
                                       {/* WAKTU HASIL (RESULT) - INLINE RECORDING FORM */}
-                                      <td className="py-3 px-4 text-center border-r border-slate-100">
+                                      <td className={`py-3 px-4 text-center border-r border-slate-100 ${isBulkRow ? "bg-amber-50/50" : ""}`}>
                                         {isEmpty ? (
                                           <span className="text-slate-300 font-bold">-</span>
+                                        ) : isBulkRow ? (
+                                          <div className="flex items-center justify-center gap-1.5">
+                                            {bulkRow?.status === "OK" ? (
+                                              <SwimmingTimeInput
+                                                value={bulkRow?.time || "00.00.00"}
+                                                onChange={(val) => handleBulkTimeChange(item.registration_id!, val)}
+                                                onEnter={() => focusNextBulkInput(item.registration_id!, group.items)}
+                                                dataRegId={item.registration_id}
+                                                size="sm"
+                                              />
+                                            ) : (
+                                              <div className="h-8 px-3 bg-rose-100 text-rose-800 rounded-2xl text-xs font-black tracking-wider uppercase border-2 border-rose-300 flex items-center justify-center min-w-[7.5rem]">
+                                                {bulkRow?.status}
+                                              </div>
+                                            )}
+                                            <select
+                                              value={bulkRow?.status || "OK"}
+                                              onChange={(e) => handleBulkStatusChange(item.registration_id!, e.target.value as any)}
+                                              className={`h-8 px-1.5 text-[10px] font-black rounded-xl border-2 outline-none cursor-pointer transition ${
+                                                bulkRow?.status === "OK"
+                                                  ? "bg-slate-50 text-slate-700 border-slate-300 hover:border-slate-400"
+                                                  : "bg-rose-50 text-rose-800 border-rose-300 font-bold"
+                                              }`}
+                                            >
+                                              <option value="OK">OK</option>
+                                              <option value="DQ">DQ</option>
+                                              <option value="DNF">DNF</option>
+                                              <option value="DNS">DNS</option>
+                                            </select>
+                                          </div>
                                         ) : isEditing ? (
                                           <div className="flex flex-col gap-1 items-center justify-center">
                                             {status === "OK" ? (
@@ -1307,9 +1637,20 @@ export default function RaceResultEditor({
                                       </td>
 
                                       {/* PERINGKAT / RANK */}
-                                      <td className="py-3 px-3 text-center border-r border-slate-100">
+                                      <td className={`py-3 px-3 text-center border-r border-slate-100 ${isBulkRow ? "bg-amber-50/50" : ""}`}>
                                         {isEmpty ? (
                                           "-"
+                                        ) : isBulkRow ? (
+                                          <input
+                                            type="number"
+                                            min={0}
+                                            max={20}
+                                            value={bulkRow?.rank || ""}
+                                            placeholder="-"
+                                            onChange={(e) => handleBulkRankChange(item.registration_id!, Number(e.target.value))}
+                                            className="w-12 px-1 py-1 text-center font-mono font-black text-xs bg-white border-2 border-amber-400 rounded-xl text-amber-900 focus:outline-none focus:ring-2 focus:ring-amber-200"
+                                            title="Peringkat (atau klik Auto Rank di atas)"
+                                          />
                                         ) : isEditing ? (
                                           <input
                                             type="number"
