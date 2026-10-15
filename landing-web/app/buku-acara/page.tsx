@@ -48,8 +48,11 @@ interface HeatItem {
   schedule_time?: string;
 }
 
-function formatIndonesianDate(dateStr?: string): string {
-  if (!dateStr || !dateStr.trim()) return "19 SEPTEMBER 2026";
+function formatIndonesianDate(dateStr?: string, fallbackDate?: string): string {
+  if (!dateStr || !dateStr.trim()) {
+    if (fallbackDate && fallbackDate.trim()) return formatIndonesianDate(fallbackDate);
+    return "1 OKTOBER 2026";
+  }
   const months = [
     "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
     "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
@@ -904,7 +907,7 @@ function BukuAcaraContent() {
               </div>
             ) : (
               <>
-                <div className="space-y-8 print:hidden">
+                <div className="space-y-4 print:hidden">
                 {filteredEvents.map((event, eventIdx) => {
                   const isPutri =
                     event.gender?.toUpperCase() === "PUTRI" ||
@@ -919,16 +922,16 @@ function BukuAcaraContent() {
                   return (
                     <div
                       key={`${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
-                      className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print-event-block print:shadow-none print:border-black print:rounded-none print:overflow-visible"
+                      className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden print-event-block print:shadow-none print:border-black print:rounded-none print:overflow-visible"
                     >
                       {/* Event Header Banner */}
-                      <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b print-event-header ${
+                      <div className={`px-4 py-2.5 sm:px-5 sm:py-3 flex flex-wrap items-center justify-between gap-2.5 text-white border-b print-event-header ${
                         isPutri
                           ? "bg-slate-900 border-rose-900/50"
                           : "bg-slate-900 border-sky-900/50"
                       }`}>
-                        <div className="flex items-center gap-3 flex-wrap">
-                          <div className={`px-3 py-1.5 rounded-xl font-mono text-xs sm:text-sm font-black shrink-0 shadow-inner border ${
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          <div className={`px-2.5 py-1 rounded-lg font-mono text-xs sm:text-sm font-black shrink-0 shadow-inner border ${
                             isPutri
                               ? "bg-rose-950/60 border-rose-800/80 text-rose-400"
                               : "bg-slate-800 border-slate-700 text-sky-400"
@@ -956,7 +959,7 @@ function BukuAcaraContent() {
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span className="bg-sky-400/20 text-sky-200 border border-sky-300/30 text-[11px] px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
                               <Calendar className="w-3 h-3 text-sky-300" />
-                              {event.schedule_date || "2026-03-28"}
+                              {event.schedule_date || currentTournament?.event_start_date || "2026-10-01"}
                             </span>
                             <span className="bg-amber-400/20 text-amber-200 border border-amber-300/30 text-[11px] px-2.5 py-0.5 rounded-full font-black flex items-center gap-1">
                               <Clock className="w-3 h-3 text-amber-300" />
@@ -965,7 +968,7 @@ function BukuAcaraContent() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2 text-xs font-black">
-                          <span className={`px-3.5 py-1 rounded-full border font-black uppercase tracking-wider ${
+                          <span className={`px-3 py-0.5 rounded-full border font-black uppercase tracking-wider text-[11px] ${
                             isPutri
                               ? "bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-xs"
                               : "bg-sky-600/30 text-sky-300 border-sky-500/50 shadow-xs"
@@ -975,8 +978,8 @@ function BukuAcaraContent() {
                         </div>
                       </div>
 
-                      {/* Spacious Separated Heat/Group Cards */}
-                      <div className="p-4 sm:p-6 space-y-6 bg-slate-50/60 print:p-0 print:space-y-0 print:bg-transparent">
+                      {/* Compact Separated Heat/Group Cards */}
+                      <div className="p-3 sm:p-4 space-y-3 bg-slate-50/50 print:p-0 print:space-y-0 print:bg-transparent">
                         {heatGroups.map((group) => {
                           const activeSwimmers = group.items.filter((i) => !i.is_empty && i.nama !== "(KOSONG)");
                           const labelDisplay = isGroup
@@ -986,19 +989,19 @@ function BukuAcaraContent() {
                           return (
                             <div
                               key={group.heatNum}
-                              className={`bg-white rounded-2xl border shadow-xs overflow-hidden print-heat-card print:rounded-none print:border-none print:shadow-none ${
+                              className={`bg-white rounded-xl border shadow-2xs overflow-hidden print-heat-card print:rounded-none print:border-none print:shadow-none ${
                                 isPutri ? "border-rose-100" : "border-slate-200/90"
                               }`}
                             >
                               {/* Subheader */}
-                              <div className={`px-4 py-2.5 border-b flex flex-wrap items-center justify-between gap-2 print:bg-slate-200 ${
+                              <div className={`px-3.5 py-1.5 border-b flex flex-wrap items-center justify-between gap-2 print:bg-slate-200 ${
                                 isPutri
                                   ? "bg-rose-50/80 border-rose-200/70"
                                   : "bg-slate-100/90 border-slate-200"
                               }`}>
-                                <div className="flex items-center gap-2.5">
+                                <div className="flex items-center gap-2">
                                   <span
-                                    className={`px-3 py-1 rounded-xl text-xs font-black uppercase tracking-wider ${
+                                    className={`px-2.5 py-0.5 rounded-lg text-[11px] font-black uppercase tracking-wider ${
                                       isGroup
                                         ? "bg-purple-600 text-white shadow-xs"
                                         : isPutri
@@ -1008,18 +1011,18 @@ function BukuAcaraContent() {
                                   >
                                     {isGroup ? `GROUP ${labelDisplay}` : `SERI (HEAT) ${group.heatNum}`}
                                   </span>
-                                  <span className={`text-xs font-bold ${isPutri ? "text-rose-950" : "text-slate-700"}`}>
+                                  <span className={`text-[11px] font-bold ${isPutri ? "text-rose-950" : "text-slate-700"}`}>
                                     {isGroup ? `Kelompok Group ${labelDisplay}` : `Seri ${group.heatNum}`}
                                     <span className="mx-1.5 text-slate-300">•</span>
                                     <span className={`font-medium ${isPutri ? "text-rose-700/80" : "text-slate-500"}`}>{activeSwimmers.length} Atlet Terdaftar</span>
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <span className="text-[11px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1 shadow-2xs">
-                                    <Clock className="w-3 h-3 text-sky-600" />
+                                  <span className="text-[10px] font-bold text-slate-700 bg-white px-2 py-0.5 rounded-md border border-slate-200 flex items-center gap-1 shadow-2xs">
+                                    <Clock className="w-2.5 h-2.5 text-sky-600" />
                                     <span>Mulai: {event.schedule_time || "08:00 WIB"}</span>
                                   </span>
-                                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border bg-white print:hidden ${
+                                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border bg-white print:hidden ${
                                     isPutri ? "text-rose-700 border-rose-200" : "text-slate-500 border-slate-200"
                                   }`}>
                                     Kapasitas {event.max_lanes || 3} Lintasan
@@ -1036,16 +1039,16 @@ function BukuAcaraContent() {
                                         ? "bg-rose-50/90 text-rose-900 border-rose-200/80"
                                         : "bg-sky-50/80 text-sky-950 border-sky-200/80"
                                     }`}>
-                                      <th className={`py-2.5 px-2 w-20 min-w-[5rem] text-center border-r whitespace-nowrap ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
+                                      <th className={`py-1.5 px-2.5 w-16 text-center border-r whitespace-nowrap ${isPutri ? "border-rose-100" : "border-slate-200"}`}>
                                         {isGroup ? "GROUP" : "SERI"}
                                       </th>
-                                      <th className={`py-2.5 px-3 w-14 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>LINE</th>
-                                      <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>NAMA PERENANG</th>
-                                      <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>JENIS KELAMIN</th>
-                                      <th className={`py-2.5 px-4 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>CLUB</th>
-                                      <th className={`py-2.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>TIME SEED</th>
-                                      <th className={`py-2.5 px-4 w-32 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>WAKTU HASIL</th>
-                                      <th className="py-2.5 px-4 w-36 text-center">PERINGKAT</th>
+                                      <th className={`py-1.5 px-2.5 w-12 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>LINE</th>
+                                      <th className={`py-1.5 px-3 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>NAMA PERENANG</th>
+                                      <th className={`py-1.5 px-2.5 w-24 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>JENIS KELAMIN</th>
+                                      <th className={`py-1.5 px-3 border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>CLUB</th>
+                                      <th className={`py-1.5 px-2.5 w-24 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>TIME SEED</th>
+                                      <th className={`py-1.5 px-3 w-28 text-center border-r ${isPutri ? "border-rose-100" : "border-slate-200"}`}>WAKTU HASIL</th>
+                                      <th className="py-1.5 px-3 w-32 text-center">PERINGKAT</th>
                                     </tr>
                                   </thead>
                                   <tbody className="divide-y divide-slate-100">
@@ -1062,52 +1065,52 @@ function BukuAcaraContent() {
                                             isEmpty ? "bg-slate-50/40 text-slate-400" : "hover:bg-sky-50/40"
                                           }`}
                                         >
-                                          <td className="py-2.5 px-2 text-center font-black text-slate-800 border-r border-slate-100 whitespace-nowrap">
+                                          <td className="py-1.5 px-2.5 text-center font-black text-slate-800 border-r border-slate-100 whitespace-nowrap">
                                             <span
-                                              className={`inline-flex items-center justify-center whitespace-nowrap min-w-[3.5rem] px-2.5 py-1 rounded-lg text-xs font-black tracking-wide ${
+                                              className={`inline-flex items-center justify-center whitespace-nowrap min-w-[3rem] px-2 py-0.5 rounded-md text-[11px] font-black tracking-wide ${
                                                 isGroup ? "bg-purple-100 text-purple-900 border border-purple-200/80 shadow-2xs" : "bg-sky-100 text-sky-900 border border-sky-200/80 shadow-2xs"
                                               }`}
                                             >
                                               {isGroup ? `Grp ${rowLabel}` : `H${item.heat}`}
                                             </span>
                                           </td>
-                                          <td className="py-2.5 px-3 text-center font-black text-slate-900 border-r border-slate-100">
+                                          <td className="py-1.5 px-2.5 text-center font-black text-slate-900 border-r border-slate-100">
                                             <span
-                                              className={`w-7 h-7 rounded-lg font-black text-xs inline-flex items-center justify-center ${
+                                              className={`w-6 h-6 rounded-md font-black text-[11px] inline-flex items-center justify-center ${
                                                 isEmpty ? "bg-slate-200 text-slate-500" : "bg-slate-900 text-white"
                                               }`}
                                             >
                                               {item.line}
                                             </span>
                                           </td>
-                                          <td className="py-2.5 px-4 font-black uppercase text-slate-900 border-r border-slate-100">
-                                            {isEmpty ? <span className="text-slate-400 italic">(LINTASAN KOSONG)</span> : item.nama}
+                                          <td className="py-1.5 px-3 font-black uppercase text-slate-900 border-r border-slate-100">
+                                            {isEmpty ? <span className="text-slate-400 italic font-normal text-xs">(LINTASAN KOSONG)</span> : item.nama}
                                           </td>
-                                          <td className="py-2.5 px-3 text-center font-semibold uppercase text-slate-700 border-r border-slate-100">
+                                          <td className="py-1.5 px-2.5 text-center font-semibold uppercase text-slate-700 border-r border-slate-100 text-xs">
                                             {isEmpty ? "-" : item.jenis_kelamin}
                                           </td>
-                                          <td className="py-2.5 px-4 font-semibold uppercase text-slate-800 border-r border-slate-100">
+                                          <td className="py-1.5 px-3 font-semibold uppercase text-slate-800 border-r border-slate-100 text-xs">
                                             {isEmpty ? "-" : item.club}
                                           </td>
-                                          <td className="py-2.5 px-3 text-center font-mono font-bold text-slate-700 border-r border-slate-100">
+                                          <td className="py-1.5 px-2.5 text-center font-mono font-bold text-slate-700 border-r border-slate-100 text-xs">
                                             {isEmpty ? "-" : item.time_seed}
                                           </td>
-                                          <td className="py-2.5 px-4 text-center font-mono font-black border-r border-slate-100">
+                                          <td className="py-1.5 px-3 text-center font-mono font-black border-r border-slate-100">
                                             {isEmpty ? (
-                                              <span className="text-slate-300 font-bold">-</span>
+                                              <span className="text-slate-300 font-bold text-xs">-</span>
                                             ) : item.result && item.result !== "-" ? (
-                                              <span className="px-2.5 py-1 bg-blue-50 text-blue-700 rounded-lg font-black border border-blue-100">
+                                              <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-black text-xs border border-blue-100">
                                                 {item.result}
                                               </span>
                                             ) : (
                                               <span className="text-slate-400 font-bold text-xs">-</span>
                                             )}
                                           </td>
-                                          <td className="py-2.5 px-4 text-center">
+                                          <td className="py-1.5 px-3 text-center">
                                             {!isEmpty && item.rank && item.rank > 0 ? (
                                               isGroup ? (
                                                 item.rank === 1 ? (
-                                                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-black text-xs bg-purple-100 border border-purple-300 text-purple-900 shadow-xs">
+                                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-xs bg-purple-100 border border-purple-300 text-purple-900 shadow-xs">
                                                     ★ Juara Group ({rowLabel})
                                                   </span>
                                                 ) : (
@@ -1116,15 +1119,15 @@ function BukuAcaraContent() {
                                                   </span>
                                                 )
                                               ) : item.rank === 1 ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-400 border border-amber-500 text-amber-950 rounded-lg font-black text-xs shadow-xs">
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-400 border border-amber-500 text-amber-950 rounded-md font-black text-xs shadow-xs">
                                                   🥇 Juara 1 (Emas)
                                                 </span>
                                               ) : item.rank === 2 ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-200 border border-slate-300 text-slate-800 rounded-lg font-black text-xs">
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-200 border border-slate-300 text-slate-800 rounded-md font-black text-xs">
                                                   🥈 Juara 2 (Perak)
                                                 </span>
                                               ) : item.rank === 3 ? (
-                                                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-700/20 border border-amber-700/40 text-amber-900 rounded-lg font-black text-xs">
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-700/20 border border-amber-700/40 text-amber-900 rounded-md font-black text-xs">
                                                   🥉 Juara 3 (Perunggu)
                                                 </span>
                                               ) : (
@@ -1133,7 +1136,7 @@ function BukuAcaraContent() {
                                                 </span>
                                               )
                                             ) : (
-                                              <span className="text-slate-300">-</span>
+                                              <span className="text-slate-300 font-bold text-xs">-</span>
                                             )}
                                           </td>
                                         </tr>
@@ -1183,7 +1186,7 @@ function BukuAcaraContent() {
                               Acara {event.event_code}
                             </div>
                             <div className="text-[10px] font-bold text-black uppercase tracking-wide">
-                              {formatIndonesianDate(event.schedule_date)}
+                              {formatIndonesianDate(event.schedule_date, currentTournament?.event_start_date)}
                             </div>
                           </div>
                           <div className="text-center font-black text-xs text-black uppercase tracking-wider">
