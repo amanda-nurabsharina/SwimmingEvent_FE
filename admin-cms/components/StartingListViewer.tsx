@@ -71,9 +71,19 @@ export default function StartingListViewer({
   // Helper derive Age Group (AG)
   const deriveKU = (bDate: string) => {
     if (!bDate) return "";
-    const birthYear = new Date(bDate).getFullYear();
-    const currentYear = new Date().getFullYear();
-    const age = currentYear - birthYear;
+    const parts = bDate.split(/[-/]/).map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return "";
+    const bYear = parts[0];
+    const bMonth = parts[1];
+    const bDay = parts[2];
+    const now = new Date();
+    let age = now.getFullYear() - bYear;
+    const nowMonth = now.getMonth() + 1;
+    const nowDay = now.getDate();
+    if (nowMonth < bMonth || (nowMonth === bMonth && nowDay < bDay)) {
+      age--;
+    }
+    age = Math.max(0, age);
     if (age <= 5) return "6A";
     if (age <= 7) return "6B";
     if (age <= 9) return "5";

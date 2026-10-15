@@ -80,20 +80,39 @@ function formatIndonesianDate(dateStr?: string, fallbackDate?: string): string {
 
 function formatLahirAndAge(birthDate?: string, scheduleDate?: string): string {
   if (!birthDate || !birthDate.trim() || birthDate === "-") return "-";
-  const match = birthDate.match(/(\d{4})/);
-  if (!match) return birthDate;
-  const birthYear = parseInt(match[1], 10);
-  if (isNaN(birthYear) || birthYear < 1900) return birthDate;
+  const bParts = birthDate.split(/[-/]/).map(Number);
+  if (bParts.length < 3 || isNaN(bParts[0]) || isNaN(bParts[1]) || isNaN(bParts[2])) {
+    const match = birthDate.match(/(\d{4})/);
+    if (!match) return birthDate;
+    const birthYear = parseInt(match[1], 10);
+    return `${birthYear}`;
+  }
+  const bYear = bParts[0];
+  const bMonth = bParts[1];
+  const bDay = bParts[2];
 
   let refYear = new Date().getFullYear();
+  let refMonth = new Date().getMonth() + 1;
+  let refDay = new Date().getDate();
+
   if (scheduleDate) {
-    const sMatch = scheduleDate.match(/(\d{4})/);
-    if (sMatch) {
-      refYear = parseInt(sMatch[1], 10);
+    const sParts = scheduleDate.split(/[-/]/).map(Number);
+    if (sParts.length >= 3 && !isNaN(sParts[0]) && !isNaN(sParts[1]) && !isNaN(sParts[2])) {
+      refYear = sParts[0];
+      refMonth = sParts[1];
+      refDay = sParts[2];
+    } else {
+      const sMatch = scheduleDate.match(/(\d{4})/);
+      if (sMatch) refYear = parseInt(sMatch[1], 10);
     }
   }
-  const age = Math.max(0, refYear - birthYear);
-  return `${birthYear} (${age})`;
+
+  let age = refYear - bYear;
+  if (refMonth < bMonth || (refMonth === bMonth && refDay < bDay)) {
+    age--;
+  }
+  age = Math.max(0, age);
+  return `${bYear} (${age})`;
 }
 
 function getEventDisplayName(event: EventGroup): string {

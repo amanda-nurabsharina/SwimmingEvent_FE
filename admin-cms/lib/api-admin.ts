@@ -288,6 +288,29 @@ export async function swapRegistrationHeatLine(
   }
 }
 
+export async function moveRegistrationEvent(
+  id: number,
+  data: {
+    target_event_id: number;
+    target_heat?: number;
+    target_line?: number;
+    round?: string;
+    notes?: string;
+  }
+) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/move-event`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(data),
+    });
+    return await res.json();
+  } catch (error) {
+    return { success: false, message: "Network error" };
+  }
+}
+
+
 export async function recordRaceResult(id: number, finalTime: string, rank: number, status?: string, round?: string) {
   try {
     const res = await fetch(`${API_BASE_URL}/admin/registrations/${id}/result`, {

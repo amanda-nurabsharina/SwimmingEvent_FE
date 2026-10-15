@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, Fragment } from "react";
+import { useState, useEffect, Fragment } from "react";
 import {
   verifyPayment,
   updateParticipant,
@@ -10,6 +10,9 @@ import {
   softDeleteRegistration,
   restoreRegistration,
   hardDeleteRegistration,
+  fetchAdminEvents,
+  moveRegistrationEvent,
+  swapRegistrationHeatLine,
 } from "../lib/api-admin";
 import { toast } from "./Toast";
 import {
@@ -47,6 +50,7 @@ import {
   AlertOctagon,
   Edit2,
   Save,
+  ArrowLeftRight,
 } from "lucide-react";
 
 interface ParticipantTableProps {
@@ -100,6 +104,17 @@ export default function ParticipantTable({
   } | null>(null);
   const [isProcessingAction, setIsProcessingAction] = useState(false);
 
+  // Master Events for Relocation
+  const [allEvents, setAllEvents] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchAdminEvents().then((res) => {
+      if (res && res.data) {
+        setAllEvents(res.data);
+      }
+    });
+  }, []);
+
   // Participant Identity Edit State in Modal
   const [isEditingParticipant, setIsEditingParticipant] = useState(false);
   const [savingParticipant, setSavingParticipant] = useState(false);
@@ -113,11 +128,42 @@ export default function ParticipantTable({
     age_group: "",
   });
 
+  // Event Moves Mapping when editing participant (Key: registration_id)
+  const [eventMoves, setEventMoves] = useState<{
+    [regId: number]: {
+      target_event_id: number;
+      target_heat: number;
+      target_line: number;
+      auto_slot: boolean;
+    };
+  }>({});
+
+  // Standalone Single Move / Swap Modal State
+  const [singleMoveModal, setSingleMoveModal] = useState<{
+    registration: any;
+    currentEvent: any;
+    targetEventId: number;
+    targetHeat: number;
+    targetLine: number;
+    swapIfOccupied: boolean;
+    loading: boolean;
+  } | null>(null);
+
   const deriveKUFromBirthDate = (bDate: string) => {
     if (!bDate) return "";
-    const birthYear = new Date(bDate).getFullYear();
-    const currentYear = new Date().getFullYear();
-    const age = currentYear - birthYear;
+    const parts = bDate.split(/[-/]/).map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return "";
+    const bYear = parts[0];
+    const bMonth = parts[1];
+    const bDay = parts[2];
+    const now = new Date();
+    let age = now.getFullYear() - bYear;
+    const nowMonth = now.getMonth() + 1;
+    const nowDay = now.getDate();
+    if (nowMonth < bMonth || (nowMonth === bMonth && nowDay < bDay)) {
+      age--;
+    }
+    age = Math.max(0, age);
     if (age <= 5) return "KU 6A";
     if (age <= 7) return "KU 6B";
     if (age <= 9) return "KU 5";
@@ -140,7 +186,52 @@ export default function ParticipantTable({
       birth_date: p.birth_date ? String(p.birth_date).substring(0, 10) : "",
       age_group: p.age_group || "Senior",
     });
+
+    const initialMoves: any = {};
+    (selectedGroup.items || []).forEach((it: any) => {
+      initialMoves[it.id] = {
+        target_event_id: it.swimming_event_id,
+        target_heat: it.heat_number || 1,
+        target_line: it.line_number || 1,
+        auto_slot: true,
+      };
+    });
+    setEventMoves(initialMoves);
     setIsEditingParticipant(true);
+  };
+
+  const handleGenderChange = (newGender: string) => {
+    setParticipantFormData((prev) => ({ ...prev, gender: newGender }));
+    if (selectedGroup?.items && allEvents.length > 0) {
+      setEventMoves((prevMoves) => {
+        const nextMoves = { ...prevMoves };
+        selectedGroup.items.forEach((it: any) => {
+          const curEvt = it.swimming_event;
+          if (!curEvt) return;
+          const curGender = (curEvt.gender || "").toUpperCase();
+          if (curGender !== newGender.toUpperCase()) {
+            // Find matching event with same tournament, stroke, distance for new gender
+            const match = allEvents.find(
+              (e) =>
+                e.tournament_id === curEvt.tournament_id &&
+                e.gender?.toUpperCase() === newGender.toUpperCase() &&
+                e.stroke === curEvt.stroke &&
+                e.distance === curEvt.distance &&
+                e.is_active
+            );
+            if (match) {
+              nextMoves[it.id] = {
+                target_event_id: match.id,
+                target_heat: 0,
+                target_line: 0,
+                auto_slot: true,
+              };
+            }
+          }
+        });
+        return nextMoves;
+      });
+    }
   };
 
   const handleSaveParticipant = async () => {
@@ -157,20 +248,58 @@ export default function ParticipantTable({
       toast.error("Nama perenang tidak boleh kosong");
       return;
     }
+
+    const moveArray: any[] = [];
+    if (selectedGroup?.items) {
+      for (const it of selectedGroup.items) {
+        const move = eventMoves[it.id];
+        if (
+          move &&
+          (move.target_event_id !== it.swimming_event_id ||
+            (!move.auto_slot &&
+              (move.target_heat !== it.heat_number || move.target_line !== it.line_number)))
+        ) {
+          moveArray.push({
+            registration_id: it.id,
+            target_event_id: move.target_event_id,
+            target_heat: move.auto_slot ? 0 : Number(move.target_heat),
+            target_line: move.auto_slot ? 0 : Number(move.target_line),
+          });
+        }
+      }
+    }
+
     setSavingParticipant(true);
-    const res = await updateParticipant(participantId, participantFormData);
+    const payload = {
+      ...participantFormData,
+      event_moves: moveArray,
+    };
+
+    const res = await updateParticipant(participantId, payload);
     setSavingParticipant(false);
     if (res.success) {
-      toast.success("Data identitas atlet berhasil diperbarui");
+      toast.success(
+        moveArray.length > 0
+          ? `Data identitas dan ${moveArray.length} nomor lomba berhasil disesuaikan!`
+          : "Data identitas atlet berhasil diperbarui"
+      );
       setSelectedGroup((prev) => {
         if (!prev) return null;
-        const updatedItems = (prev.items || []).map((it: any) => ({
-          ...it,
-          participant: {
-            ...(it.participant || {}),
-            ...participantFormData,
-          },
-        }));
+        const updatedItems = (prev.items || []).map((it: any) => {
+          const move = eventMoves[it.id];
+          const targetEvt = move ? allEvents.find((e) => e.id === move.target_event_id) : null;
+          return {
+            ...it,
+            swimming_event_id: targetEvt ? targetEvt.id : it.swimming_event_id,
+            swimming_event: targetEvt || it.swimming_event,
+            heat_number: move && !move.auto_slot && move.target_heat > 0 ? move.target_heat : it.heat_number,
+            line_number: move && !move.auto_slot && move.target_line > 0 ? move.target_line : it.line_number,
+            participant: {
+              ...(it.participant || {}),
+              ...participantFormData,
+            },
+          };
+        });
         return {
           ...prev,
           participant: {
@@ -185,6 +314,106 @@ export default function ParticipantTable({
     } else {
       toast.error(res.message || "Gagal memperbarui data peserta");
     }
+  };
+
+  const openSingleMoveModal = (item: any) => {
+    setSingleMoveModal({
+      registration: item,
+      currentEvent: item.swimming_event,
+      targetEventId: item.swimming_event_id,
+      targetHeat: item.heat_number || 1,
+      targetLine: item.line_number || 1,
+      swapIfOccupied: true,
+      loading: false,
+    });
+  };
+
+  const handleExecuteSingleMove = async () => {
+    if (!singleMoveModal) return;
+    const { registration, targetEventId, targetHeat, targetLine, swapIfOccupied } = singleMoveModal;
+
+    if (targetHeat <= 0 || targetLine <= 0) {
+      toast.error("Nomor seri (Heat) dan lintasan (Line) harus lebih besar dari 0");
+      return;
+    }
+
+    setSingleMoveModal((prev) => (prev ? { ...prev, loading: true } : null));
+
+    let res;
+    if (targetEventId !== registration.swimming_event_id) {
+      res = await moveRegistrationEvent(registration.id, {
+        target_event_id: targetEventId,
+        target_heat: targetHeat,
+        target_line: targetLine,
+      });
+    } else {
+      res = await swapRegistrationHeatLine(registration.id, targetHeat, targetLine, swapIfOccupied);
+    }
+
+    setSingleMoveModal((prev) => (prev ? { ...prev, loading: false } : null));
+
+    if (res.success) {
+      toast.success(res.message || "Posisi perenang berhasil dipindahkan!");
+      const targetEventObj = allEvents.find((e) => e.id === targetEventId) || registration.swimming_event;
+      setSelectedGroup((prev) => {
+        if (!prev) return null;
+        const updatedItems = prev.items.map((it: any) => {
+          if (it.id === registration.id) {
+            return {
+              ...it,
+              swimming_event_id: targetEventId,
+              swimming_event: targetEventObj,
+              heat_number: targetHeat,
+              line_number: targetLine,
+            };
+          }
+          return it;
+        });
+        return { ...prev, items: updatedItems };
+      });
+      setSingleMoveModal(null);
+      onRefresh();
+    } else {
+      toast.error(res.message || "Gagal memindahkan posisi perenang");
+    }
+  };
+
+  const handleAutoFindSlot = (targetEventId: number) => {
+    if (!targetEventId) return;
+    const eventRegs = registrations.filter(
+      (r) => r.is_active && r.swimming_event_id === targetEventId && r.id !== singleMoveModal?.registration?.id
+    );
+    const maxLanes = 3;
+    let maxHeat = 1;
+    const occMap = new Set<string>();
+
+    eventRegs.forEach((r) => {
+      if (r.heat_number > 0 && r.line_number > 0) {
+        occMap.add(`${r.heat_number}_${r.line_number}`);
+        if (r.heat_number > maxHeat) maxHeat = r.heat_number;
+      }
+    });
+
+    let foundHeat = 0;
+    let foundLine = 0;
+    for (let h = 1; h <= maxHeat; h++) {
+      for (let l = 1; l <= maxLanes; l++) {
+        if (!occMap.has(`${h}_${l}`)) {
+          foundHeat = h;
+          foundLine = l;
+          break;
+        }
+      }
+      if (foundHeat > 0) break;
+    }
+
+    if (foundHeat === 0) {
+      foundHeat = maxHeat + 1;
+      foundLine = 1;
+    }
+
+    setSingleMoveModal((prev) => (prev ? { ...prev, targetHeat: foundHeat, targetLine: foundLine } : null));
+    toast.info(`Ditemukan posisi kosong: Seri ${foundHeat} — Lintasan ${foundLine}`);
   };
 
   const toggleExpand = (groupKey: string) => {
@@ -1178,7 +1407,7 @@ export default function ParticipantTable({
                           </label>
                           <select
                             value={participantFormData.gender}
-                            onChange={(e) => setParticipantFormData({ ...participantFormData, gender: e.target.value })}
+                            onChange={(e) => handleGenderChange(e.target.value)}
                             className="w-full px-2 py-1.5 text-xs font-black text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none cursor-pointer"
                           >
                             <option value="PUTRA">PUTRA</option>
@@ -1274,6 +1503,150 @@ export default function ParticipantTable({
                           className="w-full px-2.5 py-1.5 text-xs font-mono font-bold text-slate-900 bg-white border border-slate-300 rounded-lg focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 outline-none"
                         />
                       </div>
+
+                      {/* PENYESUAIAN NOMOR LOMBA SAAT GENDER/KU BERUBAH */}
+                      {selectedGroup.items && selectedGroup.items.length > 0 && (
+                        <div className="pt-2 border-t border-slate-200 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase text-indigo-900 flex items-center gap-1">
+                              <ArrowLeftRight className="w-3.5 h-3.5 text-indigo-600" />
+                              Pindah Nomor Lomba ({selectedGroup.items.length}):
+                            </span>
+                            {participantFormData.gender !== (selectedGroup.participant?.gender || "PUTRA") && (
+                              <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-[9px] font-black">
+                                Gender → {participantFormData.gender}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="space-y-2 max-h-48 overflow-y-auto pr-0.5">
+                            {selectedGroup.items.map((it: any) => {
+                              const move = eventMoves[it.id] || {
+                                target_event_id: it.swimming_event_id,
+                                target_heat: it.heat_number || 1,
+                                target_line: it.line_number || 1,
+                                auto_slot: true,
+                              };
+                              const currentEvt = it.swimming_event;
+                              const isMoved = move.target_event_id !== it.swimming_event_id;
+
+                              return (
+                                <div
+                                  key={it.id}
+                                  className={`p-2.5 rounded-xl border text-[11px] transition-all space-y-1.5 ${
+                                    isMoved
+                                      ? "bg-indigo-50/70 border-indigo-300 ring-1 ring-indigo-200"
+                                      : "bg-white border-slate-200"
+                                  }`}
+                                >
+                                  <div className="flex justify-between items-start gap-1">
+                                    <div>
+                                      <span className="text-[9px] text-slate-400 font-bold block uppercase">
+                                        Nomor Saat Ini:
+                                      </span>
+                                      <span className="font-bold text-slate-800 text-[11px]">
+                                        #{currentEvt?.event_code} {currentEvt?.event_name}
+                                      </span>
+                                    </div>
+                                    <span className="text-[9px] font-mono font-bold text-sky-800 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-200 shrink-0">
+                                      {it.heat_number > 0 ? `Seri ${it.heat_number} - Line ${it.line_number}` : "Belum Masuk Seri"}
+                                    </span>
+                                  </div>
+
+                                  <div>
+                                    <label className="text-[9px] text-indigo-900 font-black uppercase block mb-0.5">
+                                      Pindah ke Nomor Lomba Tujuan:
+                                    </label>
+                                    <select
+                                      value={move.target_event_id}
+                                      onChange={(e) => {
+                                        const newEvtId = Number(e.target.value);
+                                        setEventMoves((prev) => ({
+                                          ...prev,
+                                          [it.id]: {
+                                            ...move,
+                                            target_event_id: newEvtId,
+                                          },
+                                        }));
+                                      }}
+                                      className="w-full px-2 py-1 text-[10px] font-bold text-slate-900 bg-white border border-indigo-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none cursor-pointer"
+                                    >
+                                      <option value={it.swimming_event_id}>
+                                        Tetap di #{currentEvt?.event_code} - {currentEvt?.event_name} (Tidak Pindah)
+                                      </option>
+                                      {allEvents
+                                        .filter((e) => e.tournament_id === currentEvt?.tournament_id && e.id !== it.swimming_event_id)
+                                        .map((e) => {
+                                          const isRecommended =
+                                            e.gender?.toUpperCase() === participantFormData.gender.toUpperCase() &&
+                                            e.stroke === currentEvt?.stroke &&
+                                            e.distance === currentEvt?.distance;
+                                          return (
+                                            <option key={e.id} value={e.id}>
+                                              {isRecommended ? "⭐ [REKOMENDASI] " : ""}#{e.event_code} - {e.event_name} ({e.gender} • {e.age_group || "OPEN"})
+                                            </option>
+                                          );
+                                        })}
+                                    </select>
+                                  </div>
+
+                                  {/* Position Options */}
+                                  <div className="pt-1 flex items-center justify-between text-[10px]">
+                                    <label className="flex items-center gap-1.5 cursor-pointer text-slate-700 font-bold select-none">
+                                      <input
+                                        type="checkbox"
+                                        checked={move.auto_slot}
+                                        onChange={(e) => {
+                                          setEventMoves((prev) => ({
+                                            ...prev,
+                                            [it.id]: {
+                                              ...move,
+                                              auto_slot: e.target.checked,
+                                            },
+                                          }));
+                                        }}
+                                        className="w-3.5 h-3.5 text-indigo-600 rounded"
+                                      />
+                                      <span>Otomatis cari lintasan kosong</span>
+                                    </label>
+                                    {!move.auto_slot && (
+                                      <div className="flex items-center gap-1 font-bold text-[10px]">
+                                        <span>Seri:</span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={move.target_heat}
+                                          onChange={(e) =>
+                                            setEventMoves((prev) => ({
+                                              ...prev,
+                                              [it.id]: { ...move, target_heat: Number(e.target.value) },
+                                            }))
+                                          }
+                                          className="w-9 px-1 py-0.5 border border-slate-300 rounded text-center text-xs"
+                                        />
+                                        <span>Line:</span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={10}
+                                          value={move.target_line}
+                                          onChange={(e) =>
+                                            setEventMoves((prev) => ({
+                                              ...prev,
+                                              [it.id]: { ...move, target_line: Number(e.target.value) },
+                                            }))
+                                          }
+                                          className="w-9 px-1 py-0.5 border border-slate-300 rounded text-center text-xs"
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="pt-2 flex items-center gap-2">
                         <button
@@ -1413,15 +1786,15 @@ export default function ParticipantTable({
 
                           <div className="flex justify-between items-center text-[10px] text-slate-500 font-semibold">
                             <span>
-                              {item.swimming_event?.distance} | {item.swimming_event?.stroke}
+                              {item.swimming_event?.distance} | {item.swimming_event?.stroke} • {item.swimming_event?.gender}
                             </span>
-                            <span className="font-black text-emerald-700">
-                              Rp {item.swimming_event?.fee ? Number(item.swimming_event.fee).toLocaleString("id-ID") : "150.000"}
+                            <span className="font-mono font-bold text-sky-800 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+                              {item.heat_number > 0 ? `Seri ${item.heat_number} — Line ${item.line_number}` : "Belum Masuk Seri"}
                             </span>
                           </div>
 
-                          {/* ITEM INDIVIDUAL VERIFICATION ACTION BUTTONS */}
-                          <div className="flex justify-between items-center pt-2 border-t border-slate-100">
+                          {/* ITEM INDIVIDUAL VERIFICATION & MOVE ACTION BUTTONS */}
+                          <div className="flex justify-between items-center pt-2 border-t border-slate-100 gap-1 flex-wrap">
                             <span
                               className={`px-2 py-0.5 rounded-md text-[10px] font-black uppercase ${
                                 isItemVerified
@@ -1434,7 +1807,17 @@ export default function ParticipantTable({
                               {item.payment_status || "pending"}
                             </span>
 
-                            <div className="flex items-center gap-1">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => openSingleMoveModal(item)}
+                                className="px-2 py-1 bg-indigo-50 hover:bg-indigo-600 text-indigo-700 hover:text-white border border-indigo-200 rounded-lg text-[10px] font-black transition-all flex items-center gap-1 cursor-pointer"
+                                title="Pindah / Tukar Posisi Seri & Lintasan atau pindah ke nomor lomba lain"
+                              >
+                                <ArrowLeftRight className="w-3 h-3" />
+                                <span>Pindah Posisi / Nomor</span>
+                              </button>
+
                               {selectedGroup.is_active && (
                                 <>
                                   <button
@@ -1850,6 +2233,228 @@ export default function ParticipantTable({
           </div>
         </div>
       )}
+
+      {/* =================================================================== */}
+      {/* 4.5 STANDALONE PINDAH / TUKAR POSISI & NOMOR LOMBA MODAL */}
+      {/* =================================================================== */}
+      {singleMoveModal && (() => {
+        const targetOccupant = registrations.find(
+          (r) =>
+            r.is_active &&
+            r.swimming_event_id === singleMoveModal.targetEventId &&
+            r.heat_number === singleMoveModal.targetHeat &&
+            r.line_number === singleMoveModal.targetLine &&
+            r.id !== singleMoveModal.registration.id
+        );
+        const currentEventObj = allEvents.find((e) => e.id === singleMoveModal.targetEventId) || singleMoveModal.currentEvent;
+        const isTargetDifferentEvent = singleMoveModal.targetEventId !== singleMoveModal.registration.swimming_event_id;
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in duration-200">
+              {/* Header */}
+              <div className="flex justify-between items-start pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2.5 bg-indigo-100 text-indigo-700 rounded-2xl">
+                    <ArrowLeftRight className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black text-slate-900">
+                      Pindah / Tukar Posisi Perenang
+                    </h3>
+                    <p className="text-xs text-slate-500 font-bold">
+                      {currentEventObj?.event_code} - {currentEventObj?.event_name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSingleMoveModal(null)}
+                  className="p-1 text-slate-400 hover:text-slate-600 rounded-lg cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Current Swimmer Info */}
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Data Perenang Saat Ini:
+                </div>
+                <div className="text-sm font-black text-slate-900 uppercase">
+                  {selectedGroup?.participant?.name || singleMoveModal.registration.participant?.name || "Perenang"}
+                </div>
+                <div className="text-xs font-bold text-slate-600">
+                  Klub: {selectedGroup?.participant?.club || singleMoveModal.registration.participant?.club || "-"} • Seed: {singleMoveModal.registration.time_seed || "99.99.99"}
+                </div>
+                <div className="pt-2 flex items-center gap-2 flex-wrap">
+                  <span className="px-2.5 py-1 bg-sky-100 text-sky-800 rounded-lg text-xs font-black">
+                    Posisi Sekarang: {singleMoveModal.registration.heat_number > 0 ? `Seri ${singleMoveModal.registration.heat_number} — Lintasan ${singleMoveModal.registration.line_number}` : "Belum Masuk Seri"}
+                  </span>
+                  <span className="px-2 py-0.5 bg-slate-200 text-slate-700 rounded-lg text-xs font-bold">
+                    #{singleMoveModal.currentEvent?.event_code} ({singleMoveModal.currentEvent?.gender})
+                  </span>
+                </div>
+              </div>
+
+              {/* Target Event Selection */}
+              <div>
+                <label className="block text-xs font-black uppercase text-slate-700 mb-1.5">
+                  Nomor Lomba Tujuan:
+                </label>
+                <select
+                  value={singleMoveModal.targetEventId}
+                  onChange={(e) => {
+                    const newEvtId = Number(e.target.value);
+                    setSingleMoveModal((prev) => prev ? { ...prev, targetEventId: newEvtId } : null);
+                  }}
+                  className="w-full bg-slate-50 border-2 border-indigo-200 rounded-xl px-3 py-2.5 text-xs font-black text-slate-900 focus:outline-none focus:border-indigo-500 cursor-pointer"
+                >
+                  <option value={singleMoveModal.registration.swimming_event_id}>
+                    Tetap di #{singleMoveModal.currentEvent?.event_code} - {singleMoveModal.currentEvent?.event_name}
+                  </option>
+                  {allEvents
+                    .filter((e) => e.tournament_id === singleMoveModal.currentEvent?.tournament_id && e.id !== singleMoveModal.registration.swimming_event_id)
+                    .map((e) => {
+                      const isRecommended =
+                        e.gender?.toUpperCase() === (selectedGroup?.participant?.gender || "").toUpperCase() &&
+                        e.stroke === singleMoveModal.currentEvent?.stroke &&
+                        e.distance === singleMoveModal.currentEvent?.distance;
+                      return (
+                        <option key={e.id} value={e.id}>
+                          {isRecommended ? "⭐ [REKOMENDASI] " : ""}#{e.event_code} - {e.event_name} ({e.gender} • {e.age_group || "OPEN"})
+                        </option>
+                      );
+                    })}
+                </select>
+                {isTargetDifferentEvent && (
+                  <p className="text-[11px] text-indigo-700 font-bold mt-1">
+                    ℹ️ Perenang akan dipindahkan ke nomor lomba baru tanpa mereset atau mengacak nomor lomba lainnya.
+                  </p>
+                )}
+              </div>
+
+              {/* Target Seri & Lintasan */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-black uppercase text-slate-700">
+                      Seri (Heat) Tujuan:
+                    </label>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={30}
+                    value={singleMoveModal.targetHeat}
+                    onChange={(e) =>
+                      setSingleMoveModal((prev) =>
+                        prev ? { ...prev, targetHeat: Number(e.target.value) } : null
+                      )
+                    }
+                    className="w-full bg-slate-50 border-2 border-indigo-200 rounded-xl px-4 py-2.5 text-sm font-black text-slate-900 text-center focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-xs font-black uppercase text-slate-700">
+                      Lintasan (Line) Tujuan:
+                    </label>
+                  </div>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={singleMoveModal.targetLine}
+                    onChange={(e) =>
+                      setSingleMoveModal((prev) =>
+                        prev ? { ...prev, targetLine: Number(e.target.value) } : null
+                      )
+                    }
+                    className="w-full bg-slate-50 border-2 border-indigo-200 rounded-xl px-4 py-2.5 text-sm font-black text-slate-900 text-center focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Auto Slot Finder Button */}
+              <button
+                type="button"
+                onClick={() => handleAutoFindSlot(singleMoveModal.targetEventId)}
+                className="w-full py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 border border-indigo-200 cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Cari Lintasan Kosong Otomatis</span>
+              </button>
+
+              {/* Target Occupant Detection Box */}
+              <div className="p-4 rounded-2xl border text-xs font-bold">
+                {targetOccupant ? (
+                  <div className="space-y-2 text-amber-900 bg-amber-50 -m-4 p-4 rounded-2xl border border-amber-300">
+                    <div className="flex items-center gap-2 text-amber-700 font-black uppercase text-[11px]">
+                      <AlertTriangle className="w-4 h-4 shrink-0" />
+                      <span>Lintasan Tujuan Sedang Terisi</span>
+                    </div>
+                    <p className="text-xs text-amber-950 font-medium">
+                      Lintasan {singleMoveModal.targetLine} pada Seri {singleMoveModal.targetHeat} saat ini ditempati oleh:{" "}
+                      <strong className="uppercase">{targetOccupant.participant?.name || "Perenang Lain"}</strong> (
+                      {targetOccupant.participant?.club || "-"}).
+                    </p>
+                    {!isTargetDifferentEvent ? (
+                      <label className="flex items-center gap-2 pt-1 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={singleMoveModal.swapIfOccupied}
+                          onChange={(e) =>
+                            setSingleMoveModal((prev) =>
+                              prev ? { ...prev, swapIfOccupied: e.target.checked } : null
+                            )
+                          }
+                          className="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500"
+                        />
+                        <span className="text-xs font-black text-indigo-950">
+                          Tukar Posisi (Swap): {targetOccupant.participant?.name} akan otomatis bertukar ke posisi asal perenang ini.
+                        </span>
+                      </label>
+                    ) : (
+                      <p className="text-[11px] text-amber-800">
+                        ⚠️ Untuk perpindahan nomor lomba yang berbeda, silakan pilih lintasan kosong atau gunakan tombol "Cari Lintasan Kosong Otomatis" di atas agar tidak menabrak peserta lain.
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-emerald-800 bg-emerald-50 -m-4 p-4 rounded-2xl border border-emerald-300 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      Lintasan {singleMoveModal.targetLine} pada Seri {singleMoveModal.targetHeat} saat ini <strong>KOSONG</strong>. Perenang akan langsung menempati posisi ini.
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setSingleMoveModal(null)}
+                  className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-2xl transition-all cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={singleMoveModal.loading || (isTargetDifferentEvent && !!targetOccupant)}
+                  onClick={handleExecuteSingleMove}
+                  className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-sky-600 hover:from-indigo-500 hover:to-sky-500 text-white font-black text-xs rounded-2xl transition-all shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <ArrowLeftRight className={`w-4 h-4 ${singleMoveModal.loading ? "animate-spin" : ""}`} />
+                  <span>{singleMoveModal.loading ? "Memproses..." : "Konfirmasi Pindah / Tukar"}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* =================================================================== */}
       {/* 5. FULLSCREEN IMAGE PREVIEW MODAL */}

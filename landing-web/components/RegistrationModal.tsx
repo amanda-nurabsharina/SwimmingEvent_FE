@@ -277,27 +277,44 @@ export default function RegistrationModal({
   }, [step]);
 
   // Tournament year for age computation
-  const tournamentYear = useMemo(() => {
+  // Tournament reference date for age computation (exact year, month, day)
+  const tournamentRefDate = useMemo(() => {
     if (currentTourney?.event_start_date) {
-      const parsed = new Date(currentTourney.event_start_date).getFullYear();
-      if (!isNaN(parsed) && parsed > 2000) return parsed;
+      const parsed = new Date(currentTourney.event_start_date);
+      if (!isNaN(parsed.getTime())) return parsed;
     }
-    return new Date().getFullYear();
+    return new Date();
   }, [currentTourney]);
 
-  // Real-time Age and official PB PRSI / Akuatik Indonesia KU validation
+  const tournamentYear = useMemo(() => {
+    return tournamentRefDate.getFullYear();
+  }, [tournamentRefDate]);
+
+  // Real-time Age and official PB PRSI / Akuatik Indonesia KU validation (Exact to day & month)
   const ageValidation = useMemo(() => {
     if (!birthDate) {
       return { age: 0, ku: "-", label: "Silakan isi tanggal lahir", valid: false, error: "Tanggal lahir wajib diisi" };
     }
-    const parts = birthDate.split("-").map(Number);
-    if (parts.length !== 3 || isNaN(parts[0])) {
+    const parts = birthDate.split(/[-/]/).map(Number);
+    if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
       return { age: 0, ku: "-", label: "Format tanggal tidak valid", valid: false, error: "Format tanggal tidak valid" };
     }
     const birthYear = parts[0];
-    const age = tournamentYear - birthYear;
+    const birthMonth = parts[1];
+    const birthDay = parts[2];
+
+    const refYear = tournamentRefDate.getFullYear();
+    const refMonth = tournamentRefDate.getMonth() + 1;
+    const refDay = tournamentRefDate.getDate();
+
+    let age = refYear - birthYear;
+    if (refMonth < birthMonth || (refMonth === birthMonth && refDay < birthDay)) {
+      age--;
+    }
+    age = Math.max(0, age);
+
     const today = new Date();
-    const birthDateObj = new Date(birthDate);
+    const birthDateObj = new Date(birthYear, birthMonth - 1, birthDay);
 
     if (birthDateObj > today) {
       return { age, ku: "-", label: "-", valid: false, error: "Tanggal lahir tidak boleh di masa depan" };
@@ -335,7 +352,7 @@ export default function RegistrationModal({
     }
 
     return { age, ku, label: desc, valid: true, error: null };
-  }, [birthDate, tournamentYear]);
+  }, [birthDate, tournamentRefDate]);
 
   // Sync detectedKU with ageValidation
   useEffect(() => {
