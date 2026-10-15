@@ -2,8 +2,8 @@ import "./globals.css";
 import { ToastProvider } from "../components/Toast";
 
 export const metadata = {
-  title: "Admin CMS | Kejuaraan Renang Time Trial 2025",
-  description: "Dashboard Manajemen Pendaftaran & Buku Acara Kejuaraan Renang Kota Tangerang.",
+  title: "Dashboard Manajemen Kejuaraan Renang",
+  description: "Dashboard Manajemen Pendaftaran & Buku Acara Kejuaraan Renang.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

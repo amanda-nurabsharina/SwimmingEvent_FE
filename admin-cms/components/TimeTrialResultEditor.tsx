@@ -260,13 +260,14 @@ export default function TimeTrialResultEditor({
         @media print {
           @page {
             size: a4 portrait;
-            margin: 8mm;
+            margin: 10mm 8mm;
           }
           body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
+            font-size: 11px !important;
           }
           .no-print {
             display: none !important;
@@ -274,15 +275,40 @@ export default function TimeTrialResultEditor({
           aside, nav, header {
             display: none !important;
           }
-          .page-break-inside-avoid {
-            page-break-inside: avoid !important;
+          .print-header-banner {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            margin-top: 0 !important;
+            margin-bottom: 12px !important;
+          }
+          .print-heat-card {
             break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 12px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          th, td {
+            border: none !important;
+            padding: 3px 6px !important;
           }
         }
       `}</style>
 
       {/* PRINTABLE OFFICIAL PDF HEADER (VISIBLE ON PRINT ONLY) */}
-      <div className="hidden print:block mb-6 border-b-2 border-black pb-4 text-center">
+      <div className="hidden print:block mb-4 border-b-2 border-black pb-2 text-center print-header-banner">
         <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-1 border-b border-slate-300 pb-1">
           <span>AKUATIK INDONESIA / MASC SWIM CLUB</span>
           <span className="font-mono font-black text-slate-900 uppercase">
@@ -490,7 +516,7 @@ export default function TimeTrialResultEditor({
                 return (
                   <div
                     key={heat.id}
-                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
+                    className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print-heat-card print:shadow-none print:border-black print:rounded-none"
                   >
                     {/* HEAT TITLE BAR */}
                     <div className="px-5 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
@@ -724,7 +750,7 @@ export default function TimeTrialResultEditor({
           </div>
 
           {/* LEADERBOARD CARD */}
-          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4 page-break-inside-avoid print:shadow-none print:border-black print:rounded-none">
+          <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm p-6 space-y-4 print:shadow-none print:border-black print:rounded-none print:overflow-visible print:break-inside-auto">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 bg-amber-500 text-white rounded-xl shadow-md shadow-amber-500/20">

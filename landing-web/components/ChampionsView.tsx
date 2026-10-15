@@ -57,7 +57,64 @@ export default function ChampionsView({
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 print:space-y-4">
+      {/* Global Print Stylesheet */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: a4 portrait;
+            margin: 10mm 8mm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 11px !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          aside, nav, header {
+            display: none !important;
+          }
+          .print-event-block {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-top: 0 !important;
+            margin-bottom: 16px !important;
+            overflow: visible !important;
+          }
+          .print-event-header {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          .print-podium-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 12px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          th, td {
+            border: none !important;
+            padding: 3px 6px !important;
+          }
+        }
+      `}</style>
+
       {/* Top Title Banner */}
       <div className="no-print bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 p-6 rounded-3xl text-white shadow-lg shadow-amber-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
@@ -93,7 +150,7 @@ export default function ChampionsView({
       </div>
 
       {/* Events List */}
-      <div className="space-y-8">
+      <div className="space-y-8 print:space-y-4">
         {events.map((event) => {
           const champ = calculateEventChampions(event);
           const isExpanded = Boolean(expandedEventMap[event.event_code]);
@@ -108,10 +165,10 @@ export default function ChampionsView({
           return (
             <div
               key={event.event_code}
-              className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
+              className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print-event-block print:shadow-none print:border-black print:rounded-none print:overflow-visible"
             >
               {/* Event Header Banner */}
-              <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b ${
+              <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b print-event-header ${
                 isPutri
                   ? "bg-slate-900 border-rose-900/50"
                   : "bg-slate-900 border-sky-900/50"
@@ -177,7 +234,7 @@ export default function ChampionsView({
                   /* ========================================================= */
                   <div className="space-y-6">
                     {/* Top 3 Podium Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-stretch print-podium-block">
                       {/* 🥇 Juara 1 (Emas) */}
                       {champ.juara1 ? (
                         <div className="bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">

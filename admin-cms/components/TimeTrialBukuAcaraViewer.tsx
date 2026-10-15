@@ -189,19 +189,20 @@ export default function TimeTrialBukuAcaraViewer({
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 print:space-y-0">
       {/* DYNAMIC PRINT STYLE INJECTION */}
       <style jsx global>{`
         @media print {
           @page {
             size: a4 portrait;
-            margin: 8mm;
+            margin: 10mm 8mm;
           }
           body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
+            font-size: 11px !important;
           }
           .no-print {
             display: none !important;
@@ -209,15 +210,40 @@ export default function TimeTrialBukuAcaraViewer({
           aside, nav, header {
             display: none !important;
           }
-          .page-break-inside-avoid {
-            page-break-inside: avoid !important;
+          .print-header-banner {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            margin-top: 0 !important;
+            margin-bottom: 12px !important;
+          }
+          .print-heat-card {
             break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 12px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          th, td {
+            border: none !important;
+            padding: 3px 6px !important;
           }
         }
       `}</style>
 
       {/* PRINTABLE OFFICIAL PDF HEADER (VISIBLE ON PRINT ONLY) */}
-      <div className="hidden print:block mb-6 border-b-2 border-black pb-4 text-center">
+      <div className="hidden print:block mb-4 border-b-2 border-black pb-2 text-center print-header-banner">
         <div className="flex items-center justify-between text-[10px] font-bold text-slate-600 mb-1 border-b border-slate-300 pb-1">
           <span>AKUATIK INDONESIA / MASC SWIM CLUB</span>
           <span className="font-mono font-black text-slate-900 uppercase">
@@ -378,7 +404,7 @@ export default function TimeTrialBukuAcaraViewer({
           {heats.map((heat) => (
             <div
               key={heat.id}
-              className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
+              className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print-heat-card print:shadow-none print:border-black print:rounded-none"
             >
               {/* HEAT CARD HEADER */}
               <div className="px-5 py-3.5 bg-slate-50/80 border-b border-slate-200 flex items-center justify-between">

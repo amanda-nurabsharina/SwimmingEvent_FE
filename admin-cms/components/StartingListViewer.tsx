@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { fetchAdminSiteConfig } from "../lib/api-admin";
 import {
   FileText,
   Printer,
@@ -20,6 +21,7 @@ interface StartingListViewerProps {
   tournaments: any[];
   onRefresh?: () => void;
   initialTournamentId?: number;
+  siteConfig?: any;
 }
 
 export default function StartingListViewer({
@@ -27,6 +29,7 @@ export default function StartingListViewer({
   tournaments,
   onRefresh,
   initialTournamentId,
+  siteConfig,
 }: StartingListViewerProps) {
   // State Filter
   const [selectedTourneyId, setSelectedTourneyId] = useState<number>(initialTournamentId || 0);
@@ -35,6 +38,25 @@ export default function StartingListViewer({
   const [agFilter, setAgFilter] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [groupByClub, setGroupByClub] = useState<boolean>(true);
+
+  // Site Config for Dynamic App Name
+  const [siteConfigState, setSiteConfigState] = useState<any>(siteConfig || null);
+
+  useEffect(() => {
+    if (!siteConfig) {
+      fetchAdminSiteConfig().then((res) => {
+        if (res?.success && res.data) {
+          setSiteConfigState(res.data);
+        }
+      });
+    } else {
+      setSiteConfigState(siteConfig);
+    }
+  }, [siteConfig]);
+
+  const appName = useMemo(() => {
+    return (siteConfigState?.app_name || "AKUATIK INDONESIA").trim();
+  }, [siteConfigState]);
 
   // Helper parsing year of birth
   const getYOB = (birthDate: string): string => {
@@ -216,6 +238,44 @@ export default function StartingListViewer({
     return set.size;
   }, [filteredRegistrations]);
 
+  // Dynamic Export / Print Title without "Admin CMS"
+  const getExportTitle = () => {
+    return activeTournament?.name || (appName ? `${appName} - Starting List` : "Starting List");
+  };
+
+  const handlePrint = () => {
+    const originalTitle = document.title;
+    document.title = getExportTitle();
+
+    window.print();
+
+    const restoreTitle = () => {
+      document.title = originalTitle;
+      window.removeEventListener("afterprint", restoreTitle);
+    };
+    window.addEventListener("afterprint", restoreTitle);
+    setTimeout(restoreTitle, 1500);
+  };
+
+  useEffect(() => {
+    let savedTitle = "";
+    const handleBeforePrint = () => {
+      savedTitle = document.title;
+      document.title = getExportTitle();
+    };
+    const handleAfterPrint = () => {
+      if (savedTitle) {
+        document.title = savedTitle;
+      }
+    };
+    window.addEventListener("beforeprint", handleBeforePrint);
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("beforeprint", handleBeforePrint);
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, [activeTournament, appName]);
+
   return (
     <div className="space-y-6 print:space-y-0">
       {/* GLOBAL PRINT STYLESHEET */}
@@ -234,6 +294,10 @@ export default function StartingListViewer({
           }
           .no-print, aside, nav, header {
             display: none !important;
+          }
+          .print-header-banner {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
           }
           .print-club-block {
             break-inside: auto !important;
@@ -270,9 +334,9 @@ export default function StartingListViewer({
       `}</style>
 
       {/* PRINTABLE OFFICIAL PDF HEADER (PRINT ONLY) */}
-      <div className="hidden print:block mb-4 border-b-2 border-black pb-2 text-left">
+      <div className="hidden print:block mb-4 border-b-2 border-black pb-2 text-left print-header-banner">
         <div className="flex items-center justify-between text-[10px] font-bold text-slate-700 border-b border-slate-300 pb-1 mb-1">
-          <span>AKUATIK INDONESIA • OFFICIAL STARTING LIST</span>
+          <span>{appName.toUpperCase()} • OFFICIAL STARTING LIST</span>
           <span>STATUS: VERIFIED & APPROVED</span>
         </div>
         <h1 className="text-base font-black uppercase tracking-wider text-black">
@@ -306,7 +370,7 @@ export default function StartingListViewer({
 
         <div className="flex items-center gap-2.5">
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             disabled={filteredRegistrations.length === 0}
             className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-xl shadow-md shadow-blue-600/20 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
           >

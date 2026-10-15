@@ -29,6 +29,7 @@ import ChampionsView from "../../components/ChampionsView";
 
 interface HeatItem {
   registration_id?: number;
+  registration_code?: string;
   heat: number;
   heat_label?: string;
   heat_category?: string;
@@ -36,6 +37,8 @@ interface HeatItem {
   nama: string;
   jenis_kelamin: string;
   club: string;
+  birth_date?: string;
+  age_group?: string;
   time_seed: string;
   result: string;
   rank?: number;
@@ -43,6 +46,79 @@ interface HeatItem {
   is_finalist?: boolean;
   schedule_date?: string;
   schedule_time?: string;
+}
+
+function formatIndonesianDate(dateStr?: string): string {
+  if (!dateStr || !dateStr.trim()) return "19 SEPTEMBER 2026";
+  const months = [
+    "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
+    "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
+  ];
+  const parts = dateStr.trim().split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      const year = parts[0];
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    } else if (parts[2].length === 4) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parts[2];
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    }
+  }
+  return dateStr.toUpperCase();
+}
+
+function formatLahirAndAge(birthDate?: string, scheduleDate?: string): string {
+  if (!birthDate || !birthDate.trim() || birthDate === "-") return "-";
+  const match = birthDate.match(/(\d{4})/);
+  if (!match) return birthDate;
+  const birthYear = parseInt(match[1], 10);
+  if (isNaN(birthYear) || birthYear < 1900) return birthDate;
+
+  let refYear = new Date().getFullYear();
+  if (scheduleDate) {
+    const sMatch = scheduleDate.match(/(\d{4})/);
+    if (sMatch) {
+      refYear = parseInt(sMatch[1], 10);
+    }
+  }
+  const age = Math.max(0, refYear - birthYear);
+  return `${birthYear} (${age})`;
+}
+
+function getEventDisplayName(event: EventGroup): string {
+  const dist = (event.distance || "").toUpperCase().replace(/ETER/g, "").trim();
+  let strk = (event.stroke || event.event_name || "").toUpperCase().trim();
+
+  if (strk === "FREESTYLE") strk = "GAYA BEBAS";
+  else if (strk === "BREASTSTROKE") strk = "GAYA DADA";
+  else if (strk === "BACKSTROKE") strk = "GAYA PUNGGUNG";
+  else if (strk === "BUTTERFLY") strk = "GAYA KUPU-KUPU";
+  else if (strk === "INDIVIDUALMEDLEY" || strk === "MEDLEY") strk = "GAYA GANTI PERORANGAN";
+  else if (strk === "FREESTYLE_FIN") strk = "GAYA BEBAS FIN";
+  else if (strk === "BACKSTROKE_FIN") strk = "GAYA PUNGGUNG FIN";
+  else if (strk === "BUTTERFLY_FIN") strk = "GAYA KUPU-KUPU FIN";
+  else if (strk === "KICKING_BOARD") strk = "KICKING BOARD";
+
+  const parts: string[] = [];
+  if (dist && !strk.includes(dist)) {
+    parts.push(dist);
+  }
+  parts.push(strk);
+
+  const g = (event.gender || "").toUpperCase().trim();
+  if (g && !strk.includes(g)) {
+    parts.push(g);
+  }
+
+  return `${parts.join(" ")}, SCM`;
 }
 
 interface EventGroup {
@@ -383,8 +459,66 @@ function BukuAcaraContent() {
   };
 
   return (
-    <div className="py-10 bg-slate-50 min-h-screen">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+    <div className="py-10 bg-slate-50 min-h-screen print:py-0 print:bg-white">
+      {/* Global Print Stylesheet */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: a4 portrait;
+            margin: 7mm 6mm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 9.5px !important;
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          aside, nav, header, footer {
+            display: none !important;
+          }
+          .print-meet-header {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            margin-bottom: 6px !important;
+          }
+          .print-event-section {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-bottom: 12px !important;
+          }
+          .print-event-title-block {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          .print-heat-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 4px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+          }
+          thead {
+            display: table-header-group !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+        }
+      `}</style>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6 print:space-y-0 print:px-0 print:max-w-none">
         {/* Navigation & Header */}
         <div className="no-print flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
@@ -733,18 +867,20 @@ function BukuAcaraContent() {
           </div>
         ) : (
           <>
-            {/* Official Printable Header (Visible on Print Only) */}
-            <div className="hidden print:block text-center mb-6 border-b-2 border-black pb-4">
-              <h1 className="text-xl font-black uppercase tracking-wider">
-                BUKU ACARA {activeTab === "juara" ? "- HASIL JUARA & PODIUM" : "- SUSUNAN BAGAN & HEAT"}
-              </h1>
-              <h2 className="text-base font-black uppercase mt-0.5">
-                {currentTournament?.name || "TIME TRIAL 2025"}
-              </h2>
-              <p className="text-xs font-bold uppercase text-slate-700 mt-0.5">
-                AKUATIK INDONESIA KOTA TANGERANG
-              </p>
-            </div>
+            {/* Official Printable Header for Juara */}
+            {activeTab === "juara" && (
+              <div className="hidden print:block text-center mb-4 border-b-2 border-black pb-2 print-header-banner">
+                <h1 className="text-xl font-black uppercase tracking-wider text-black">
+                  HASIL JUARA &amp; PODIUM
+                </h1>
+                <h2 className="text-base font-black uppercase mt-0.5 text-black">
+                  {currentTournament?.name || "TIME TRIAL 2025"}
+                </h2>
+                <p className="text-xs font-bold uppercase text-slate-700 mt-0.5">
+                  {currentTournament?.name || "KEJUARAAN RENANG RESMI"}
+                </p>
+              </div>
+            )}
 
             {/* Main Content: Hasil Juara vs Susunan Bagan */}
             {activeTab === "juara" ? (
@@ -767,7 +903,8 @@ function BukuAcaraContent() {
                 </p>
               </div>
             ) : (
-              <div className="space-y-8">
+              <>
+                <div className="space-y-8 print:hidden">
                 {filteredEvents.map((event, eventIdx) => {
                   const isPutri =
                     event.gender?.toUpperCase() === "PUTRI" ||
@@ -782,10 +919,10 @@ function BukuAcaraContent() {
                   return (
                     <div
                       key={`${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
-                      className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden page-break-inside-avoid print:shadow-none print:border-black print:rounded-none"
+                      className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden print-event-block print:shadow-none print:border-black print:rounded-none print:overflow-visible"
                     >
                       {/* Event Header Banner */}
-                      <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b ${
+                      <div className={`p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3 text-white border-b print-event-header ${
                         isPutri
                           ? "bg-slate-900 border-rose-900/50"
                           : "bg-slate-900 border-sky-900/50"
@@ -849,7 +986,7 @@ function BukuAcaraContent() {
                           return (
                             <div
                               key={group.heatNum}
-                              className={`bg-white rounded-2xl border shadow-xs overflow-hidden print:rounded-none print:border-none print:shadow-none ${
+                              className={`bg-white rounded-2xl border shadow-xs overflow-hidden print-heat-card print:rounded-none print:border-none print:shadow-none ${
                                 isPutri ? "border-rose-100" : "border-slate-200/90"
                               }`}
                             >
@@ -1013,7 +1150,131 @@ function BukuAcaraContent() {
                   );
                 })}
               </div>
-            )}
+
+              {/* ============================================================ */}
+              {/* DENSE OFFICIAL PRINT-ONLY VIEW (PB PRSI MEET PROGRAM)        */}
+              {/* ============================================================ */}
+              <div className="hidden print:block space-y-3">
+                {/* Top Document Header */}
+                <div className="text-center pb-2 mb-3 border-b-2 border-black print-meet-header">
+                  <h1 className="text-xl font-bold uppercase tracking-widest text-black font-serif">
+                    Buku Acara
+                  </h1>
+                  <p className="text-xs font-bold uppercase text-slate-800 tracking-wider">
+                    {currentTournament?.name || "KEJUARAAN RENANG"}
+                  </p>
+                </div>
+
+                {/* Events Stream */}
+                {filteredEvents.map((event, eventIdx) => {
+                  const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
+                  const heatGroups = groupHeatsByNumber(event.heats || []);
+
+                  return (
+                    <div
+                      key={`print-${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
+                      className="print-event-section mb-3"
+                    >
+                      {/* Event Header Banner (Exact official PB PRSI format) */}
+                      <div className="border-b-2 border-black pb-1 mb-1 print-event-title-block">
+                        <div className="flex justify-between items-end">
+                          <div>
+                            <div className="text-sm font-black text-black">
+                              Acara {event.event_code}
+                            </div>
+                            <div className="text-[10px] font-bold text-black uppercase tracking-wide">
+                              {formatIndonesianDate(event.schedule_date)}
+                            </div>
+                          </div>
+                          <div className="text-center font-black text-xs text-black uppercase tracking-wider">
+                            {getEventDisplayName(event)}
+                          </div>
+                          <div className="text-right font-black text-xs text-black uppercase">
+                            {event.round === "preliminary" ? "PENYISIHAN" : "AKHIR"}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-6 text-[9.5px] font-bold text-black border-t border-black pt-0.5 mt-1">
+                          <span className="w-28">Limit Perlombaan</span>
+                          <span>NO LIMIT ({event.age_group ? event.age_group.toUpperCase() : "OPEN"})</span>
+                        </div>
+                      </div>
+
+                      {/* Dense Heats Listing */}
+                      <div className="space-y-1">
+                        {heatGroups.map((group) => {
+                          const labelDisplay = isGroup
+                            ? group.heatLabel || String.fromCharCode(64 + group.heatNum)
+                            : String(group.heatNum).padStart(2, "0");
+                          const badgeText = isGroup ? `Group ${labelDisplay}` : `Seri ${labelDisplay}`;
+
+                          return (
+                            <div key={`print-heat-${group.heatNum}`} className="print-heat-block">
+                              <table className="w-full border-collapse text-[9px] leading-tight">
+                                <thead>
+                                  <tr className="border-b border-black text-black font-bold">
+                                    <th className="py-0.5 px-1 text-center w-6">Ln</th>
+                                    <th className="py-0.5 px-1 text-left w-14">ID</th>
+                                    <th className="py-0.5 px-1 text-left">Nama Atlet</th>
+                                    <th className="py-0.5 px-1 text-center w-8">Ket</th>
+                                    <th className="py-0.5 px-1 text-center w-16">Lahir</th>
+                                    <th className="py-0.5 px-1 text-center w-10">KU</th>
+                                    <th className="py-0.5 px-1 text-left w-48">Nama Tim</th>
+                                    <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
+                                    <th className="py-0.5 px-1 text-center w-20">ID Lomba</th>
+                                    <th className="py-0.5 px-1 text-right w-24">
+                                      <span className="inline-block border border-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-black bg-white">
+                                        {badgeText}
+                                      </span>
+                                    </th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {group.items.map((item, rIdx) => {
+                                    const isEmpty = item.is_empty || item.nama === "(KOSONG)";
+                                    return (
+                                      <tr key={rIdx} className="text-black">
+                                        <td className="py-0.5 px-1 text-center font-bold">{item.line}</td>
+                                        <td className="py-0.5 px-1 text-left font-mono">
+                                          {!isEmpty ? (item.registration_id || item.registration_code || "-") : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
+                                          {isEmpty ? "-" : item.nama}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-center">{!isEmpty ? "-" : ""}</td>
+                                        <td className="py-0.5 px-1 text-center font-medium">
+                                          {!isEmpty ? formatLahirAndAge(item.birth_date, event.schedule_date) : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-center font-bold uppercase">
+                                          {!isEmpty ? (item.age_group || event.age_group || "-") : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[180px]">
+                                          {!isEmpty ? item.club : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-right font-mono">
+                                          {!isEmpty ? (item.time_seed && item.time_seed !== "99.99.99" && item.time_seed !== "-" ? item.time_seed : "-") : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-center font-mono text-[8.5px]">
+                                          {!isEmpty ? (item.registration_code || (currentTournament?.name ? `EV-${event.event_code}` : "-")) : ""}
+                                        </td>
+                                        <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-800">
+                                          [ . . . . . . . . ]
+                                        </td>
+                                      </tr>
+                                    );
+                                  })}
+                                </tbody>
+                              </table>
+                              <div className="border-b border-black mb-1" />
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
           </>
         )}
       </div>
