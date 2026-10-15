@@ -95,6 +95,67 @@ function getScreenshotDocNumber(item: CertificateItem): string {
   return `NO. ${numPadded} / MASC / FSW / XII / ${yearShort}`;
 }
 
+export function formatCertificateDate(dateStr?: string): string {
+  if (!dateStr || !dateStr.trim()) {
+    return "IN OCTOBER 1ST, 2026";
+  }
+
+  const raw = dateStr.trim();
+
+  // If already starts with "IN "
+  if (/^IN\s+/i.test(raw)) {
+    return raw.toUpperCase();
+  }
+
+  const monthsEn = [
+    "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+    "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+  ];
+
+  const getOrdinal = (n: number) => {
+    const s = ["TH", "ST", "ND", "RD"];
+    const v = n % 100;
+    return n + (s[(v - 20) % 10] || s[v] || s[0]);
+  };
+
+  // Try parsing ISO date (e.g., 2026-10-01 or 2026-10-01T...)
+  const isoMatch = raw.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const monthIdx = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    if (monthIdx >= 0 && monthIdx < 12 && !isNaN(day)) {
+      return `IN ${monthsEn[monthIdx]} ${getOrdinal(day)}, ${year}`;
+    }
+  }
+
+  // Try parsing Indonesian/Common format (e.g. "01-10-2026" or "1 Oktober 2026")
+  const idMonths: Record<string, number> = {
+    januari: 0, feb: 1, februari: 1, mar: 2, maret: 2, apr: 3, april: 3,
+    mei: 4, may: 4, jun: 5, juni: 5, jul: 6, juli: 6, agu: 7, agustus: 7, august: 7,
+    sep: 8, september: 8, okt: 9, oktober: 9, october: 9, nov: 10, november: 10,
+    des: 11, desember: 11, december: 11
+  };
+
+  const textMatch = raw.match(/(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})/);
+  if (textMatch) {
+    const day = parseInt(textMatch[1], 10);
+    const monthKey = textMatch[2].toLowerCase();
+    const year = parseInt(textMatch[3], 10);
+    if (monthKey in idMonths) {
+      return `IN ${monthsEn[idMonths[monthKey]]} ${getOrdinal(day)}, ${year}`;
+    }
+  }
+
+  // Fallback to Date object parsing
+  const d = new Date(raw);
+  if (!isNaN(d.getTime())) {
+    return `IN ${monthsEn[d.getMonth()]} ${getOrdinal(d.getDate())}, ${d.getFullYear()}`;
+  }
+
+  return `IN ${raw.toUpperCase()}`;
+}
+
 export interface CertificateItem {
   id: string | number;
   registrationId?: number;
@@ -157,7 +218,7 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   bodyPreText: "FOR PARTICIPATING IN THE",
   bodyCompetitionName: "FUN SWIMMING COMPETITION ORGANIZED BY",
   bodyOrganizerName: "MODERN AQUATIC SWIMMING CLUB ( MASC )",
-  bodyDateText: "IN DECEMBER 13TH, 2025",
+  bodyDateText: "",
   bodyVenueText: "MODERN GOLF AND COUNTRY CLUB",
   bodyLocationText: "KOTA MODERN, KOTA TANGERANG",
   useCustomBodyText: false,
@@ -233,6 +294,12 @@ export default function CertificateManager({
       const saved = localStorage.getItem("swimming_certificate_config");
       if (saved) {
         const parsed = JSON.parse(saved);
+        if (
+          parsed.bodyDateText === "IN OCTOBER 17TH, 2026" ||
+          parsed.bodyDateText === "IN DECEMBER 13TH, 2025"
+        ) {
+          parsed.bodyDateText = "";
+        }
         setConfig({ ...DEFAULT_CONFIG, ...parsed, enabled: false });
       }
     } catch (e) {}
@@ -312,7 +379,7 @@ export default function CertificateManager({
     const list: CertificateItem[] = [];
     const tourneyName = currentTournament?.name || "TIME TRIAL 2026 MASC KOTA TANGERANG";
     const tourneyLoc = currentTournament?.location || "Kolam Renang MGCC Modernland Kota Tangerang";
-    const tourneyDate = currentTournament?.event_start_date || "23 Desember 2026";
+    const tourneyDate = currentTournament?.event_start_date || "2026-10-01";
     const year = new Date().getFullYear();
     const tourneyCode = `AI-TGR-${year}`;
 
@@ -320,6 +387,7 @@ export default function CertificateManager({
     if (eventGroups.length > 0) {
       eventGroups.forEach((ev) => {
         const champ = calculateEventChampions(ev);
+        const eventDate = ev.schedule_date || tourneyDate;
 
         // Group Heats
         if (champ.isGroup) {
@@ -346,7 +414,7 @@ export default function CertificateManager({
                 tournamentId: ev.tournament_id,
                 tournamentName: tourneyName,
                 tournamentLocation: tourneyLoc,
-                tournamentDate: tourneyDate,
+                tournamentDate: eventDate,
                 eventCode: ev.event_code,
                 eventName: `${ev.distance} ${ev.stroke || ev.event_name}`,
                 stroke: ev.stroke,
@@ -359,7 +427,7 @@ export default function CertificateManager({
                 isChampion: isChamp,
                 rankBadge: isWinner ? "JUARA 1 (EMAS)" : isChamp ? `JUARA ${rankNum}` : "PESERTA",
                 docNumber,
-                issueDate: tourneyDate,
+                issueDate: eventDate,
               });
             });
           });
@@ -387,7 +455,7 @@ export default function CertificateManager({
               tournamentId: ev.tournament_id,
               tournamentName: tourneyName,
               tournamentLocation: tourneyLoc,
-              tournamentDate: tourneyDate,
+              tournamentDate: eventDate,
               eventCode: ev.event_code,
               eventName: `${ev.distance} ${ev.stroke || ev.event_name}`,
               stroke: ev.stroke,
@@ -400,7 +468,7 @@ export default function CertificateManager({
               isChampion: isChamp,
               rankBadge,
               docNumber,
-              issueDate: tourneyDate,
+              issueDate: eventDate,
             });
           });
         }
@@ -411,6 +479,7 @@ export default function CertificateManager({
         const certId = `reg-${r.id}`;
         const p = r.participant || {};
         const ev = r.swimming_event || {};
+        const eventDate = ev.schedule_date || tourneyDate;
         const sName = p.nama || p.name || r.name || r.swimmer_name || "Perenang";
         const sClub = p.club || r.club || "MASC KOTA TANGERANG";
         const evName = ev.event_name || (ev.distance ? `${ev.distance} ${ev.stroke || "Gaya Bebas"}` : "Nomor Lomba");
@@ -433,7 +502,7 @@ export default function CertificateManager({
           tournamentId: Number(ev.tournament_id || currentTournament?.id || 0),
           tournamentName: tourneyName,
           tournamentLocation: tourneyLoc,
-          tournamentDate: tourneyDate,
+          tournamentDate: eventDate,
           eventCode: ev.event_code || 101,
           eventName: evName,
           stroke: ev.stroke || "FREESTYLE",
@@ -446,7 +515,7 @@ export default function CertificateManager({
           isChampion: isChamp,
           rankBadge,
           docNumber,
-          issueDate: tourneyDate,
+          issueDate: eventDate,
         });
       });
     }
@@ -1315,16 +1384,16 @@ export default function CertificateManager({
                           }}
                         >
                           <div style={{ marginBottom: "2px", fontWeight: 500 }}>
-                            {config.bodyPreText || "FOR PARTICIPATING IN THE"}
+                            {(config.useCustomBodyText && config.bodyPreText) || "FOR PARTICIPATING IN THE"}
                           </div>
                           <div style={{ fontWeight: 800, color: "#101827", marginBottom: "2px" }}>
-                            {config.bodyCompetitionName || `${activeCertificate.tournamentName} ORGANIZED BY`}
+                            {(config.useCustomBodyText && config.bodyCompetitionName) || `${activeCertificate.tournamentName} ORGANIZED BY`}
                           </div>
                           <div style={{ marginBottom: "2px", fontWeight: 500 }}>
-                            {config.bodyOrganizerName || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
+                            {(config.useCustomBodyText && config.bodyOrganizerName) || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
                           </div>
                           <div style={{ fontWeight: 500 }}>
-                            {config.bodyDateText || `IN ${activeCertificate.tournamentDate.toUpperCase()}`}
+                            {(config.useCustomBodyText && config.bodyDateText) || formatCertificateDate(activeCertificate.tournamentDate || activeCertificate.issueDate)}
                           </div>
                         </div>
 
@@ -1339,10 +1408,10 @@ export default function CertificateManager({
                           }}
                         >
                           <div style={{ fontWeight: 700, color: "#101827", marginBottom: "2px" }}>
-                            {config.bodyVenueText || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
+                            {(config.useCustomBodyText && config.bodyVenueText) || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
                           </div>
                           <div style={{ color: "#475569", fontWeight: 400 }}>
-                            {config.bodyLocationText || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}
+                            {(config.useCustomBodyText && config.bodyLocationText) || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}
                           </div>
                         </div>
 
@@ -1626,7 +1695,7 @@ export default function CertificateManager({
                               bodyPreText: "FOR PARTICIPATING IN THE",
                               bodyCompetitionName: `${activeCertificate.tournamentName} ORGANIZED BY`,
                               bodyOrganizerName: config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )",
-                              bodyDateText: `IN ${activeCertificate.tournamentDate.toUpperCase()}`,
+                              bodyDateText: formatCertificateDate(activeCertificate.tournamentDate || activeCertificate.issueDate),
                               bodyVenueText: activeCertificate.tournamentLocation ? activeCertificate.tournamentLocation.toUpperCase() : "MODERN GOLF AND COUNTRY CLUB",
                               bodyLocationText: config.city.toUpperCase() || "KOTA MODERN, KOTA TANGERANG",
                             });
@@ -1687,7 +1756,7 @@ export default function CertificateManager({
                           type="text"
                           value={config.bodyDateText}
                           onChange={(e) => saveConfig({ ...config, bodyDateText: e.target.value })}
-                          placeholder="IN OCTOBER 17TH, 2026"
+                          placeholder={formatCertificateDate(activeCertificate?.tournamentDate || activeCertificate?.issueDate)}
                           className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                         />
                       </div>

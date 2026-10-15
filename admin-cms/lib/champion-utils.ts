@@ -25,6 +25,8 @@ export interface EventGroupData {
   stroke: string;
   gender: string;
   age_group: string;
+  schedule_date?: string;
+  schedule_time?: string;
   heat_category?: string;
   max_lanes: number;
   heats: SwimmerItem[];
