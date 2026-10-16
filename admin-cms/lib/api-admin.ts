@@ -214,6 +214,7 @@ export async function getBukuAcara(tournamentID?: number, round?: string) {
     const queryString = params.toString() ? `?${params.toString()}` : "";
     const res = await fetch(`${API_BASE_URL}/admin/buku-acara${queryString}`, {
       headers: getAuthHeaders(),
+      cache: "no-store",
     });
     return await res.json();
   } catch (error) {
