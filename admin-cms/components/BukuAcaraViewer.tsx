@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
 import { toast } from "./Toast";
+import { matchKU, matchStroke, matchDistance, normalizeKU } from "./RaceResultEditor";
 
 interface HeatItem {
   registration_id?: number;
@@ -401,7 +402,10 @@ export default function BukuAcaraViewer({
       if (eg.schedule_time) times.add(eg.schedule_time.trim());
       if (eg.stroke) strokes.add(eg.stroke.trim());
       if (eg.distance) distances.add(eg.distance.trim());
-      if (eg.age_group) ageGroups.add(eg.age_group.trim().toUpperCase());
+      if (eg.age_group) ageGroups.add(normalizeKU(eg.age_group));
+      eg.heats?.forEach((h) => {
+        if (!h.is_empty && h.age_group) ageGroups.add(normalizeKU(h.age_group));
+      });
       eventCodes.push({
         code: eg.event_code,
         name: eg.event_name,
@@ -413,7 +417,8 @@ export default function BukuAcaraViewer({
     eventCodes.sort((a, b) => compareEventCode(a.code, b.code, false));
 
     const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
-    const sortedKUs = Array.from(ageGroups).sort((a, b) => {
+    const allKUs = new Set<string>([...standardKUSort, ...Array.from(ageGroups)]);
+    const sortedKUs = Array.from(allKUs).filter(Boolean).sort((a, b) => {
       const ia = standardKUSort.findIndex((k) => a.toUpperCase().includes(k));
       const ib = standardKUSort.findIndex((k) => b.toUpperCase().includes(k));
       if (ia !== -1 && ib !== -1) return ia - ib;
@@ -448,8 +453,8 @@ export default function BukuAcaraViewer({
       }
 
       // 0b. Filter Kelompok Umur (KU)
-      if (selectedKU !== "ALL" && event.age_group?.toUpperCase() !== selectedKU.toUpperCase()) {
-        return false;
+      if (selectedKU !== "ALL") {
+        if (!matchKU(event.age_group, event.event_name, event.heats, selectedKU)) return false;
       }
 
       // 0c. Filter Tanggal (Date)
@@ -464,41 +469,12 @@ export default function BukuAcaraViewer({
 
       // 1. Filter Gaya Renang (Stroke)
       if (selectedStroke !== "ALL") {
-        const s = (event.stroke || "").toUpperCase();
-        const n = (event.event_name || "").toUpperCase();
-        const target = selectedStroke.toUpperCase();
-        if (target === "FREESTYLE_FIN") {
-          if ((s.includes("BACK") || s.includes("PUNGGUNG") || s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY")) ||
-              (n.includes("BACK") || n.includes("PUNGGUNG") || n.includes("KUPU") || n.includes("FLY") || n.includes("BUTTERFLY"))) return false;
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-        } else if (target === "BACKSTROKE_FIN") {
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
-        } else if (target === "BUTTERFLY_FIN") {
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
-        } else if (target === "KICKING_BOARD") {
-          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
-        } else if (target === "FREESTYLE") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
-        } else if (target === "BACKSTROKE") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
-        } else if (target === "BUTTERFLY") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
-        } else {
-          if (!s.includes(target) && !n.includes(target)) return false;
-        }
+        if (!matchStroke(event.stroke, event.event_name, selectedStroke)) return false;
       }
 
       // 2. Filter Jarak (Distance)
       if (selectedDistance !== "ALL") {
-        const d = (event.distance || "").toUpperCase();
-        const n = (event.event_name || "").toUpperCase();
-        const target = selectedDistance.toUpperCase();
-        if (!d.includes(target) && !n.includes(target)) return false;
+        if (!matchDistance(event.distance, event.event_name, selectedDistance)) return false;
       }
 
       // 3. Filter Nomor Lomba

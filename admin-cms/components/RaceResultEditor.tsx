@@ -48,13 +48,17 @@ import SwimmingTimeInput from "./SwimmingTimeInput";
 
 interface HeatItem {
   registration_id?: number;
+  registration_code?: string;
   heat: number;
   heat_label?: string;
   heat_category?: string;
   line: number;
   nama: string;
-  jenis_kelamin: string;
+  gender?: string;
+  jenis_kelamin?: string;
   club: string;
+  birth_date?: string;
+  age_group?: string;
   time_seed: string;
   result: string;
   rank?: number;
@@ -93,6 +97,169 @@ export const isZeroOrEmptyTime = (timeStr?: string): boolean => {
   return !/[1-9]/.test(clean);
 };
 
+// Normalize KU string for uniform comparison
+export const normalizeKU = (ku?: string): string => {
+  if (!ku) return "";
+  return ku
+    .toUpperCase()
+    .replace(/[_\-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+};
+
+// Match Kelompok Umur (KU) across event age_group, event name, and swimmers in heats
+export const matchKU = (
+  eventKU?: string,
+  eventName?: string,
+  heats?: HeatItem[],
+  targetKU?: string
+): boolean => {
+  if (!targetKU || targetKU === "ALL") return true;
+  const normTarget = normalizeKU(targetKU);
+  const normEventKU = normalizeKU(eventKU);
+  const normName = normalizeKU(eventName);
+
+  if (normEventKU && (normEventKU === normTarget || normEventKU.includes(normTarget))) {
+    return true;
+  }
+  if (normName.includes(normTarget)) {
+    return true;
+  }
+  if (
+    heats &&
+    heats.some((h) => {
+      if (h.is_empty) return false;
+      const swimmerKU = normalizeKU(h.age_group);
+      return swimmerKU === normTarget || (swimmerKU !== "" && swimmerKU.includes(normTarget));
+    })
+  ) {
+    return true;
+  }
+  return false;
+};
+
+// Robust Match Gaya Renang (Stroke) supporting Indonesian and English terms & aliases
+export const matchStroke = (
+  eventStroke: string = "",
+  eventName: string = "",
+  targetStroke: string
+): boolean => {
+  if (!targetStroke || targetStroke === "ALL") return true;
+  const s = (eventStroke || "").toUpperCase().trim();
+  const n = (eventName || "").toUpperCase().trim();
+  const combined = `${s} ${n}`;
+  const target = targetStroke.toUpperCase().trim();
+
+  const isFins = combined.includes("FIN") || combined.includes("BIFIN");
+  const isKicking = combined.includes("KICK") || combined.includes("BOARD") || combined.includes("PAPAN");
+
+  switch (target) {
+    case "FREESTYLE":
+      if (isFins || isKicking) return false;
+      return combined.includes("FREE") || combined.includes("BEBAS") || combined.includes("CRAWL");
+
+    case "FREESTYLE_FIN":
+    case "BIFINS":
+      if (!isFins) return false;
+      if (
+        combined.includes("BACK") ||
+        combined.includes("PUNGGUNG") ||
+        combined.includes("KUPU") ||
+        combined.includes("FLY") ||
+        combined.includes("BUTTERFLY") ||
+        combined.includes("DADA") ||
+        combined.includes("BREAST")
+      ) {
+        return false;
+      }
+      return true;
+
+    case "BREASTSTROKE":
+      return combined.includes("BREAST") || combined.includes("DADA") || combined.includes("KATAK");
+
+    case "BACKSTROKE":
+      if (isFins) return false;
+      return combined.includes("BACK") || combined.includes("PUNGGUNG");
+
+    case "BACKSTROKE_FIN":
+      return isFins && (combined.includes("BACK") || combined.includes("PUNGGUNG"));
+
+    case "BUTTERFLY":
+      if (isFins) return false;
+      return combined.includes("BUTTERFLY") || combined.includes("KUPU") || combined.includes("FLY");
+
+    case "BUTTERFLY_FIN":
+      return isFins && (combined.includes("BUTTERFLY") || combined.includes("KUPU") || combined.includes("FLY"));
+
+    case "KICKING_BOARD":
+      return isKicking;
+
+    case "INDIVIDUALMEDLEY":
+    case "MEDLEY":
+      return (
+        combined.includes("INDIVIDUALMEDLEY") ||
+        combined.includes("INDIVIDUAL MEDLEY") ||
+        combined.includes("INDIVIDUAL_MEDLEY") ||
+        combined.includes("MEDLEY") ||
+        combined.includes("GANTI") ||
+        combined.includes(" IM") ||
+        combined.includes("(IM)") ||
+        s === "IM"
+      );
+
+    default:
+      return s.includes(target) || n.includes(target);
+  }
+};
+
+// Match Jarak Lomba (Distance) cleanly using numeric extraction
+export const matchDistance = (
+  eventDistance: string = "",
+  eventName: string = "",
+  targetDistance: string
+): boolean => {
+  if (!targetDistance || targetDistance === "ALL") return true;
+  const targetNum = targetDistance.replace(/\D/g, "");
+  if (!targetNum) return true;
+
+  const d = (eventDistance || "").toUpperCase();
+  const n = (eventName || "").toUpperCase();
+
+  const dMatches = d.match(/\b\d+\b/) || d.match(/\d+/);
+  const nMatches = n.match(/\b\d+\b/) || n.match(/\d+/);
+
+  if (dMatches && dMatches[0] === targetNum) return true;
+  if (nMatches && nMatches[0] === targetNum) return true;
+
+  const numRegex = new RegExp(`(^|\\D)${targetNum}(\\D|$)`);
+  return numRegex.test(d) || numRegex.test(n);
+};
+
+// Match Gender (Putra / Putri / Pria / Wanita)
+export const matchGender = (
+  eventGender: string = "",
+  targetGender: string
+): boolean => {
+  if (!targetGender || targetGender === "ALL") return true;
+  const g = (eventGender || "").toUpperCase().trim();
+  const target = targetGender.toUpperCase().trim();
+
+  if (target === "PUTRA" || target === "MALE" || target === "L") {
+    return g.includes("PUTRA") || g.includes("MALE") || g === "L" || g === "PRIA" || g.includes("MEN");
+  }
+  if (target === "PUTRI" || target === "FEMALE" || target === "P" || target === "W") {
+    return (
+      g.includes("PUTRI") ||
+      g.includes("FEMALE") ||
+      g === "P" ||
+      g === "W" ||
+      g.includes("WANITA") ||
+      g.includes("WOMEN")
+    );
+  }
+  return g.includes(target);
+};
+
 export default function RaceResultEditor({
   registrations = [],
   tournaments = [],
@@ -108,9 +275,10 @@ export default function RaceResultEditor({
   const [selectedStroke, setSelectedStroke] = useState<string>("ALL");
   const [selectedDistance, setSelectedDistance] = useState<string>("ALL");
   const [selectedKU, setSelectedKU] = useState<string>("ALL");
-  const [selectedEventCode, setSelectedEventCode] = useState<string>("ALL");
   const [selectedGender, setSelectedGender] = useState<string>("ALL");
+  const [selectedEventCode, setSelectedEventCode] = useState<string>("ALL");
   const [selectedHeatFilter, setSelectedHeatFilter] = useState<string>("ALL");
+  const [selectedResultStatus, setSelectedResultStatus] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState<string>("");
 
   // 2. DATA STATE (Bagan format matching Buku Acara)
@@ -246,118 +414,186 @@ export default function RaceResultEditor({
     }
   };
 
+  // Active filters count for badge and clear button
+  const activeFiltersCount = useMemo(() => {
+    let count = 0;
+    if (selectedCategoryFilter !== "ALL") count++;
+    if (selectedStroke !== "ALL") count++;
+    if (selectedDistance !== "ALL") count++;
+    if (selectedKU !== "ALL") count++;
+    if (selectedGender !== "ALL") count++;
+    if (selectedEventCode !== "ALL") count++;
+    if (selectedHeatFilter !== "ALL") count++;
+    if (selectedResultStatus !== "ALL") count++;
+    if (searchQuery.trim() !== "") count++;
+    return count;
+  }, [
+    selectedCategoryFilter,
+    selectedStroke,
+    selectedDistance,
+    selectedKU,
+    selectedGender,
+    selectedEventCode,
+    selectedHeatFilter,
+    selectedResultStatus,
+    searchQuery,
+  ]);
+
+  const handleResetFilters = () => {
+    setSelectedCategoryFilter("ALL");
+    setSelectedStroke("ALL");
+    setSelectedDistance("ALL");
+    setSelectedKU("ALL");
+    setSelectedGender("ALL");
+    setSelectedEventCode("ALL");
+    setSelectedHeatFilter("ALL");
+    setSelectedResultStatus("ALL");
+    setSearchQuery("");
+  };
+
   // Dynamic filter options from event groups
   const dynamicFilterOptions = useMemo(() => {
     const strokes = new Set<string>();
     const distances = new Set<string>();
     const ageGroups = new Set<string>();
-    const eventCodes: { code: number; name: string; gender: string; age_group?: string }[] = [];
+    const eventCodesMap = new Map<number, { code: number; name: string; gender: string; age_group?: string }>();
+    let maxHeatFound = 1;
 
     eventGroups.forEach((eg) => {
       if (eg.stroke) strokes.add(eg.stroke.trim());
       if (eg.distance) distances.add(eg.distance.trim());
-      if (eg.age_group) ageGroups.add(eg.age_group.trim());
-      eventCodes.push({ code: eg.event_code, name: eg.event_name, gender: eg.gender, age_group: eg.age_group });
+      if (eg.age_group && eg.age_group.trim()) {
+        ageGroups.add(normalizeKU(eg.age_group));
+      }
+
+      if (!eventCodesMap.has(eg.event_code)) {
+        eventCodesMap.set(eg.event_code, {
+          code: eg.event_code,
+          name: eg.event_name,
+          gender: eg.gender,
+          age_group: eg.age_group,
+        });
+      }
+
+      eg.heats?.forEach((h) => {
+        if (!h.is_empty) {
+          if (h.age_group && h.age_group.trim()) {
+            ageGroups.add(normalizeKU(h.age_group));
+          }
+          if (h.heat && h.heat > maxHeatFound) {
+            maxHeatFound = h.heat;
+          }
+        }
+      });
     });
 
-    eventCodes.sort((a, b) => a.code - b.code);
+    const eventCodes = Array.from(eventCodesMap.values()).sort((a, b) => a.code - b.code);
 
-    const kuOrder = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
-    const sortedAgeGroups = Array.from(ageGroups).sort((a, b) => {
-      const idxA = kuOrder.findIndex((k) => a.toUpperCase().includes(k));
-      const idxB = kuOrder.findIndex((k) => b.toUpperCase().includes(k));
+    const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
+    const allKUs = new Set<string>([...standardKUSort, ...Array.from(ageGroups)]);
+    const sortedAgeGroups = Array.from(allKUs).filter(Boolean).sort((a, b) => {
+      const idxA = standardKUSort.findIndex((k) => a.includes(k));
+      const idxB = standardKUSort.findIndex((k) => b.includes(k));
       if (idxA !== -1 && idxB !== -1) return idxA - idxB;
       if (idxA !== -1) return -1;
       if (idxB !== -1) return 1;
       return a.localeCompare(b);
     });
 
+    const defaultDists = ["25", "50", "100", "200", "400", "800", "1500"];
+    const dynamicDists = Array.from(distances).map((d) => d.replace(/\D/g, "")).filter(Boolean);
+    const sortedDistances = Array.from(new Set([...defaultDists, ...dynamicDists])).sort(
+      (a, b) => Number(a) - Number(b)
+    );
+
     return {
       strokes: Array.from(strokes),
-      distances: Array.from(distances),
+      distances: sortedDistances,
       ageGroups: sortedAgeGroups,
       eventCodes,
+      maxHeat: Math.max(maxHeatFound, 10),
     };
   }, [eventGroups]);
 
   // Filtered Events
   const filteredEvents = useMemo(() => {
-    return eventGroups.filter((event) => {
-      if (selectedCategoryFilter !== "ALL") {
-        const isEvtGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
-        if (selectedCategoryFilter === "GROUP" && !isEvtGroup) return false;
-        if (selectedCategoryFilter === "HEAT" && isEvtGroup) return false;
-      }
-
-      if (selectedStroke !== "ALL") {
-        const s = (event.stroke || "").toUpperCase();
-        const n = (event.event_name || "").toUpperCase();
-        const target = selectedStroke.toUpperCase();
-        if (target === "FREESTYLE_FIN") {
-          if ((s.includes("BACK") || s.includes("PUNGGUNG") || s.includes("KUPU") || s.includes("FLY") || s.includes("BUTTERFLY")) ||
-              (n.includes("BACK") || n.includes("PUNGGUNG") || n.includes("KUPU") || n.includes("FLY") || n.includes("BUTTERFLY"))) return false;
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-        } else if (target === "BACKSTROKE_FIN") {
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
-        } else if (target === "BUTTERFLY_FIN") {
-          if (!s.includes("FIN") && !n.includes("FIN")) return false;
-          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
-        } else if (target === "KICKING_BOARD") {
-          if (!s.includes("KICK") && !s.includes("BOARD") && !n.includes("KICK") && !n.includes("BOARD") && !n.includes("PAPAN")) return false;
-        } else if (target === "FREESTYLE") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("FREE") && !s.includes("BEBAS") && !n.includes("FREE") && !n.includes("BEBAS")) return false;
-        } else if (target === "BACKSTROKE") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("BACK") && !s.includes("PUNGGUNG") && !n.includes("BACK") && !n.includes("PUNGGUNG")) return false;
-        } else if (target === "BUTTERFLY") {
-          if (s.includes("FIN") || n.includes("FIN")) return false;
-          if (!s.includes("BUTTERFLY") && !s.includes("KUPU") && !s.includes("FLY") && !n.includes("BUTTERFLY") && !n.includes("KUPU") && !n.includes("FLY")) return false;
-        } else {
-          if (!s.includes(target) && !n.includes(target)) return false;
+    return eventGroups
+      .filter((event) => {
+        // 1. Tipe Bagan (Heat vs Group)
+        if (selectedCategoryFilter !== "ALL") {
+          const isEvtGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
+          if (selectedCategoryFilter === "GROUP" && !isEvtGroup) return false;
+          if (selectedCategoryFilter === "HEAT" && isEvtGroup) return false;
         }
-      }
 
-      if (selectedDistance !== "ALL") {
-        const d = (event.distance || "").toUpperCase();
-        const n = (event.event_name || "").toUpperCase();
-        const target = selectedDistance.toUpperCase();
-        if (!d.includes(target) && !n.includes(target)) return false;
-      }
+        // 2. Gaya Renang (Stroke)
+        if (selectedStroke !== "ALL") {
+          if (!matchStroke(event.stroke, event.event_name, selectedStroke)) return false;
+        }
 
-      if (selectedKU !== "ALL" && event.age_group?.toUpperCase() !== selectedKU.toUpperCase()) {
-        return false;
-      }
+        // 3. Jarak Lomba (Distance)
+        if (selectedDistance !== "ALL") {
+          if (!matchDistance(event.distance, event.event_name, selectedDistance)) return false;
+        }
 
-      if (selectedEventCode !== "ALL" && String(event.event_code) !== selectedEventCode) {
-        return false;
-      }
+        // 4. Kelompok Umur (KU)
+        if (selectedKU !== "ALL") {
+          if (!matchKU(event.age_group, event.event_name, event.heats, selectedKU)) return false;
+        }
 
-      if (selectedGender !== "ALL" && event.gender?.toUpperCase() !== selectedGender.toUpperCase()) {
-        return false;
-      }
+        // 5. Gender / Jenis Kelamin
+        if (selectedGender !== "ALL") {
+          if (!matchGender(event.gender, selectedGender)) return false;
+        }
 
-      if (searchQuery.trim() !== "") {
-        const q = searchQuery.toLowerCase();
-        const matchEv =
-          event.event_name?.toLowerCase().includes(q) || String(event.event_code).includes(q);
-        const matchSwimmer = event.heats?.some(
-          (h) => !h.is_empty && (h.nama?.toLowerCase().includes(q) || h.club?.toLowerCase().includes(q))
-        );
-        if (!matchEv && !matchSwimmer) return false;
-      }
+        // 6. Nomor Lomba (Event Code)
+        if (selectedEventCode !== "ALL" && String(event.event_code) !== selectedEventCode) {
+          return false;
+        }
 
-      return true;
-    }).sort((a, b) => (a.event_code || 0) - (b.event_code || 0));
+        // 7. Status Hasil Lomba (Pending vs Selesai)
+        if (selectedResultStatus !== "ALL") {
+          const activeSwimmers = event.heats?.filter((h) => !h.is_empty && h.registration_id) || [];
+          if (activeSwimmers.length > 0) {
+            const recordedCount = activeSwimmers.filter(
+              (h) => h.result && h.result !== "-" && h.result.trim() !== "" && !isZeroOrEmptyTime(h.result)
+            ).length;
+            const isAllRecorded = recordedCount === activeSwimmers.length;
+            if (selectedResultStatus === "PENDING" && isAllRecorded) return false;
+            if (selectedResultStatus === "COMPLETED" && !isAllRecorded) return false;
+          }
+        }
+
+        // 8. Search query (Swimmer name, club, KU, event name, or event code)
+        if (searchQuery.trim() !== "") {
+          const q = searchQuery.toLowerCase().trim();
+          const matchEv =
+            event.event_name?.toLowerCase().includes(q) ||
+            String(event.event_code).includes(q) ||
+            event.stroke?.toLowerCase().includes(q) ||
+            event.distance?.toLowerCase().includes(q);
+          const matchSwimmer = event.heats?.some(
+            (h) =>
+              !h.is_empty &&
+              (h.nama?.toLowerCase().includes(q) ||
+                h.club?.toLowerCase().includes(q) ||
+                (h.age_group && h.age_group.toLowerCase().includes(q)))
+          );
+          if (!matchEv && !matchSwimmer) return false;
+        }
+
+        return true;
+      })
+      .sort((a, b) => (a.event_code || 0) - (b.event_code || 0));
   }, [
     eventGroups,
     selectedCategoryFilter,
     selectedStroke,
     selectedDistance,
     selectedKU,
-    selectedEventCode,
     selectedGender,
+    selectedEventCode,
+    selectedResultStatus,
     searchQuery,
   ]);
 
@@ -1094,7 +1330,7 @@ export default function RaceResultEditor({
             <button
               type="button"
               onClick={() => fetchBaganData()}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all flex items-center gap-1.5"
+              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
               title="Refresh Data Bagan"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
@@ -1102,35 +1338,57 @@ export default function RaceResultEditor({
           </div>
         </div>
 
-        {/* Primary Filter Row */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3">
-          {/* Turnamen */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Turnamen
-            </label>
+        {/* Search & Tournament Bar */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
+          {/* Pencarian Atlet / Club / Nomor */}
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari perenang, nama klub, kelompok umur (KU), atau nomor lomba..."
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl pl-10 pr-9 py-2.5 text-xs font-bold text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:border-sky-500 focus:outline-none transition shadow-2xs"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                title="Hapus pencarian"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Turnamen Selector */}
+          <div className="w-full md:w-72">
             <select
               value={selectedTournamentId}
               onChange={(e) => {
                 const newTid = Number(e.target.value);
                 setSelectedTournamentId(newTid);
                 if (onSelectTournamentId) onSelectTournamentId(newTid);
-                setSelectedEventCode("ALL");
+                handleResetFilters();
               }}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-3.5 py-2.5 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition shadow-2xs"
             >
               {tournaments.length === 0 ? (
                 <option value={0}>Memuat turnamen...</option>
               ) : (
                 tournaments.map((t) => (
                   <option key={t.id} value={t.id}>
-                    {t.name} {t.is_active ? "(Aktif)" : ""}
+                    🏆 {t.name} {t.is_active ? "(Aktif)" : ""}
                   </option>
                 ))
               )}
             </select>
           </div>
+        </div>
 
+        {/* Primary Filter Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 pt-1 border-t border-slate-100">
           {/* Tipe Bagan */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
@@ -1139,9 +1397,9 @@ export default function RaceResultEditor({
             <select
               value={selectedCategoryFilter}
               onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="ALL">Semua Tipe Bagan</option>
+              <option value="ALL">Semua Bagan</option>
               <option value="HEAT">Heat Angka (1, 2, 3...)</option>
               <option value="GROUP">Group Abjad (A, B, C...)</option>
             </select>
@@ -1155,18 +1413,18 @@ export default function RaceResultEditor({
             <select
               value={selectedStroke}
               onChange={(e) => setSelectedStroke(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="ALL">Semua Gaya Renang</option>
+              <option value="ALL">Semua Gaya</option>
               <option value="FREESTYLE">Gaya Bebas</option>
               <option value="FREESTYLE_FIN">Freestyle FIN</option>
-              <option value="KICKING_BOARD">Kicking Board</option>
               <option value="BREASTSTROKE">Gaya Dada</option>
               <option value="BACKSTROKE">Gaya Punggung</option>
-              <option value="BACKSTROKE_FIN">Backstroke Fins</option>
+              <option value="BACKSTROKE_FIN">Backstroke FIN</option>
               <option value="BUTTERFLY">Gaya Kupu-kupu</option>
-              <option value="BUTTERFLY_FIN">Butterfly Fins</option>
+              <option value="BUTTERFLY_FIN">Butterfly FIN</option>
               <option value="INDIVIDUALMEDLEY">Gaya Ganti (IM)</option>
+              <option value="KICKING_BOARD">Kicking Board</option>
             </select>
           </div>
 
@@ -1178,14 +1436,14 @@ export default function RaceResultEditor({
             <select
               value={selectedDistance}
               onChange={(e) => setSelectedDistance(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
               <option value="ALL">Semua Jarak</option>
-              <option value="25">25 Meter</option>
-              <option value="50">50 Meter</option>
-              <option value="100">100 Meter</option>
-              <option value="200">200 Meter</option>
-              <option value="400">400 Meter</option>
+              {dynamicFilterOptions.distances.map((dist) => (
+                <option key={dist} value={dist}>
+                  {dist} Meter
+                </option>
+              ))}
             </select>
           </div>
 
@@ -1197,7 +1455,7 @@ export default function RaceResultEditor({
             <select
               value={selectedKU}
               onChange={(e) => setSelectedKU(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
               <option value="ALL">Semua KU</option>
               {dynamicFilterOptions.ageGroups.map((ku) => (
@@ -1205,6 +1463,22 @@ export default function RaceResultEditor({
                   {ku}
                 </option>
               ))}
+            </select>
+          </div>
+
+          {/* Gender */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+              Gender
+            </label>
+            <select
+              value={selectedGender}
+              onChange={(e) => setSelectedGender(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            >
+              <option value="ALL">Semua Gender</option>
+              <option value="PUTRA">Putra</option>
+              <option value="PUTRI">Putri</option>
             </select>
           </div>
 
@@ -1216,12 +1490,12 @@ export default function RaceResultEditor({
             <select
               value={selectedEventCode}
               onChange={(e) => setSelectedEventCode(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="ALL">Semua Nomor Lomba ({dynamicFilterOptions.eventCodes.length})</option>
+              <option value="ALL">Semua Nomor ({dynamicFilterOptions.eventCodes.length})</option>
               {dynamicFilterOptions.eventCodes.map((ev) => (
                 <option key={ev.code} value={String(ev.code)}>
-                  {ev.code} - {ev.name} ({ev.gender})
+                  #{ev.code} - {ev.name} ({ev.gender})
                 </option>
               ))}
             </select>
@@ -1230,22 +1504,141 @@ export default function RaceResultEditor({
           {/* Filter Seri (Heat) */}
           <div>
             <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Filter Seri (Heat)
+              Filter Seri
             </label>
             <select
               value={selectedHeatFilter}
               onChange={(e) => setSelectedHeatFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
             >
-              <option value="ALL">Semua Seri (Heat)</option>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((h) => (
+              <option value="ALL">Semua Seri</option>
+              {Array.from({ length: dynamicFilterOptions.maxHeat }, (_, i) => i + 1).map((h) => (
                 <option key={h} value={String(h)}>
                   Seri {h}
                 </option>
               ))}
             </select>
           </div>
+
+          {/* Status Hasil */}
+          <div>
+            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
+              Status Hasil
+            </label>
+            <select
+              value={selectedResultStatus}
+              onChange={(e) => setSelectedResultStatus(e.target.value)}
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
+            >
+              <option value="ALL">Semua Status</option>
+              <option value="PENDING">Belum Lengkap</option>
+              <option value="COMPLETED">Sudah Selesai</option>
+            </select>
+          </div>
         </div>
+
+        {/* Active Filters Bar & Reset Action */}
+        {activeFiltersCount > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-100 bg-slate-50/70 p-3 rounded-2xl">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-black text-slate-600 flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-sky-600" />
+                <span>{activeFiltersCount} Filter Aktif:</span>
+              </span>
+
+              {selectedCategoryFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Bagan: {selectedCategoryFilter}
+                  <button type="button" onClick={() => setSelectedCategoryFilter("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedStroke !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Gaya: {selectedStroke}
+                  <button type="button" onClick={() => setSelectedStroke("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedDistance !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Jarak: {selectedDistance}m
+                  <button type="button" onClick={() => setSelectedDistance("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedKU !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-amber-100 border border-amber-300 text-amber-900 text-[10px] font-bold rounded-lg shadow-2xs">
+                  KU: {selectedKU}
+                  <button type="button" onClick={() => setSelectedKU("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedGender !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Gender: {selectedGender}
+                  <button type="button" onClick={() => setSelectedGender("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedEventCode !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Nomor: #{selectedEventCode}
+                  <button type="button" onClick={() => setSelectedEventCode("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedHeatFilter !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Seri: {selectedHeatFilter}
+                  <button type="button" onClick={() => setSelectedHeatFilter("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {selectedResultStatus !== "ALL" && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-white border border-slate-200 text-slate-700 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Status: {selectedResultStatus === "PENDING" ? "Belum Lengkap" : "Selesai"}
+                  <button type="button" onClick={() => setSelectedResultStatus("ALL")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+
+              {searchQuery && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-sky-100 border border-sky-300 text-sky-900 text-[10px] font-bold rounded-lg shadow-2xs">
+                  Cari: &ldquo;{searchQuery}&rdquo;
+                  <button type="button" onClick={() => setSearchQuery("")} className="hover:text-rose-600">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleResetFilters}
+              className="px-3 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-black rounded-xl transition flex items-center gap-1.5 cursor-pointer shrink-0"
+              title="Reset semua filter ke posisi awal"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset Filter</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ============================================================ */}
@@ -1262,20 +1655,48 @@ export default function RaceResultEditor({
           <div className="text-sm font-black text-slate-700">Memuat Bagan Acara Lomba...</div>
         </div>
       ) : filteredEvents.length === 0 ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-2">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-          <div className="text-sm font-black text-slate-800">Tidak ada nomor lomba yang sesuai filter</div>
-          <p className="text-xs text-slate-500 font-medium">
-            Silakan ganti pilihan turnamen atau reset sub-filter gaya dan jarak lomba.
-          </p>
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+          <div className="space-y-1">
+            <div className="text-base font-black text-slate-800">Tidak ada nomor lomba yang sesuai filter</div>
+            <p className="text-xs text-slate-500 font-medium max-w-md mx-auto">
+              Tidak ditemukan nomor lomba atau atlet dengan kombinasi filter yang dipilih saat ini.
+            </p>
+          </div>
+          {activeFiltersCount > 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow-md shadow-sky-600/20 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Semua Filter ({activeFiltersCount})</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : !filteredEvents.some((ev) => ev.heats && ev.heats.length > 0) ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-2">
-          <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto" />
-          <div className="text-sm font-black text-slate-800">Tidak ada atlet atau susunan seri pada filter ini</div>
-          <p className="text-xs text-slate-500 font-medium">
-            Pastikan peserta telah diverifikasi pembayarannya dan Buku Acara telah di-generate.
-          </p>
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+          <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
+          <div className="space-y-1">
+            <div className="text-base font-black text-slate-800">Tidak ada atlet atau susunan seri pada filter ini</div>
+            <p className="text-xs text-slate-500 font-medium max-w-md mx-auto">
+              Pastikan peserta telah diverifikasi pembayarannya dan Buku Acara telah di-generate.
+            </p>
+          </div>
+          {activeFiltersCount > 0 && (
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-xs font-black shadow-md shadow-sky-600/20 transition cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Filter</span>
+              </button>
+            </div>
+          )}
         </div>
       ) : (
         <div className="space-y-6">
@@ -1543,8 +1964,21 @@ export default function RaceResultEditor({
                                         {isEmpty ? (
                                           <span className="text-slate-400 font-semibold italic">(LINTASAN KOSONG)</span>
                                         ) : (
-                                          <div className="flex items-center gap-2">
+                                          <div className="flex items-center gap-2 flex-wrap">
                                             <span>{item.nama}</span>
+                                            {item.age_group && (
+                                              <span
+                                                className={`px-1.5 py-0.5 text-[10px] rounded font-bold border transition ${
+                                                  selectedKU !== "ALL" &&
+                                                  normalizeKU(item.age_group).includes(normalizeKU(selectedKU))
+                                                    ? "bg-amber-100 text-amber-950 border-amber-300 ring-2 ring-amber-400/40 font-black shadow-xs"
+                                                    : "bg-slate-100 text-slate-700 border-slate-200"
+                                                }`}
+                                                title={`Kelompok Umur (KU): ${item.age_group}`}
+                                              >
+                                                {item.age_group}
+                                              </span>
+                                            )}
                                             {item.is_finalist && (
                                               <span className="px-1.5 py-0.5 bg-amber-100 text-amber-900 text-[10px] rounded font-black">
                                                 FINALIS
@@ -1556,7 +1990,7 @@ export default function RaceResultEditor({
 
                                       {/* JENIS KELAMIN */}
                                       <td className="py-3 px-3 text-center font-bold uppercase text-slate-700 border-r border-slate-100">
-                                        {isEmpty ? "-" : item.jenis_kelamin}
+                                        {isEmpty ? "-" : (item.gender || item.jenis_kelamin || "-")}
                                       </td>
 
                                       {/* CLUB */}
