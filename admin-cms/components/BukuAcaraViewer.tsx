@@ -33,7 +33,17 @@ import {
   ExternalLink,
   ArrowUpDown,
 } from "lucide-react";
-import { matchKU, matchStroke, matchDistance, normalizeKU, getEventKULabel, getEventGenderLabel, isOpenKU } from "./RaceResultEditor";
+import {
+  matchKU,
+  matchStroke,
+  matchDistance,
+  normalizeKU,
+  getEventKULabel,
+  getEventGenderLabel,
+  isOpenKU,
+  doesHeatItemMatchKU,
+  doesHeatItemMatchGender,
+} from "./RaceResultEditor";
 
 interface HeatItem {
   registration_id?: number;
@@ -400,9 +410,19 @@ export default function BukuAcaraViewer({
       if (eg.schedule_time) times.add(eg.schedule_time.trim());
       if (eg.stroke) strokes.add(eg.stroke.trim());
       if (eg.distance) distances.add(eg.distance.trim());
-      if (eg.age_group) ageGroups.add(normalizeKU(eg.age_group));
+      
+      const effectiveKU = getEventKULabel(eg);
+      if (effectiveKU && !isOpenKU(effectiveKU)) {
+        ageGroups.add(normalizeKU(effectiveKU));
+      } else if (isOpenKU(effectiveKU)) {
+        ageGroups.add("OPEN");
+      }
+
       eg.heats?.forEach((h) => {
-        if (!h.is_empty && h.age_group && !isOpenKU(eg.age_group)) ageGroups.add(normalizeKU(h.age_group));
+        if (!h.is_empty && h.age_group && h.age_group.trim() !== "") {
+          const hKU = normalizeKU(h.age_group);
+          if (!isOpenKU(hKU)) ageGroups.add(hKU);
+        }
       });
       eventCodes.push({
         code: eg.event_code,
@@ -415,8 +435,7 @@ export default function BukuAcaraViewer({
     eventCodes.sort((a, b) => compareEventCode(a.code, b.code, false));
 
     const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
-    const allKUs = new Set<string>([...standardKUSort, ...Array.from(ageGroups)]);
-    const sortedKUs = Array.from(allKUs).filter(Boolean).sort((a, b) => {
+    const sortedKUs = Array.from(ageGroups).filter(Boolean).sort((a, b) => {
       const ia = standardKUSort.findIndex((k) => a.toUpperCase().includes(k));
       const ib = standardKUSort.findIndex((k) => b.toUpperCase().includes(k));
       if (ia !== -1 && ib !== -1) return ia - ib;
@@ -434,7 +453,7 @@ export default function BukuAcaraViewer({
       strokes: Array.from(strokes),
       distances: Array.from(distances),
       eventCodes,
-      ageGroups: sortedKUs,
+      ageGroups: sortedKUs.length > 0 ? sortedKUs : standardKUSort,
       dates: sortedDates,
       times: sortedTimes,
     };
@@ -450,9 +469,15 @@ export default function BukuAcaraViewer({
         if (selectedCategoryFilter === "HEAT" && isEvtGroup) return false;
       }
 
-      // 0b. Filter Kelompok Umur (KU)
-      if (selectedKU !== "ALL") {
-        if (!matchKU(event.age_group, event.event_name, event.heats, selectedKU)) return false;
+      // 0b. Filter Kelompok Umur (KU) & 4. Filter Gender (Combined swimmer check)
+      if (selectedKU !== "ALL" || selectedGender !== "ALL") {
+        const hasMatchingSwimmer = event.heats?.some((h) => {
+          if (h.is_empty || !h.nama || h.nama === "(KOSONG)") return false;
+          const kuOk = selectedKU === "ALL" || doesHeatItemMatchKU(h, selectedKU, event.age_group, event.event_name);
+          const genderOk = selectedGender === "ALL" || doesHeatItemMatchGender(h, selectedGender, event.gender, event.event_name);
+          return kuOk && genderOk;
+        });
+        if (!hasMatchingSwimmer) return false;
       }
 
       // 0c. Filter Tanggal (Date)
@@ -477,11 +502,6 @@ export default function BukuAcaraViewer({
 
       // 3. Filter Nomor Lomba
       if (selectedEventCode !== "ALL" && String(event.event_code) !== selectedEventCode) {
-        return false;
-      }
-
-      // 4. Filter Gender
-      if (selectedGender !== "ALL" && !matchGender(event.gender, selectedGender, event.event_name, event.heats)) {
         return false;
       }
 
@@ -1182,16 +1202,7 @@ export default function BukuAcaraViewer({
                   </label>
                   <select
                     value={selectedKU}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedKU(val);
-                      if (selectedEventCode !== "ALL" && val !== "ALL") {
-                        const currentEv = eventGroups.find((eg) => String(eg.event_code) === selectedEventCode);
-                        if (currentEv && !matchKU(currentEv.age_group, currentEv.event_name, currentEv.heats, val)) {
-                          setSelectedEventCode("ALL");
-                        }
-                      }
-                    }}
+                    onChange={(e) => setSelectedKU(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
                   >
                     <option value="ALL">Semua KU</option>
@@ -1210,16 +1221,7 @@ export default function BukuAcaraViewer({
                   </label>
                   <select
                     value={selectedGender}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedGender(val);
-                      if (selectedEventCode !== "ALL" && val !== "ALL") {
-                        const currentEv = eventGroups.find((eg) => String(eg.event_code) === selectedEventCode);
-                        if (currentEv && !matchGender(currentEv.gender, val, currentEv.event_name, currentEv.heats)) {
-                          setSelectedEventCode("ALL");
-                        }
-                      }
-                    }}
+                    onChange={(e) => setSelectedGender(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs"
                   >
                     <option value="ALL">Semua Gender</option>
@@ -1235,21 +1237,7 @@ export default function BukuAcaraViewer({
                   </label>
                   <select
                     value={selectedEventCode}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSelectedEventCode(val);
-                      if (val !== "ALL") {
-                        const targetEv = eventGroups.find((eg) => String(eg.event_code) === val);
-                        if (targetEv) {
-                          if (selectedKU !== "ALL" && !matchKU(targetEv.age_group, targetEv.event_name, targetEv.heats, selectedKU)) {
-                            setSelectedKU("ALL");
-                          }
-                          if (selectedGender !== "ALL" && !matchGender(targetEv.gender, selectedGender, targetEv.event_name, targetEv.heats)) {
-                            setSelectedGender("ALL");
-                          }
-                        }
-                      }
-                    }}
+                    onChange={(e) => setSelectedEventCode(e.target.value)}
                     className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 focus:outline-none shadow-2xs truncate"
                   >
                     <option value="ALL">Semua Nomor Lomba</option>
@@ -1324,15 +1312,34 @@ export default function BukuAcaraViewer({
         <>
           <div className="space-y-4 print:hidden">
           {filteredEvents.map((event, eventIdx) => {
-            const isPutri =
-              event.gender?.toUpperCase() === "PUTRI" ||
-              event.gender?.toUpperCase() === "WANITA" ||
-              event.gender?.toUpperCase() === "PEREMPUAN" ||
-              event.gender?.toUpperCase() === "FEMALE" ||
-              event.gender?.toUpperCase() === "W" ||
-              event.gender?.toUpperCase() === "P";
+            const eventGenderLabel = getEventGenderLabel(event);
+            const eventKULabel = getEventKULabel(event);
+            const displayGender = selectedGender !== "ALL" ? selectedGender : eventGenderLabel;
+            const displayKU = selectedKU !== "ALL" ? selectedKU : eventKULabel;
+            const isPutri = displayGender === "PUTRI";
             const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
             const heatGroups = groupHeatsByNumber(event.heats || []);
+            const visibleHeatGroups = heatGroups
+              .map((group) => {
+                if (selectedKU === "ALL" && selectedGender === "ALL") return group;
+                const filteredItems = group.items.filter((item) => {
+                  if (item.is_empty || !item.nama || item.nama === "(KOSONG)") return true;
+                  if (selectedKU !== "ALL" && !doesHeatItemMatchKU(item as any, selectedKU, event.age_group, event.event_name)) {
+                    return false;
+                  }
+                  if (selectedGender !== "ALL" && !doesHeatItemMatchGender(item as any, selectedGender, event.gender, event.event_name)) {
+                    return false;
+                  }
+                  return true;
+                });
+                return { ...group, items: filteredItems };
+              })
+              .filter((group) => {
+                if (selectedKU !== "ALL" || selectedGender !== "ALL") {
+                  return group.items.some((i) => !i.is_empty && i.nama && i.nama !== "(KOSONG)");
+                }
+                return true;
+              });
 
             return (
               <div
@@ -1357,7 +1364,7 @@ export default function BukuAcaraViewer({
                       {event.distance} {event.stroke || event.event_name}
                     </h3>
                     <span className="bg-white/10 text-white text-[11px] px-2.5 py-0.5 rounded-full font-black border border-white/20">
-                      {getEventKULabel(event)}
+                      {displayKU}
                     </span>
                     {isGroup ? (
                       <span className="bg-purple-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs">
@@ -1386,14 +1393,14 @@ export default function BukuAcaraViewer({
                         ? "bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-xs"
                         : "bg-sky-600/30 text-sky-300 border-sky-500/50 shadow-xs"
                     }`}>
-                      {event.gender}
+                      {displayGender}
                     </span>
                   </div>
                 </div>
 
                 {/* Compact Separated Heat/Group Cards */}
                 <div className="p-3 sm:p-4 space-y-3 bg-slate-50/50 print:p-0 print:space-y-0 print:bg-transparent">
-                  {heatGroups.map((group) => {
+                  {visibleHeatGroups.map((group) => {
                     const activeSwimmers = group.items.filter((i) => !i.is_empty && i.nama !== "(KOSONG)");
                     const labelDisplay = isGroup
                       ? group.heatLabel || String.fromCharCode(64 + group.heatNum)
