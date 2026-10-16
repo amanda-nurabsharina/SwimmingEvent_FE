@@ -34,8 +34,7 @@ import {
   ArrowUpDown,
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
-import { toast } from "./Toast";
-import { matchKU, matchStroke, matchDistance, normalizeKU } from "./RaceResultEditor";
+import { matchKU, matchStroke, matchDistance, normalizeKU, getEventKULabel, isOpenKU } from "./RaceResultEditor";
 
 interface HeatItem {
   registration_id?: number;
@@ -404,7 +403,7 @@ export default function BukuAcaraViewer({
       if (eg.distance) distances.add(eg.distance.trim());
       if (eg.age_group) ageGroups.add(normalizeKU(eg.age_group));
       eg.heats?.forEach((h) => {
-        if (!h.is_empty && h.age_group) ageGroups.add(normalizeKU(h.age_group));
+        if (!h.is_empty && h.age_group && !isOpenKU(eg.age_group)) ageGroups.add(normalizeKU(h.age_group));
       });
       eventCodes.push({
         code: eg.event_code,
@@ -1326,11 +1325,9 @@ export default function BukuAcaraViewer({
                     <h3 className="text-sm sm:text-base font-black uppercase tracking-wide text-white">
                       {event.distance} {event.stroke || event.event_name}
                     </h3>
-                    {event.age_group && (
-                      <span className="bg-white/10 text-white text-[11px] px-2.5 py-0.5 rounded-full font-black border border-white/20">
-                        {event.age_group}
-                      </span>
-                    )}
+                    <span className="bg-white/10 text-white text-[11px] px-2.5 py-0.5 rounded-full font-black border border-white/20">
+                      {getEventKULabel(event)}
+                    </span>
                     {isGroup ? (
                       <span className="bg-purple-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-black tracking-wider uppercase shadow-xs">
                         GROUP ABJAD

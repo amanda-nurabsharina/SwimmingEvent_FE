@@ -42,6 +42,7 @@ import {
   EyeOff,
   ExternalLink,
   Layers,
+  SlidersHorizontal,
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
 import SwimmingTimeInput from "./SwimmingTimeInput";
@@ -107,6 +108,22 @@ export const normalizeKU = (ku?: string): string => {
     .trim();
 };
 
+// Match target with word/alphanumeric boundary so "KU 1" doesn't match "KU 10" or "KU 11"
+export const matchKUWord = (source: string, target: string): boolean => {
+  if (!source || !target) return false;
+  if (source === target) return true;
+  const escaped = target.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s*");
+  const regex = new RegExp(`(^|[^a-zA-Z0-9])${escaped}([^a-zA-Z0-9]|$)`, "i");
+  return regex.test(source);
+};
+
+// Check if a KU string represents OPEN / TERBUKA / UMUM category
+export const isOpenKU = (ku?: string): boolean => {
+  if (!ku) return false;
+  const upper = ku.toUpperCase().trim();
+  return upper === "OPEN" || upper === "TERBUKA" || upper === "UMUM";
+};
+
 // Match Kelompok Umur (KU) across event age_group, event name, and swimmers in heats
 export const matchKU = (
   eventKU?: string,
@@ -116,26 +133,83 @@ export const matchKU = (
 ): boolean => {
   if (!targetKU || targetKU === "ALL") return true;
   const normTarget = normalizeKU(targetKU);
-  const normEventKU = normalizeKU(eventKU);
-  const normName = normalizeKU(eventName);
+  const targetIsOpen = isOpenKU(normTarget);
 
-  if (normEventKU && (normEventKU === normTarget || normEventKU.includes(normTarget))) {
-    return true;
+  const normEventKU = normalizeKU(eventKU);
+  const eventIsOpen = isOpenKU(normEventKU);
+
+  // 1. If event has an explicit age_group
+  if (normEventKU !== "") {
+    if (eventIsOpen) {
+      // Event is OPEN: ONLY match if target filter is also OPEN / TERBUKA!
+      // Must NEVER match specific KUs (KU 1, KU 2, etc.)
+      return targetIsOpen;
+    }
+    // Event is a specific KU (e.g. KU 1): if filter is OPEN, do not match
+    if (targetIsOpen) {
+      return false;
+    }
+    // Both are specific KUs: match strictly
+    return matchKUWord(normEventKU, normTarget);
   }
-  if (normName.includes(normTarget)) {
-    return true;
+
+  // 2. If event age_group is blank, check event_name
+  const normName = normalizeKU(eventName);
+  if (normName !== "") {
+    const nameIsOpen = isOpenKU(normName) || /\b(OPEN|TERBUKA|UMUM)\b/i.test(normName);
+    if (nameIsOpen) {
+      return targetIsOpen;
+    }
+    if (targetIsOpen) {
+      return false;
+    }
+    if (matchKUWord(normName, normTarget)) {
+      return true;
+    }
+    // If event name explicitly specifies another KU (e.g. "KU 2" while filter is "KU 1"), do not match
+    if (/\b(KU\s*[0-9]+[A-Za-z]?|SENIOR|MASTERS)\b/i.test(normName)) {
+      return false;
+    }
   }
+
+  // 3. Fallback: Only if the event has no specified age group at all, and filter is NOT OPEN
+  if (targetIsOpen) {
+    return false;
+  }
+
   if (
     heats &&
+    heats.length > 0 &&
     heats.some((h) => {
       if (h.is_empty) return false;
       const swimmerKU = normalizeKU(h.age_group);
-      return swimmerKU === normTarget || (swimmerKU !== "" && swimmerKU.includes(normTarget));
+      return swimmerKU !== "" && matchKUWord(swimmerKU, normTarget);
     })
   ) {
     return true;
   }
+
   return false;
+};
+
+// Extract best Kelompok Umur (KU) label for event header display
+export const getEventKULabel = (event: { age_group?: string; event_name?: string; heats?: any[] }): string => {
+  const rawAge = (event.age_group || "").trim();
+  if (rawAge !== "") {
+    return rawAge.toUpperCase();
+  }
+  if (event.event_name) {
+    const match = event.event_name.match(/\b(KU\s*[0-9]+[A-Za-z]?|SENIOR|MASTERS|OPEN|TERBUKA|UMUM)\b/i);
+    if (match) return match[0].toUpperCase();
+  }
+  if (event.heats && event.heats.length > 0) {
+    for (const h of event.heats) {
+      if (!h.is_empty && h.age_group && h.age_group.trim() !== "") {
+        return h.age_group.trim().toUpperCase();
+      }
+    }
+  }
+  return "OPEN";
 };
 
 // Robust Match Gaya Renang (Stroke) supporting Indonesian and English terms & aliases
@@ -223,41 +297,53 @@ export const matchDistance = (
   if (!targetNum) return true;
 
   const d = (eventDistance || "").toUpperCase();
+  const dMatches = d.match(/\d+/g);
+  if (dMatches && dMatches.includes(targetNum)) return true;
+
   const n = (eventName || "").toUpperCase();
-
-  const dMatches = d.match(/\b\d+\b/) || d.match(/\d+/);
-  const nMatches = n.match(/\b\d+\b/) || n.match(/\d+/);
-
-  if (dMatches && dMatches[0] === targetNum) return true;
-  if (nMatches && nMatches[0] === targetNum) return true;
-
-  const numRegex = new RegExp(`(^|\\D)${targetNum}(\\D|$)`);
-  return numRegex.test(d) || numRegex.test(n);
+  const numRegex = new RegExp(`(^|\\D)${targetNum}\\s*(M|MTR|METER)?(\\D|$)`, "i");
+  return numRegex.test(n);
 };
 
 // Match Gender (Putra / Putri / Pria / Wanita)
 export const matchGender = (
   eventGender: string = "",
-  targetGender: string
+  targetGender: string,
+  eventName: string = ""
 ): boolean => {
   if (!targetGender || targetGender === "ALL") return true;
   const g = (eventGender || "").toUpperCase().trim();
+  const n = (eventName || "").toUpperCase().trim();
   const target = targetGender.toUpperCase().trim();
 
+  const isPutra =
+    g.includes("PUTRA") ||
+    g.includes("MALE") ||
+    g === "L" ||
+    g === "PRIA" ||
+    g.includes("MEN") ||
+    n.includes("PUTRA") ||
+    n.includes("PRIA");
+
+  const isPutri =
+    g.includes("PUTRI") ||
+    g.includes("FEMALE") ||
+    g === "P" ||
+    g === "W" ||
+    g.includes("WANITA") ||
+    g.includes("PEREMPUAN") ||
+    g.includes("WOMEN") ||
+    n.includes("PUTRI") ||
+    n.includes("WANITA");
+
   if (target === "PUTRA" || target === "MALE" || target === "L") {
-    return g.includes("PUTRA") || g.includes("MALE") || g === "L" || g === "PRIA" || g.includes("MEN");
+    if (isPutri && !n.includes("CAMPURAN") && !n.includes("MIXED") && !g.includes("CAMPURAN")) return false;
+    return isPutra;
   }
   if (target === "PUTRI" || target === "FEMALE" || target === "P" || target === "W") {
-    return (
-      g.includes("PUTRI") ||
-      g.includes("FEMALE") ||
-      g === "P" ||
-      g === "W" ||
-      g.includes("WANITA") ||
-      g.includes("WOMEN")
-    );
+    return isPutri;
   }
-  return g.includes(target);
+  return g.includes(target) || n.includes(target);
 };
 
 export default function RaceResultEditor({
@@ -478,7 +564,9 @@ export default function RaceResultEditor({
       eg.heats?.forEach((h) => {
         if (!h.is_empty) {
           if (h.age_group && h.age_group.trim()) {
-            ageGroups.add(normalizeKU(h.age_group));
+            if (!isOpenKU(eg.age_group)) {
+              ageGroups.add(normalizeKU(h.age_group));
+            }
           }
           if (h.heat && h.heat > maxHeatFound) {
             maxHeatFound = h.heat;
@@ -543,7 +631,7 @@ export default function RaceResultEditor({
 
         // 5. Gender / Jenis Kelamin
         if (selectedGender !== "ALL") {
-          if (!matchGender(event.gender, selectedGender)) return false;
+          if (!matchGender(event.gender, selectedGender, event.event_name)) return false;
         }
 
         // 6. Nomor Lomba (Event Code)
@@ -551,7 +639,13 @@ export default function RaceResultEditor({
           return false;
         }
 
-        // 7. Status Hasil Lomba (Pending vs Selesai)
+        // 7. Filter Seri (Heat Number)
+        if (selectedHeatFilter !== "ALL") {
+          const hasHeat = event.heats?.some((h) => String(h.heat) === selectedHeatFilter);
+          if (!hasHeat) return false;
+        }
+
+        // 8. Status Hasil Lomba (Pending vs Selesai)
         if (selectedResultStatus !== "ALL") {
           const activeSwimmers = event.heats?.filter((h) => !h.is_empty && h.registration_id) || [];
           if (activeSwimmers.length > 0) {
@@ -564,7 +658,7 @@ export default function RaceResultEditor({
           }
         }
 
-        // 8. Search query (Swimmer name, club, KU, event name, or event code)
+        // 9. Search query (Swimmer name, club, KU, event name, or event code)
         if (searchQuery.trim() !== "") {
           const q = searchQuery.toLowerCase().trim();
           const matchEv =
@@ -593,6 +687,7 @@ export default function RaceResultEditor({
     selectedKU,
     selectedGender,
     selectedEventCode,
+    selectedHeatFilter,
     selectedResultStatus,
     searchQuery,
   ]);
@@ -639,100 +734,6 @@ export default function RaceResultEditor({
         heatLabel: map[heatNum][0]?.heat_label || String.fromCharCode(64 + heatNum),
         items: map[heatNum].sort((a, b) => a.line - b.line),
       }));
-  };
-
-  // Start inline result edit
-  const startEdit = async (item: HeatItem) => {
-    if (!item.registration_id) return;
-    if (!isLocked) {
-      const ok = await confirmDialog({
-        title: "Kunci Buku Acara",
-        message:
-          "⚠️ Buku Acara belum dikunci!\n\nUntuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu agar nomor seri dan lintasan resmi tidak bergeser otomatis.\n\nApakah Anda ingin mengunci Buku Acara sekarang?",
-        confirmText: "Ya, Kunci Sekarang",
-        cancelText: "Batal",
-        variant: "warning",
-      });
-      if (ok) {
-        handleLockBukuAcara(true);
-      }
-      return;
-    }
-    setEditingId(item.registration_id);
-    let timeVal = item.result !== "-" ? item.result : "";
-    let statusVal = "OK";
-
-    if (timeVal.includes("DQ")) {
-      statusVal = "DQ";
-      timeVal = "";
-    } else if (timeVal.includes("DNF")) {
-      statusVal = "DNF";
-      timeVal = "";
-    } else if (timeVal.includes("DNS")) {
-      statusVal = "DNS";
-      timeVal = "";
-    }
-
-    setTimeStr(timeVal);
-    setStatus(statusVal);
-    setRank(item.rank || 1);
-  };
-
-  // Save race result
-  const saveResult = async (regId: number) => {
-    if (!isLocked) {
-      toast.warning(
-        "Buku Acara belum dikunci! Untuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu.",
-        { title: "Buku Acara Belum Dikunci" }
-      );
-      return;
-    }
-
-    setSavingResultId(regId);
-    let finalTime = timeStr.trim();
-    let finalRank = rank;
-    const isReset = status === "OK" && isZeroOrEmptyTime(finalTime);
-
-    if (status !== "OK") {
-      finalTime = status;
-    } else if (isReset) {
-      finalTime = "";
-      finalRank = 0;
-    } else {
-      finalTime = normalizeSwimTime(finalTime);
-    }
-
-    const res = await recordRaceResult(regId, finalTime, finalRank, status, "preliminary");
-    setSavingResultId(null);
-
-    if (res && res.success) {
-      setEditingId(null);
-      if (isReset) {
-        toast.info("Catatan waktu hasil lomba dikosongkan / belum bertanding");
-      } else {
-        toast.success("Catatan waktu hasil lomba berhasil disimpan!");
-      }
-
-      // Update local state in place so the order, heat, and scroll remain completely stable
-      setEventGroups((prev) =>
-        prev.map((eg) => ({
-          ...eg,
-          heats: eg.heats.map((h) =>
-            h.registration_id === regId
-              ? {
-                  ...h,
-                  result: finalTime || "-",
-                  rank: finalRank,
-                }
-              : h
-          ),
-        }))
-      );
-
-      fetchBaganData(selectedTournamentId, true);
-    } else {
-      toast.error(res?.message || "Gagal menyimpan hasil lomba");
-    }
   };
 
   // Helper to normalize input time string
@@ -786,6 +787,214 @@ export default function RaceResultEditor({
     }
     const val = parseFloat(normalized);
     return isNaN(val) ? 9999999 : val;
+  };
+
+  // Memoized dynamic champion & ranking calculator based on actual recorded result times
+  const dynamicRankingsMap = useMemo(() => {
+    const map = new Map<number, { rank: number; label: string; isChampion: boolean }>();
+
+    eventGroups.forEach((event) => {
+      const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
+      const activeSwimmers = (event.heats || []).filter(
+        (h) => !h.is_empty && h.registration_id && h.nama && h.nama !== "(KOSONG)"
+      );
+
+      if (isGroup) {
+        // Group Abjad: Rank swimmers per group / heat
+        const groupMap = new Map<number, typeof activeSwimmers>();
+        activeSwimmers.forEach((s) => {
+          const h = s.heat || 1;
+          if (!groupMap.has(h)) groupMap.set(h, []);
+          groupMap.get(h)!.push(s);
+        });
+
+        groupMap.forEach((swimmers, hNum) => {
+          const firstSwimmer = swimmers[0];
+          const groupLabel =
+            firstSwimmer?.heat_label && /^[A-Z]$/i.test(firstSwimmer.heat_label.trim())
+              ? firstSwimmer.heat_label.toUpperCase()
+              : hNum >= 1 && hNum <= 26
+              ? String.fromCharCode(64 + hNum)
+              : String(hNum);
+
+          const valid = swimmers
+            .filter((s) => s.result && s.result !== "-" && !isZeroOrEmptyTime(s.result))
+            .map((s) => ({
+              ...s,
+              parsedSec: parseTimeToSeconds(s.result),
+            }))
+            .filter((s) => s.parsedSec < 9999990)
+            .sort((a, b) => a.parsedSec - b.parsedSec);
+
+          valid.forEach((s, idx) => {
+            const calculatedRank = idx + 1;
+            map.set(s.registration_id!, {
+              rank: calculatedRank,
+              isChampion: calculatedRank === 1,
+              label: calculatedRank === 1 ? `★ Juara Group (${groupLabel})` : `Rank ${calculatedRank}`,
+            });
+          });
+        });
+      } else {
+        // Heat Angka: Rank swimmers across all heats in the event (Timed Final)
+        const valid = activeSwimmers
+          .filter((s) => s.result && s.result !== "-" && !isZeroOrEmptyTime(s.result))
+          .map((s) => ({
+            ...s,
+            parsedSec: parseTimeToSeconds(s.result),
+          }))
+          .filter((s) => s.parsedSec < 9999990)
+          .sort((a, b) => a.parsedSec - b.parsedSec);
+
+        valid.forEach((s, idx) => {
+          const calculatedRank = idx + 1;
+          let label = `Peringkat ${calculatedRank}`;
+          if (calculatedRank === 1) label = "🥇 Juara 1 (Emas)";
+          else if (calculatedRank === 2) label = "🥈 Juara 2 (Perak)";
+          else if (calculatedRank === 3) label = "🥉 Juara 3 (Perunggu)";
+
+          map.set(s.registration_id!, {
+            rank: calculatedRank,
+            isChampion: calculatedRank <= 3,
+            label,
+          });
+        });
+      }
+    });
+
+    return map;
+  }, [eventGroups]);
+
+  // Start inline result edit
+  const startEdit = async (item: HeatItem) => {
+    if (!item.registration_id) return;
+    if (!isLocked) {
+      const ok = await confirmDialog({
+        title: "Kunci Buku Acara",
+        message:
+          "⚠️ Buku Acara belum dikunci!\n\nUntuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu agar nomor seri dan lintasan resmi tidak bergeser otomatis.\n\nApakah Anda ingin mengunci Buku Acara sekarang?",
+        confirmText: "Ya, Kunci Sekarang",
+        cancelText: "Batal",
+        variant: "warning",
+      });
+      if (ok) {
+        handleLockBukuAcara(true);
+      }
+      return;
+    }
+    setEditingId(item.registration_id);
+    let timeVal = item.result !== "-" ? item.result : "";
+    let statusVal = "OK";
+
+    if (timeVal.includes("DQ")) {
+      statusVal = "DQ";
+      timeVal = "";
+    } else if (timeVal.includes("DNF")) {
+      statusVal = "DNF";
+      timeVal = "";
+    } else if (timeVal.includes("DNS")) {
+      statusVal = "DNS";
+      timeVal = "";
+    }
+
+    setTimeStr(timeVal);
+    setStatus(statusVal);
+    const dynamicRank = item.registration_id ? dynamicRankingsMap.get(item.registration_id)?.rank : 0;
+    setRank(dynamicRank || item.rank || 0);
+  };
+
+  // Save race result with automatic rank calculation
+  const saveResult = async (regId: number) => {
+    if (!isLocked) {
+      toast.warning(
+        "Buku Acara belum dikunci! Untuk memulai pencatatan hasil lomba, Buku Acara harus dipatenkan/dikunci terlebih dahulu.",
+        { title: "Buku Acara Belum Dikunci" }
+      );
+      return;
+    }
+
+    setSavingResultId(regId);
+    let finalTime = timeStr.trim();
+    let finalRank = rank;
+    const isReset = status === "OK" && isZeroOrEmptyTime(finalTime);
+
+    if (status !== "OK") {
+      finalTime = status;
+      finalRank = 0;
+    } else if (isReset) {
+      finalTime = "";
+      finalRank = 0;
+    } else {
+      finalTime = normalizeSwimTime(finalTime);
+      // Auto-compute rank based on speed time compared with peers
+      const targetEvent = eventGroups.find((eg) =>
+        eg.heats.some((h) => h.registration_id === regId)
+      );
+      if (targetEvent) {
+        const isGroupEvent =
+          targetEvent.heat_category === "GROUP" || targetEvent.heat_category === "CLUSTER";
+        const currentItem = targetEvent.heats.find((h) => h.registration_id === regId);
+        const currentHeat = currentItem?.heat || 1;
+
+        // Swimmers in the same ranking scope (whole event for Heat Angka, or same heat for Group Abjad)
+        const peerSwimmers = targetEvent.heats.filter(
+          (h) =>
+            !h.is_empty &&
+            h.registration_id &&
+            h.nama &&
+            h.nama !== "(KOSONG)" &&
+            (!isGroupEvent || h.heat === currentHeat)
+        );
+
+        const newTargetSec = parseTimeToSeconds(finalTime);
+        if (newTargetSec < 9999990) {
+          let calcRank = 1;
+          peerSwimmers.forEach((p) => {
+            if (p.registration_id === regId) return;
+            const pTime = p.result;
+            if (pTime && pTime !== "-" && !isZeroOrEmptyTime(pTime)) {
+              const pSec = parseTimeToSeconds(pTime);
+              if (pSec < newTargetSec) {
+                calcRank++;
+              }
+            }
+          });
+          finalRank = calcRank;
+        }
+      }
+    }
+
+    const res = await recordRaceResult(regId, finalTime, finalRank, status, "preliminary");
+    setSavingResultId(null);
+
+    if (res && res.success) {
+      setEditingId(null);
+      if (isReset) {
+        toast.info("Catatan waktu hasil lomba dikosongkan / belum bertanding");
+      } else {
+        toast.success("Catatan waktu hasil lomba berhasil disimpan!");
+      }
+
+      // Update local state in place so the order, heat, and scroll remain completely stable
+      setEventGroups((prev) =>
+        prev.map((eg) => ({
+          ...eg,
+          heats: eg.heats.map((h) =>
+            h.registration_id === regId
+              ? {
+                  ...h,
+                  result: finalTime || "-",
+                  rank: finalRank,
+                }
+              : h
+          ),
+        }))
+      );
+
+      fetchBaganData(selectedTournamentId, true);
+    } else {
+      toast.error(res?.message || "Gagal menyimpan hasil lomba");
+    }
   };
 
   // Start bulk editable mode for a heat / group
@@ -928,15 +1137,29 @@ export default function RaceResultEditor({
     const active = items.filter((i) => i.registration_id && !i.is_empty && i.nama !== "(KOSONG)");
     if (active.length === 0) return;
 
+    // Automatically calculate ranks for all swimmers in this heat based on their entered times
+    const evaluated = active.map((item) => {
+      const row = bulkValues[item.registration_id!] || { time: item.result || "", status: "OK", rank: 0 };
+      const sec = row.status === "OK" ? parseTimeToSeconds(row.time) : 9999999;
+      return { item, row, sec };
+    });
+
+    const validSorted = evaluated.filter((e) => e.sec < 9999990).sort((a, b) => a.sec - b.sec);
+    const autoAssignedRanks: { [regId: number]: number } = {};
+    validSorted.forEach((e, idx) => {
+      autoAssignedRanks[e.item.registration_id!] = idx + 1;
+    });
+
     setSavingHeatKey(heatKey);
 
     const savePromises = active.map(async (item) => {
       const row = bulkValues[item.registration_id!];
       if (!row) return;
       let finalTime = normalizeSwimTime(row.time);
-      let finalRank = row.rank;
+      let finalRank = row.rank > 0 ? row.rank : (autoAssignedRanks[item.registration_id!] || 0);
       if (row.status !== "OK") {
         finalTime = row.status;
+        finalRank = 0;
       } else if (isZeroOrEmptyTime(finalTime) || finalTime === "-") {
         finalTime = "";
         finalRank = 0;
@@ -961,10 +1184,12 @@ export default function RaceResultEditor({
           heats: eg.heats.map((h) => {
             if (h.registration_id && bulkValues[h.registration_id]) {
               const row = bulkValues[h.registration_id];
+              const autoRank = autoAssignedRanks[h.registration_id] || 0;
+              const fRank = row.rank > 0 ? row.rank : autoRank;
               return {
                 ...h,
                 result: row.status !== "OK" ? row.status : row.time || "-",
-                rank: row.rank,
+                rank: row.status !== "OK" ? 0 : fRank,
               };
             }
             return h;
@@ -1387,153 +1612,183 @@ export default function RaceResultEditor({
           </div>
         </div>
 
-        {/* Primary Filter Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-8 gap-3 pt-1 border-t border-slate-100">
-          {/* Tipe Bagan */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Tipe Bagan
-            </label>
-            <select
-              value={selectedCategoryFilter}
-              onChange={(e) => setSelectedCategoryFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Bagan</option>
-              <option value="HEAT">Heat Angka (1, 2, 3...)</option>
-              <option value="GROUP">Group Abjad (A, B, C...)</option>
-            </select>
+        {/* Filter Section Header & Grid */}
+        <div className="pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <SlidersHorizontal className="w-4 h-4 text-sky-600" />
+              <span className="text-xs font-black uppercase text-slate-800 tracking-wider">
+                Filter Nomor Lomba & Bagan
+              </span>
+            </div>
+            {activeFiltersCount > 0 && (
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Semua Filter ({activeFiltersCount})</span>
+              </button>
+            )}
           </div>
 
-          {/* Gaya Renang */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Gaya Renang
-            </label>
-            <select
-              value={selectedStroke}
-              onChange={(e) => setSelectedStroke(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Gaya</option>
-              <option value="FREESTYLE">Gaya Bebas</option>
-              <option value="FREESTYLE_FIN">Freestyle FIN</option>
-              <option value="BREASTSTROKE">Gaya Dada</option>
-              <option value="BACKSTROKE">Gaya Punggung</option>
-              <option value="BACKSTROKE_FIN">Backstroke FIN</option>
-              <option value="BUTTERFLY">Gaya Kupu-kupu</option>
-              <option value="BUTTERFLY_FIN">Butterfly FIN</option>
-              <option value="INDIVIDUALMEDLEY">Gaya Ganti (IM)</option>
-              <option value="KICKING_BOARD">Kicking Board</option>
-            </select>
-          </div>
+          {/* Primary Filter Grid - Balanced 4 Columns across 2 Rows */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+            {/* 1. Nomor Lomba */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>#️⃣</span>
+                <span>Nomor Lomba</span>
+              </label>
+              <select
+                value={selectedEventCode}
+                onChange={(e) => setSelectedEventCode(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Nomor Lomba ({dynamicFilterOptions.eventCodes.length})</option>
+                {dynamicFilterOptions.eventCodes.map((ev) => (
+                  <option key={ev.code} value={String(ev.code)}>
+                    #{ev.code} - {ev.name} ({ev.gender})
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Jarak */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Jarak Lomba
-            </label>
-            <select
-              value={selectedDistance}
-              onChange={(e) => setSelectedDistance(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Jarak</option>
-              {dynamicFilterOptions.distances.map((dist) => (
-                <option key={dist} value={dist}>
-                  {dist} Meter
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* 2. Kelompok Umur (KU) */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>🎂</span>
+                <span>Kelompok Umur (KU)</span>
+              </label>
+              <select
+                value={selectedKU}
+                onChange={(e) => setSelectedKU(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Kelompok Umur</option>
+                {dynamicFilterOptions.ageGroups.map((ku) => (
+                  <option key={ku} value={ku}>
+                    {ku}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Kelompok Umur (KU) */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Kelompok Umur (KU)
-            </label>
-            <select
-              value={selectedKU}
-              onChange={(e) => setSelectedKU(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua KU</option>
-              {dynamicFilterOptions.ageGroups.map((ku) => (
-                <option key={ku} value={ku}>
-                  {ku}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* 3. Gender */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>👤</span>
+                <span>Jenis Kelamin</span>
+              </label>
+              <select
+                value={selectedGender}
+                onChange={(e) => setSelectedGender(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Gender (Putra & Putri)</option>
+                <option value="PUTRA">Putra</option>
+                <option value="PUTRI">Putri</option>
+              </select>
+            </div>
 
-          {/* Gender */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Gender
-            </label>
-            <select
-              value={selectedGender}
-              onChange={(e) => setSelectedGender(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Gender</option>
-              <option value="PUTRA">Putra</option>
-              <option value="PUTRI">Putri</option>
-            </select>
-          </div>
+            {/* 4. Tipe Bagan */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>📊</span>
+                <span>Tipe Bagan</span>
+              </label>
+              <select
+                value={selectedCategoryFilter}
+                onChange={(e) => setSelectedCategoryFilter(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Bagan (Heat & Group)</option>
+                <option value="HEAT">Heat Angka (1, 2, 3...)</option>
+                <option value="GROUP">Group Abjad (A, B, C...)</option>
+              </select>
+            </div>
 
-          {/* Nomor Lomba */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Nomor Lomba
-            </label>
-            <select
-              value={selectedEventCode}
-              onChange={(e) => setSelectedEventCode(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Nomor ({dynamicFilterOptions.eventCodes.length})</option>
-              {dynamicFilterOptions.eventCodes.map((ev) => (
-                <option key={ev.code} value={String(ev.code)}>
-                  #{ev.code} - {ev.name} ({ev.gender})
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* 5. Gaya Renang */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>🏊‍♂️</span>
+                <span>Gaya Renang</span>
+              </label>
+              <select
+                value={selectedStroke}
+                onChange={(e) => setSelectedStroke(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Gaya Renang</option>
+                <option value="FREESTYLE">Gaya Bebas</option>
+                <option value="FREESTYLE_FIN">Freestyle FIN</option>
+                <option value="BREASTSTROKE">Gaya Dada</option>
+                <option value="BACKSTROKE">Gaya Punggung</option>
+                <option value="BACKSTROKE_FIN">Backstroke FIN</option>
+                <option value="BUTTERFLY">Gaya Kupu-kupu</option>
+                <option value="BUTTERFLY_FIN">Butterfly FIN</option>
+                <option value="INDIVIDUALMEDLEY">Gaya Ganti (IM)</option>
+                <option value="KICKING_BOARD">Kicking Board</option>
+              </select>
+            </div>
 
-          {/* Filter Seri (Heat) */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Filter Seri
-            </label>
-            <select
-              value={selectedHeatFilter}
-              onChange={(e) => setSelectedHeatFilter(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Seri</option>
-              {Array.from({ length: dynamicFilterOptions.maxHeat }, (_, i) => i + 1).map((h) => (
-                <option key={h} value={String(h)}>
-                  Seri {h}
-                </option>
-              ))}
-            </select>
-          </div>
+            {/* 6. Jarak Lomba */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>📏</span>
+                <span>Jarak Lomba</span>
+              </label>
+              <select
+                value={selectedDistance}
+                onChange={(e) => setSelectedDistance(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Jarak Lomba</option>
+                {dynamicFilterOptions.distances.map((dist) => (
+                  <option key={dist} value={dist}>
+                    {dist} Meter
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          {/* Status Hasil */}
-          <div>
-            <label className="block text-[10px] font-black uppercase text-slate-500 mb-1">
-              Status Hasil
-            </label>
-            <select
-              value={selectedResultStatus}
-              onChange={(e) => setSelectedResultStatus(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-2 text-xs font-bold text-slate-800 focus:ring-2 focus:ring-sky-500 focus:outline-none"
-            >
-              <option value="ALL">Semua Status</option>
-              <option value="PENDING">Belum Lengkap</option>
-              <option value="COMPLETED">Sudah Selesai</option>
-            </select>
+            {/* 7. Filter Seri (Heat) */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>🔥</span>
+                <span>Filter Seri (Heat)</span>
+              </label>
+              <select
+                value={selectedHeatFilter}
+                onChange={(e) => setSelectedHeatFilter(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Seri / Heat</option>
+                {Array.from({ length: dynamicFilterOptions.maxHeat }, (_, i) => i + 1).map((h) => (
+                  <option key={h} value={String(h)}>
+                    Seri (Heat) {h}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* 8. Status Hasil */}
+            <div>
+              <label className="h-4 text-[11px] font-black uppercase text-slate-500 tracking-wider mb-1.5 flex items-center gap-1">
+                <span>⏱️</span>
+                <span>Status Hasil Lomba</span>
+              </label>
+              <select
+                value={selectedResultStatus}
+                onChange={(e) => setSelectedResultStatus(e.target.value)}
+                className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
+              >
+                <option value="ALL">Semua Status Catatan</option>
+                <option value="PENDING">Belum Lengkap / Masih Ada Kosong</option>
+                <option value="COMPLETED">Sudah Selesai (Semua Finis)</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -1646,7 +1901,7 @@ export default function RaceResultEditor({
       {/* ============================================================ */}
       {activeTab === "juara" ? (
         <ChampionsView
-          events={filteredEvents}
+          events={filteredEvents as any}
           tournamentName={currentTournament?.name}
         />
       ) : loading ? (
@@ -1710,6 +1965,10 @@ export default function RaceResultEditor({
                 event.gender?.toUpperCase() === "P";
               const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
               const heatGroups = groupHeatsByNumber(event.heats || []);
+              const visibleHeatGroups =
+                selectedHeatFilter !== "ALL"
+                  ? heatGroups.filter((g) => String(g.heatNum) === selectedHeatFilter)
+                  : heatGroups;
 
               return (
                 <div
@@ -1749,14 +2008,14 @@ export default function RaceResultEditor({
                           ? "bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-xs"
                           : "bg-sky-600/30 text-sky-300 border-sky-500/50 shadow-xs"
                       }`}>
-                        {event.gender} • {event.age_group || "OPEN"}
+                        {event.gender} • {getEventKULabel(event)}
                       </span>
                     </div>
                   </div>
 
                   {/* Spacious Separated Heat/Group Cards */}
                   <div className="p-4 sm:p-6 space-y-6 bg-slate-50/60">
-                    {heatGroups.map((group) => {
+                    {visibleHeatGroups.map((group) => {
                       const labelDisplay = isGroup
                         ? group.heatLabel || String.fromCharCode(64 + group.heatNum)
                         : group.heatNum;
@@ -2162,37 +2421,57 @@ export default function RaceResultEditor({
                                             }}
                                             className="w-14 px-1 py-1.5 bg-white border-2 border-sky-500 rounded-xl text-center text-xs font-black text-amber-700 shadow-sm focus:outline-none"
                                           />
-                                        ) : item.rank && item.rank > 0 && item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result) ? (
-                                          !isGroup ? (
-                                            item.rank === 1 ? (
-                                              <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-amber-400 text-amber-950 shadow-sm inline-flex items-center gap-1 border border-amber-500">
-                                                🥇 Juara 1 (Emas)
-                                              </span>
-                                            ) : item.rank === 2 ? (
-                                              <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-slate-200 text-slate-900 shadow-sm inline-flex items-center gap-1 border border-slate-400">
-                                                🥈 Juara 2 (Perak)
-                                              </span>
-                                            ) : item.rank === 3 ? (
-                                              <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-amber-700/20 text-amber-950 shadow-sm inline-flex items-center gap-1 border border-amber-700/30">
-                                                🥉 Juara 3 (Perunggu)
-                                              </span>
-                                            ) : (
-                                              <span className="px-2 py-0.5 rounded-md font-black text-[10px] bg-slate-100 text-slate-700">
-                                                Peringkat {item.rank}
-                                              </span>
-                                            )
-                                          ) : item.rank === 1 ? (
-                                            <span className="px-2.5 py-1 rounded-xl font-black text-xs inline-flex items-center gap-1 border shadow-xs bg-purple-100 text-purple-950 border-purple-300">
-                                              ★ Juara Group ({rowLabel})
-                                            </span>
-                                          ) : (
-                                            <span className="px-2.5 py-1 rounded-lg font-bold text-xs bg-slate-100 text-slate-700">
-                                              Rank {item.rank}
-                                            </span>
-                                          )
-                                        ) : (
-                                          <span className="text-slate-300 font-bold">-</span>
-                                        )}
+                                        ) : (() => {
+                                          const dynamicInfo = item.registration_id ? dynamicRankingsMap.get(item.registration_id) : undefined;
+                                          const effectiveRank = dynamicInfo ? dynamicInfo.rank : (item.rank || 0);
+                                          const hasResult = item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result);
+
+                                          if (!hasResult || effectiveRank <= 0) {
+                                            return <span className="text-slate-300 font-bold">-</span>;
+                                          }
+
+                                          if (!isGroup) {
+                                            if (effectiveRank === 1) {
+                                              return (
+                                                <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-amber-400 text-amber-950 shadow-sm inline-flex items-center gap-1 border border-amber-500">
+                                                  🥇 Juara 1 (Emas)
+                                                </span>
+                                              );
+                                            } else if (effectiveRank === 2) {
+                                              return (
+                                                <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-slate-200 text-slate-900 shadow-sm inline-flex items-center gap-1 border border-slate-400">
+                                                  🥈 Juara 2 (Perak)
+                                                </span>
+                                              );
+                                            } else if (effectiveRank === 3) {
+                                              return (
+                                                <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-amber-700/20 text-amber-950 shadow-sm inline-flex items-center gap-1 border border-amber-700/30">
+                                                  🥉 Juara 3 (Perunggu)
+                                                </span>
+                                              );
+                                            } else {
+                                              return (
+                                                <span className="px-2 py-0.5 rounded-md font-black text-[10px] bg-slate-100 text-slate-700">
+                                                  Peringkat {effectiveRank}
+                                                </span>
+                                              );
+                                            }
+                                          } else {
+                                            if (effectiveRank === 1) {
+                                              return (
+                                                <span className="px-2.5 py-1 rounded-xl font-black text-xs inline-flex items-center gap-1 border shadow-xs bg-purple-100 text-purple-950 border-purple-300">
+                                                  ★ Juara Group ({rowLabel})
+                                                </span>
+                                              );
+                                            } else {
+                                              return (
+                                                <span className="px-2.5 py-1 rounded-lg font-bold text-xs bg-slate-100 text-slate-700">
+                                                  Rank {effectiveRank}
+                                                </span>
+                                              );
+                                            }
+                                          }
+                                        })()}
                                       </td>
 
                                       {/* AKSI JURI & TUKAR POSISI */}

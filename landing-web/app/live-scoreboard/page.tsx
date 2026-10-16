@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef, Suspense } from "react";
+import React, { useEffect, useState, useMemo, useRef, Suspense, Fragment } from "react";
 import { useSearchParams } from "next/navigation";
 import { getBukuAcara, getTournaments, getStartingList } from "../../lib/api-client";
 import {
@@ -85,7 +85,7 @@ interface CallingRoomEvent {
   }[];
 }
 
-interface PodiumItem {
+interface PodiumWinner {
   eventCode: string | number;
   eventName: string;
   ku: string;
@@ -96,6 +96,19 @@ interface PodiumItem {
   heatLane: string;
   club: string;
 }
+
+interface PodiumGroupBlock {
+  key: string;
+  eventCode: string | number;
+  eventName: string;
+  ku: string;
+  isGroup: boolean;
+  heatNum: number;
+  heatLabel: string;
+  winners: PodiumWinner[];
+}
+
+interface PodiumItem extends PodiumWinner {}
 
 // Speed time parser helper for single/multi-round swimming competitions
 function isValidResultTime(timeStr?: string): boolean {
@@ -471,7 +484,21 @@ function LiveScoreboardContent() {
     return heats.length > 0 ? heats : [1];
   }, [callingFilterEvent, sortedEventGroups]);
 
+  // Helper to determine if a match/heat has all valid results recorded (done)
+  const isMatchDone = (m: (typeof allMatches)[0]) => {
+    const activeLanes = m.lanes.filter(
+      (l: any) => l.swimmerName && l.swimmerName !== "(KOSONG)"
+    );
+    return (
+      activeLanes.length > 0 &&
+      activeLanes.every(
+        (l: any) => Boolean(l.resultTime && isValidResultTime(l.resultTime))
+      )
+    );
+  };
+
   // Compute Live Pool Events based on poolMode and manualLiveMatches
+  // When all data in a heat is filled (done), automatically advance to the next heat
   const liveEvents = useMemo(() => {
     if (allMatches.length === 0) return [];
 
@@ -481,14 +508,33 @@ function LiveScoreboardContent() {
     for (let slot = 0; slot < neededCount; slot++) {
       let chosenMatch: (typeof allMatches)[0] | undefined;
 
+      // 1. Check if user manually pinned a match and if it is still ongoing
       if (manualLiveMatches[slot] && manualLiveMatches[slot].eventCode) {
-        chosenMatch = allMatches.find(
+        const manualMatch = allMatches.find(
           (m) =>
             String(m.eventCode) === String(manualLiveMatches[slot].eventCode) &&
             m.heatCurrent === manualLiveMatches[slot].heat
         );
+        // Only keep if not finished yet, otherwise replace with next
+        if (manualMatch && !isMatchDone(manualMatch)) {
+          chosenMatch = manualMatch;
+        }
       }
 
+      // 2. Default: pick the first UNFINISHED match not yet in the active pool
+      if (!chosenMatch) {
+        chosenMatch = allMatches.find(
+          (m) =>
+            !isMatchDone(m) &&
+            !activeLiveList.some(
+              (al) =>
+                String(al.eventCode) === String(m.eventCode) &&
+                al.heatCurrent === m.heatCurrent
+            )
+        );
+      }
+
+      // 3. Fallback: if all matches across the whole tournament are done, pick remaining matches
       if (!chosenMatch) {
         chosenMatch = allMatches.find(
           (m) =>
@@ -530,7 +576,7 @@ function LiveScoreboardContent() {
     return activeLiveList;
   }, [allMatches, manualLiveMatches, poolMode]);
 
-  // Compute Calling Room Events (Includes Heat 2, Heat 3, and subsequent events)
+  // Compute Calling Room Events (Auto-hide completed heats to keep calling room clean)
   const callingEvents = useMemo(() => {
     if (callingFilterEvent !== "all") {
       let filtered = allMatches.filter(
@@ -544,13 +590,18 @@ function LiveScoreboardContent() {
       return filtered;
     }
 
-    // Default: all matches not currently active in the pool
+    // Default: exclude matches currently active in the pool AND omit completed heats
     const activeKeys = new Set(
       liveEvents.map((le) => `${le.eventCode}-${le.heatCurrent}`)
     );
-    return allMatches.filter(
-      (m) => !activeKeys.has(`${m.eventCode}-${m.heatCurrent}`)
+    const unfinishedMatches = allMatches.filter(
+      (m) => !activeKeys.has(`${m.eventCode}-${m.heatCurrent}`) && !isMatchDone(m)
     );
+
+    // If all are finished, fallback to all matches not active in the pool
+    return unfinishedMatches.length > 0
+      ? unfinishedMatches
+      : allMatches.filter((m) => !activeKeys.has(`${m.eventCode}-${m.heatCurrent}`));
   }, [allMatches, callingFilterEvent, callingFilterHeat, liveEvents]);
 
   // Compute All Participants for Slide 1
@@ -605,30 +656,135 @@ function LiveScoreboardContent() {
     return participants;
   }, [realEventGroups, realStartingList]);
 
-  // Compute Official Podium List for Slide 3
+  // Compute Official Podium List for Slide 3 (Compact Layout matching Image 1)
   const podiumList = useMemo(() => {
-    const podium: PodiumItem[] = [];
-    realEventGroups.forEach((ev: any) => {
-      const winners = (ev.heats || [])
-        .filter((h: any) => !h.is_empty && isValidResultTime(h.result) && h.rank && h.rank >= 1 && h.rank <= 3)
-        .sort((a: any, b: any) => (a.rank || 0) - (b.rank || 0));
+    const list: PodiumWinner[] = [];
 
-      winners.forEach((w: any) => {
-        podium.push({
-          eventCode: ev.event_code,
-          eventName: ev.event_name,
-          ku: ev.age_group,
-          rank: w.rank,
-          swimmerName: w.nama,
-          resultTime: w.result || "-",
-          timeDiff: w.rank === 1 ? "0.00" : "+0.00",
-          heatLane: `H${w.heat}-L${w.line}`,
-          club: w.club,
+    sortedEventGroups.forEach((ev: any) => {
+      const rawCat = String(ev.heat_category || "").toUpperCase();
+      const hasGroupLabel = (ev.heats || []).some(
+        (h: any) =>
+          h.heat_category === "GROUP" ||
+          (typeof h.heat_label === "string" && /^[A-Z]$/i.test(h.heat_label.trim()))
+      );
+      const isGroup = rawCat === "GROUP" || rawCat === "CLUSTER" || hasGroupLabel;
+      const eventWinners: (PodiumWinner & { parsedSec: number })[] = [];
+
+      if (isGroup) {
+        // Group Abjad: Rank swimmers per group (A, B, C...) purely by speed time
+        const groupMap: { [heatNum: number]: any[] } = {};
+        (ev.heats || []).forEach((h: any) => {
+          const hNum = Number(h.heat) || 1;
+          if (!groupMap[hNum]) groupMap[hNum] = [];
+          groupMap[hNum].push(h);
         });
-      });
+
+        const heatNums = Object.keys(groupMap)
+          .map(Number)
+          .sort((a, b) => a - b);
+
+        heatNums.forEach((hNum) => {
+          const swimmers = groupMap[hNum] || [];
+          const firstSwimmer = swimmers[0];
+          let groupLabel = "";
+          if (firstSwimmer?.heat_label && /^[A-Z]$/i.test(firstSwimmer.heat_label.trim())) {
+            groupLabel = `GROUP ${firstSwimmer.heat_label.toUpperCase()}`;
+          } else if (hNum >= 1 && hNum <= 26) {
+            groupLabel = `GROUP ${String.fromCharCode(64 + hNum)}`;
+          } else {
+            groupLabel = `GROUP ${hNum}`;
+          }
+
+          const validSwimmers = swimmers
+            .filter(
+              (s: any) => !s.is_empty && s.nama && s.nama !== "(KOSONG)" && isValidResultTime(s.result)
+            )
+            .map((s: any) => ({
+              ...s,
+              parsedSec: parseSpeedTimeToSeconds(s.result),
+            }))
+            .filter((s: any) => s.parsedSec < 9999990)
+            .sort((a, b) => a.parsedSec - b.parsedSec);
+
+          if (validSwimmers.length === 0) return;
+
+          const fastestSec = validSwimmers[0]?.parsedSec || 0;
+
+          validSwimmers.slice(0, 3).forEach((w: any, idx: number) => {
+            const rank = idx + 1; // Pure speed time ranking
+            const timeDiff =
+              idx === 0 || w.parsedSec === fastestSec
+                ? "0.00"
+                : formatSpeedDiff(w.parsedSec - fastestSec);
+
+            eventWinners.push({
+              eventCode: ev.event_code,
+              eventName: ev.event_name,
+              ku: ev.age_group || "OPEN",
+              rank,
+              swimmerName: (w.nama || "").toUpperCase(),
+              resultTime: w.result || "-",
+              timeDiff,
+              heatLane: `${groupLabel}-L${w.line}`,
+              club: w.club || "-",
+              parsedSec: w.parsedSec,
+            });
+          });
+        });
+      } else {
+        // Heat Angka: TIMED FINAL across the entire event!
+        // Rank all swimmers with valid results across all heats by fastest speed time
+        const activeSwimmers = (ev.heats || [])
+          .filter(
+            (s: any) => !s.is_empty && s.nama && s.nama !== "(KOSONG)" && isValidResultTime(s.result)
+          )
+          .map((s: any) => ({
+            ...s,
+            parsedSec: parseSpeedTimeToSeconds(s.result),
+          }))
+          .filter((s: any) => s.parsedSec < 9999990)
+          .sort((a, b) => a.parsedSec - b.parsedSec);
+
+        if (activeSwimmers.length > 0) {
+          const fastestSec = activeSwimmers[0]?.parsedSec || 0;
+
+          // Top 3 fastest swimmers in the event get podium: 1 (Emas), 2 (Perak), 3 (Perunggu)
+          activeSwimmers.slice(0, 3).forEach((w: any, idx: number) => {
+            const rank = idx + 1; // Pure speed time ranking
+            const timeDiff =
+              idx === 0 || w.parsedSec === fastestSec
+                ? "0.00"
+                : formatSpeedDiff(w.parsedSec - fastestSec);
+
+            eventWinners.push({
+              eventCode: ev.event_code,
+              eventName: ev.event_name,
+              ku: ev.age_group || "OPEN",
+              rank,
+              swimmerName: (w.nama || "").toUpperCase(),
+              resultTime: w.result || "-",
+              timeDiff,
+              heatLane: `H${w.heat}-L${w.line}`,
+              club: w.club || "-",
+              parsedSec: w.parsedSec,
+            });
+          });
+        }
+      }
+
+      // Sort event winners so ALL Juara 1 are at the top, then Juara 2, then Juara 3
+      eventWinners.sort(
+        (a, b) =>
+          a.rank - b.rank ||
+          a.parsedSec - b.parsedSec ||
+          String(a.heatLane).localeCompare(String(b.heatLane))
+      );
+
+      list.push(...eventWinners);
     });
-    return podium;
-  }, [realEventGroups]);
+
+    return list;
+  }, [sortedEventGroups]);
 
   // Filtered Participants in Slide 1
   const filteredParticipants = useMemo(() => {
@@ -656,16 +812,17 @@ function LiveScoreboardContent() {
   const leftColumnItems = useMemo(() => slide1PageItems.slice(0, ROWS_PER_COLUMN), [slide1PageItems]);
   const rightColumnItems = useMemo(() => slide1PageItems.slice(ROWS_PER_COLUMN, ITEMS_PER_PAGE), [slide1PageItems]);
 
-  // Total podium pages (Slide 3)
-  const PODIUM_PER_PAGE = 8;
+  // Slide 3 Pagination (Compact Layout: 16 items per page = 8 per column)
+  const PODIUM_PER_PAGE = 16;
+  const PODIUM_HALF = 8;
   const totalSlide3Pages = Math.max(1, Math.ceil(podiumList.length / PODIUM_PER_PAGE));
   const slide3PageItems = useMemo(() => {
     const startIndex = (slide3Page - 1) * PODIUM_PER_PAGE;
     return podiumList.slice(startIndex, startIndex + PODIUM_PER_PAGE);
   }, [podiumList, slide3Page]);
 
-  const podiumLeftItems = useMemo(() => slide3PageItems.slice(0, 4), [slide3PageItems]);
-  const podiumRightItems = useMemo(() => slide3PageItems.slice(4, 8), [slide3PageItems]);
+  const podiumLeftItems = useMemo(() => slide3PageItems.slice(0, PODIUM_HALF), [slide3PageItems]);
+  const podiumRightItems = useMemo(() => slide3PageItems.slice(PODIUM_HALF, PODIUM_PER_PAGE), [slide3PageItems]);
 
   // Compute Slide 4: Juara 1, 2, 3 per Nomor Lomba (Heat & Group Abjad) Berdasarkan Speed Time
   const slide4Events = useMemo<Slide4EventData[]>(() => {
@@ -885,7 +1042,7 @@ function LiveScoreboardContent() {
     return list;
   }, [slide4Events, slide4CategoryFilter, slide4StatusFilter, slide4Search]);
 
-  const SLIDE4_PER_PAGE = 6;
+  const SLIDE4_PER_PAGE = 9;
   const totalSlide4Pages = Math.max(1, Math.ceil(filteredSlide4Events.length / SLIDE4_PER_PAGE));
   const slide4PageItems = useMemo(() => {
     const start = (slide4Page - 1) * SLIDE4_PER_PAGE;
@@ -1010,6 +1167,19 @@ function LiveScoreboardContent() {
     }
   };
 
+  // Sync fullscreen state with native browser events (e.g. Esc key, TV remote, F11)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+    };
+  }, []);
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1048,216 +1218,248 @@ function LiveScoreboardContent() {
         isOutdoorMode ? "bg-amber-50/40 text-black" : "bg-[#f4f7fb] text-slate-900"
       }`}
     >
-      {/* ========================================================= */}
-      {/* 1. TOP HEADER & VENUE CONTROLLER BAR */}
-      {/* ========================================================= */}
-      <header className="bg-white border-b border-slate-200/90 px-4 sm:px-6 py-3 shadow-xs shrink-0 relative z-30">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 max-w-[1750px] mx-auto">
-          {/* LEFT: VENUE BADGE & TOURNAMENT SPECS */}
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-12 h-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-500/25">
-              <Tv className="w-6 h-6" />
-            </div>
-
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
-                  TV LIVE 41°
-                </span>
-                <span className="text-[11px] font-bold text-slate-500 truncate max-w-xs sm:max-w-md">
-                  Ruang Tunggu Orang Tua &amp; Ruang Persiapan COC
-                </span>
-              </div>
-
-              {tournaments.length > 1 ? (
-                <div className="flex items-center gap-2">
-                  <select
-                    value={selectedTournamentId}
-                    onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
-                    className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight bg-transparent border-b border-slate-300 focus:outline-none focus:border-blue-600 cursor-pointer max-w-lg"
-                  >
-                    {tournaments.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              ) : (
-                <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight leading-tight">
-                  {currentTournament?.name || "TIME TRIAL AKUATIK INDONESIA"}
-                </h1>
-              )}
-
-              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-bold text-slate-500">
-                <span>📅 {currentTournament?.event_start_date || "Hari Ini"} •</span>
-                <span className="flex items-center gap-1 text-slate-600">
-                  <MapPin className="w-3 h-3 text-rose-500" />
-                  {currentTournament?.location || "Kolam Renang"}
-                </span>
-                <span className="text-sky-600 font-extrabold">
-                  • ≈ {currentTournament?.pool_lanes || 6} Lintasan ({currentTournament?.pool_length || "25m"})
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* RIGHT: SLIDE CONTROLLERS, PLAYBACK, CLOCK */}
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* 3 SLIDE TABS */}
-            <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
-              <button
-                onClick={() => {
-                  setActiveSlide(1);
-                  setProgress(0);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeSlide === 1
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Users className="w-3.5 h-3.5" />
-                <span>Slide 1: Seluruh Peserta ({allParticipants.length})</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveSlide(2);
-                  setProgress(0);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeSlide === 2
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Timer className="w-3.5 h-3.5" />
-                <span>Slide 2: Sedang &amp; Akan Berlangsung</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveSlide(3);
-                  setProgress(0);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeSlide === 3
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Trophy className="w-3.5 h-3.5 text-amber-300" />
-                <span>Slide 3: Podium Juara ({podiumList.length})</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  setActiveSlide(4);
-                  setProgress(0);
-                }}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
-                  activeSlide === 4
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "text-slate-600 hover:text-slate-900"
-                }`}
-              >
-                <Award className="w-3.5 h-3.5 text-amber-300" />
-                <span>Slide 4: Juara Speed Time ({slide4Events.length})</span>
-              </button>
-            </div>
-
-            {/* MINI STEPPER BUTTONS */}
-            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-              <button
-                onClick={handlePrev}
-                className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
-                title="Slide / Hal Sebelumnya"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-              <div className="w-12 h-1.5 bg-slate-300 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-600 transition-all duration-75"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
-              <button
-                onClick={handleNext}
-                className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
-                title="Slide / Hal Berikutnya"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* STATUS DATA ASLI RESMI TURNAMEN */}
-            <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-black">
-              <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
-              <span>Data Turnamen Asli</span>
-            </div>
-
-            {/* PLAY / PAUSE AUTO SLIDE */}
-            <button
-              onClick={() => {
-                setIsPlaying(!isPlaying);
-                setProgress(0);
-              }}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
-                isPlaying
-                  ? "bg-amber-500 hover:bg-amber-400 text-slate-950"
-                  : "bg-emerald-600 hover:bg-emerald-500 text-white"
-              }`}
-            >
-              {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
-              <span>{isPlaying ? "Jeda" : "Lanjut"}</span>
-            </button>
-
-            {/* SLIDE DURATION DROPDOWN */}
-            <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
-              <Clock className="w-3.5 h-3.5 text-slate-500" />
-              <select
-                value={slideDuration}
-                onChange={(e) => {
-                  setSlideDuration(Number(e.target.value));
-                  setProgress(0);
-                }}
-                className="bg-transparent font-black focus:outline-none cursor-pointer pr-1"
-              >
-                <option value={4}>4 Detik</option>
-                <option value={6}>6 Detik</option>
-                <option value={8}>8 Detik</option>
-                <option value={10}>10 Detik</option>
-                <option value={15}>15 Detik</option>
-              </select>
-            </div>
-
-            {/* FULLSCREEN BUTTON */}
-            <button
-              onClick={toggleFullscreen}
-              className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm cursor-pointer"
-              title="Layar Penuh (F)"
-            >
-              {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-
-            {/* REALTIME WIB DIGITAL CLOCK */}
-            <div className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono font-black text-xs sm:text-sm tracking-wider shadow-inner">
-              {currentTimeStr || "--:--:-- WIB"}
-            </div>
-          </div>
-        </div>
-
-        {/* TOP ACCENT PROGRESS BAR (ANIMATED) */}
-        <div className="w-full h-1 bg-slate-100 absolute bottom-0 left-0 right-0 overflow-hidden">
+      {/* FULLSCREEN PROGRESS BAR (WHEN TOP HEADER IS HIDDEN) */}
+      {isFullscreen && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-slate-800/40 z-50 overflow-hidden">
           <div
             className={`h-full transition-all duration-75 ${
-              isPlaying ? "bg-amber-400" : "bg-slate-300"
+              isPlaying ? "bg-amber-400" : "bg-slate-400"
             }`}
             style={{ width: `${progress}%` }}
           />
         </div>
-      </header>
+      )}
+
+      {/* FULLSCREEN FLOATING INFO & EXIT PILL */}
+      {isFullscreen && (
+        <div className="fixed top-2.5 right-3 z-50 flex items-center gap-2.5 bg-slate-900/85 hover:bg-slate-900 text-white px-3 py-1.5 rounded-full text-xs font-bold shadow-xl border border-white/10 backdrop-blur-md transition-all">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span className="font-mono text-[11px] text-amber-300 font-black">{currentTimeStr}</span>
+          <span className="text-slate-600">|</span>
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1 text-[11px] font-bold text-sky-200 hover:text-white transition cursor-pointer"
+            title="Keluar Layar Penuh (F / Esc)"
+          >
+            <Minimize2 className="w-3.5 h-3.5" />
+            <span>Keluar Layar Penuh (F)</span>
+          </button>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 1. TOP HEADER & VENUE CONTROLLER BAR                      */}
+      {/* (DI-SEMBUNYIKAN / HIDE SAAT FULLSCREEN SESUAI REQUEST)    */}
+      {/* ========================================================= */}
+      {!isFullscreen && (
+        <header className="bg-white border-b border-slate-200/90 px-4 sm:px-6 py-3 shadow-xs shrink-0 relative z-30">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3.5 max-w-[1750px] mx-auto">
+            {/* LEFT: VENUE BADGE & TOURNAMENT SPECS */}
+            <div className="flex items-start sm:items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-md shadow-sky-500/25">
+                <Tv className="w-6 h-6" />
+              </div>
+
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-rose-600 text-white text-[10px] font-black uppercase tracking-wider">
+                    TV LIVE 41°
+                  </span>
+                  <span className="text-[11px] font-bold text-slate-500 truncate max-w-xs sm:max-w-md">
+                    Ruang Tunggu Orang Tua &amp; Ruang Persiapan COC
+                  </span>
+                </div>
+
+                {tournaments.length > 1 ? (
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={selectedTournamentId}
+                      onChange={(e) => setSelectedTournamentId(Number(e.target.value))}
+                      className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight bg-transparent border-b border-slate-300 focus:outline-none focus:border-blue-600 cursor-pointer max-w-lg"
+                    >
+                      {tournaments.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <h1 className="text-base sm:text-lg font-black text-slate-900 uppercase tracking-tight leading-tight">
+                    {currentTournament?.name || "TIME TRIAL AKUATIK INDONESIA"}
+                  </h1>
+                )}
+
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] font-bold text-slate-500">
+                  <span>📅 {currentTournament?.event_start_date || "Hari Ini"} •</span>
+                  <span className="flex items-center gap-1 text-slate-600">
+                    <MapPin className="w-3 h-3 text-rose-500" />
+                    {currentTournament?.location || "Kolam Renang"}
+                  </span>
+                  <span className="text-sky-600 font-extrabold">
+                    • ≈ {currentTournament?.pool_lanes || 6} Lintasan ({currentTournament?.pool_length || "25m"})
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* RIGHT: SLIDE CONTROLLERS, PLAYBACK, CLOCK */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              {/* 3 SLIDE TABS */}
+              <div className="flex items-center p-1 bg-slate-100 rounded-xl border border-slate-200">
+                <button
+                  onClick={() => {
+                    setActiveSlide(1);
+                    setProgress(0);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeSlide === 1
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Slide 1: Seluruh Peserta ({allParticipants.length})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveSlide(2);
+                    setProgress(0);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeSlide === 2
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Timer className="w-3.5 h-3.5" />
+                  <span>Slide 2: Sedang &amp; Akan Berlangsung</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveSlide(3);
+                    setProgress(0);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeSlide === 3
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Trophy className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Slide 3: Podium Juara ({podiumList.length})</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveSlide(4);
+                    setProgress(0);
+                  }}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeSlide === 4
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  <Award className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Slide 4: Juara Speed Time ({slide4Events.length})</span>
+                </button>
+              </div>
+
+              {/* MINI STEPPER BUTTONS */}
+              <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button
+                  onClick={handlePrev}
+                  className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+                  title="Slide / Hal Sebelumnya"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="w-12 h-1.5 bg-slate-300 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-75"
+                    style={{ width: `${progress}%` }}
+                  />
+                </div>
+                <button
+                  onClick={handleNext}
+                  className="p-1.5 rounded-lg hover:bg-white text-slate-700 transition cursor-pointer"
+                  title="Slide / Hal Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* STATUS DATA ASLI RESMI TURNAMEN */}
+              <div className="hidden xl:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-xs font-black">
+                <CheckCircle2 className="w-3.5 h-3.5 text-blue-600" />
+                <span>Data Turnamen Asli</span>
+              </div>
+
+              {/* PLAY / PAUSE AUTO SLIDE */}
+              <button
+                onClick={() => {
+                  setIsPlaying(!isPlaying);
+                  setProgress(0);
+                }}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 shadow-sm cursor-pointer ${
+                  isPlaying
+                    ? "bg-amber-500 hover:bg-amber-400 text-slate-950"
+                    : "bg-emerald-600 hover:bg-emerald-500 text-white"
+                }`}
+              >
+                {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5 fill-current" />}
+                <span>{isPlaying ? "Jeda" : "Lanjut"}</span>
+              </button>
+
+              {/* SLIDE DURATION DROPDOWN */}
+              <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold text-slate-700">
+                <Clock className="w-3.5 h-3.5 text-slate-500" />
+                <select
+                  value={slideDuration}
+                  onChange={(e) => {
+                    setSlideDuration(Number(e.target.value));
+                    setProgress(0);
+                  }}
+                  className="bg-transparent font-black focus:outline-none cursor-pointer pr-1"
+                >
+                  <option value={4}>4 Detik</option>
+                  <option value={6}>6 Detik</option>
+                  <option value={8}>8 Detik</option>
+                  <option value={10}>10 Detik</option>
+                  <option value={15}>15 Detik</option>
+                </select>
+              </div>
+
+              {/* FULLSCREEN BUTTON */}
+              <button
+                onClick={toggleFullscreen}
+                className="p-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition shadow-sm cursor-pointer"
+                title="Layar Penuh (F)"
+              >
+                {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+              </button>
+
+              {/* REALTIME WIB DIGITAL CLOCK */}
+              <div className="px-3 py-1.5 rounded-xl bg-slate-900 text-white font-mono font-black text-xs sm:text-sm tracking-wider shadow-inner">
+                {currentTimeStr || "--:--:-- WIB"}
+              </div>
+            </div>
+          </div>
+
+          {/* TOP ACCENT PROGRESS BAR (ANIMATED) */}
+          <div className="w-full h-1 bg-slate-100 absolute bottom-0 left-0 right-0 overflow-hidden">
+            <div
+              className={`h-full transition-all duration-75 ${
+                isPlaying ? "bg-amber-400" : "bg-slate-300"
+              }`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </header>
+      )}
 
       {/* ========================================================= */}
       {/* 2. MAIN DISPLAY CONTENT AREA */}
@@ -1324,10 +1526,10 @@ function LiveScoreboardContent() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
                 {/* LEFT TABLE COLUMN */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-                  <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <div className="bg-[#0b1e38] text-white px-3.5 py-2 flex items-center justify-between">
                     <span className="font-mono text-xs font-black tracking-wide text-sky-200">
                       {`${(slide1Page - 1) * ITEMS_PER_PAGE + 1}-${Math.min(
                         (slide1Page - 1) * ITEMS_PER_PAGE + ROWS_PER_COLUMN,
@@ -1340,54 +1542,54 @@ function LiveScoreboardContent() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
+                    <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] h-auto">
                       <thead>
-                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
-                          <th className="py-2 px-2.5 text-center w-14"># ACARA</th>
-                          <th className="py-2 px-2 text-center w-16">HEAT-LN</th>
-                          <th className="py-2 px-2 text-center w-16">SEED TIME</th>
-                          <th className="py-2 px-2 text-center w-20">HASIL LOMBA</th>
-                          <th className="py-2 px-3">NAMA LENGKAP MURID</th>
-                          <th className="py-2 px-2 text-center w-12">KU</th>
-                          <th className="py-2 px-2 text-center w-10">JK</th>
-                          <th className="py-2 px-3">KLUB ASAL</th>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[9.5px] tracking-wide">
+                          <th className="py-1.5 px-2 text-center w-14 whitespace-nowrap"># ACARA</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">HEAT-LN</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">SEED TIME</th>
+                          <th className="py-1.5 px-2 text-center w-22 whitespace-nowrap">HASIL LOMBA</th>
+                          <th className="py-1.5 px-2.5">NAMA LENGKAP MURID</th>
+                          <th className="py-1.5 px-1.5 text-center w-12 whitespace-nowrap">KU</th>
+                          <th className="py-1.5 px-1.5 text-center w-10 whitespace-nowrap">JK</th>
+                          <th className="py-1.5 px-2.5">KLUB ASAL</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-sans">
                         {leftColumnItems.map((item, idx) => (
                           <tr
                             key={item.id || idx}
-                            className="hover:bg-sky-50/60 transition-colors"
+                            className="hover:bg-sky-50/60 transition-colors h-7"
                           >
-                            <td className="py-1.5 px-2.5 text-center font-mono font-black text-blue-600">
+                            <td className="py-1 px-2 text-center font-mono font-black text-blue-600 whitespace-nowrap">
                               {item.eventCode}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700">
+                            <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
                               H{item.heat}-L{item.lane}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-mono text-slate-600">
+                            <td className="py-1 px-2 text-center font-mono text-slate-600 whitespace-nowrap">
                               {item.seedTime}
                             </td>
-                            <td className="py-1.5 px-2 text-center">
+                            <td className="py-1 px-2 text-center whitespace-nowrap">
                               {item.status === "SELESAI" && item.resultTime ? (
                                 <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
                                   {item.resultTime}
                                 </span>
                               ) : (
-                                <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                <span className="text-[8.5px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded tracking-tight">
                                   BELUM TANDING
                                 </span>
                               )}
                             </td>
-                            <td className="py-1.5 px-3 font-black text-slate-900 uppercase truncate max-w-[170px]">
+                            <td className="py-1 px-2.5 font-black text-slate-900 uppercase truncate max-w-[170px]">
                               {item.name}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-bold text-slate-600">
-                              <span className="border border-slate-200 px-1 py-0.2 rounded text-[10px]">
+                            <td className="py-1 px-1.5 text-center font-bold text-slate-600 whitespace-nowrap">
+                              <span className="border border-slate-200 px-1 py-0.2 rounded text-[9.5px]">
                                 {item.ku}
                               </span>
                             </td>
-                            <td className="py-1.5 px-2 text-center">
+                            <td className="py-1 px-1.5 text-center whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] text-white ${
                                   item.gender === "L" ? "bg-blue-600" : "bg-pink-600"
@@ -1396,7 +1598,7 @@ function LiveScoreboardContent() {
                                 {item.gender}
                               </span>
                             </td>
-                            <td className="py-1.5 px-3 text-slate-700 font-medium truncate max-w-[140px]">
+                            <td className="py-1 px-2.5 text-slate-700 font-medium truncate max-w-[140px]">
                               {item.club}
                             </td>
                           </tr>
@@ -1408,7 +1610,7 @@ function LiveScoreboardContent() {
 
                 {/* RIGHT TABLE COLUMN */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-                  <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <div className="bg-[#0b1e38] text-white px-3.5 py-2 flex items-center justify-between">
                     <span className="font-mono text-xs font-black tracking-wide text-sky-200">
                       {rightColumnItems.length > 0
                         ? `${(slide1Page - 1) * ITEMS_PER_PAGE + ROWS_PER_COLUMN + 1}-${Math.min(
@@ -1423,54 +1625,54 @@ function LiveScoreboardContent() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-[11px]">
+                    <table className="w-full text-left border-collapse text-[10px] sm:text-[11px] h-auto">
                       <thead>
-                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
-                          <th className="py-2 px-2.5 text-center w-14"># ACARA</th>
-                          <th className="py-2 px-2 text-center w-16">HEAT-LN</th>
-                          <th className="py-2 px-2 text-center w-16">SEED TIME</th>
-                          <th className="py-2 px-2 text-center w-20">HASIL LOMBA</th>
-                          <th className="py-2 px-3">NAMA LENGKAP MURID</th>
-                          <th className="py-2 px-2 text-center w-12">KU</th>
-                          <th className="py-2 px-2 text-center w-10">JK</th>
-                          <th className="py-2 px-3">KLUB ASAL</th>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[9.5px] tracking-wide">
+                          <th className="py-1.5 px-2 text-center w-14 whitespace-nowrap"># ACARA</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">HEAT-LN</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">SEED TIME</th>
+                          <th className="py-1.5 px-2 text-center w-22 whitespace-nowrap">HASIL LOMBA</th>
+                          <th className="py-1.5 px-2.5">NAMA LENGKAP MURID</th>
+                          <th className="py-1.5 px-1.5 text-center w-12 whitespace-nowrap">KU</th>
+                          <th className="py-1.5 px-1.5 text-center w-10 whitespace-nowrap">JK</th>
+                          <th className="py-1.5 px-2.5">KLUB ASAL</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 font-sans">
                         {rightColumnItems.map((item, idx) => (
                           <tr
                             key={item.id || idx}
-                            className="hover:bg-sky-50/60 transition-colors"
+                            className="hover:bg-sky-50/60 transition-colors h-7"
                           >
-                            <td className="py-1.5 px-2.5 text-center font-mono font-black text-blue-600">
+                            <td className="py-1 px-2 text-center font-mono font-black text-blue-600 whitespace-nowrap">
                               {item.eventCode}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-mono font-bold text-slate-700">
+                            <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
                               H{item.heat}-L{item.lane}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-mono text-slate-600">
+                            <td className="py-1 px-2 text-center font-mono text-slate-600 whitespace-nowrap">
                               {item.seedTime}
                             </td>
-                            <td className="py-1.5 px-2 text-center">
+                            <td className="py-1 px-2 text-center whitespace-nowrap">
                               {item.status === "SELESAI" && item.resultTime ? (
                                 <span className="font-mono font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded text-[10px]">
                                   {item.resultTime}
                                 </span>
                               ) : (
-                                <span className="text-[9px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                                <span className="text-[8.5px] font-black uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded tracking-tight">
                                   BELUM TANDING
                                 </span>
                               )}
                             </td>
-                            <td className="py-1.5 px-3 font-black text-slate-900 uppercase truncate max-w-[170px]">
+                            <td className="py-1 px-2.5 font-black text-slate-900 uppercase truncate max-w-[170px]">
                               {item.name}
                             </td>
-                            <td className="py-1.5 px-2 text-center font-bold text-slate-600">
-                              <span className="border border-slate-200 px-1 py-0.2 rounded text-[10px]">
+                            <td className="py-1 px-1.5 text-center font-bold text-slate-600 whitespace-nowrap">
+                              <span className="border border-slate-200 px-1 py-0.2 rounded text-[9.5px]">
                                 {item.ku}
                               </span>
                             </td>
-                            <td className="py-1.5 px-2 text-center">
+                            <td className="py-1 px-1.5 text-center whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center justify-center w-4 h-4 rounded-full font-black text-[9px] text-white ${
                                   item.gender === "L" ? "bg-blue-600" : "bg-pink-600"
@@ -1479,7 +1681,7 @@ function LiveScoreboardContent() {
                                 {item.gender}
                               </span>
                             </td>
-                            <td className="py-1.5 px-3 text-slate-700 font-medium truncate max-w-[140px]">
+                            <td className="py-1 px-2.5 text-slate-700 font-medium truncate max-w-[140px]">
                               {item.club}
                             </td>
                           </tr>
@@ -1953,10 +2155,12 @@ function LiveScoreboardContent() {
           <div className="space-y-3 animate-in fade-in duration-200">
             {/* SUBHEADER BAR SLIDE 3 */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-              <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                SLIDE 3: PODIUM PERAIH MEDALI &amp; JUARA 1, 2, 3 (HASIL RESMI)
-              </h2>
+                <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide">
+                  SLIDE 3: PODIUM PERAIH MEDALI &amp; JUARA 1, 2, 3 (HASIL RESMI)
+                </h2>
+              </div>
 
               <div className="flex items-center gap-2">
                 <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 font-mono text-xs font-black text-amber-800">
@@ -1989,12 +2193,15 @@ function LiveScoreboardContent() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
                 {/* KOLOM KIRI PODIUM */}
                 <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-                  <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
+                  <div className="bg-[#0b1e38] text-white px-3.5 py-2 flex items-center justify-between">
                     <span className="font-mono text-xs font-black tracking-wide text-sky-200">
-                      1-{podiumLeftItems.length}/{podiumList.length}
+                      {`${(slide3Page - 1) * PODIUM_PER_PAGE + 1}-${Math.min(
+                        (slide3Page - 1) * PODIUM_PER_PAGE + podiumLeftItems.length,
+                        podiumList.length
+                      )}/${podiumList.length}`}
                     </span>
                     <span className="text-[11px] font-bold text-slate-300">
                       {podiumLeftItems.length} Juara
@@ -2002,47 +2209,140 @@ function LiveScoreboardContent() {
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse text-xs">
+                    <table className="w-full text-left border-collapse text-[10px] sm:text-[11px]">
                       <thead>
-                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
-                          <th className="py-2.5 px-3 text-center w-16">#ACARA</th>
-                          <th className="py-2.5 px-2 text-center w-16">POSISI</th>
-                          <th className="py-2.5 px-3">NAMA PERENANG</th>
-                          <th className="py-2.5 px-3 text-center w-24">WAKTU RESMI</th>
-                          <th className="py-2.5 px-2 text-center w-16">SELISIH</th>
-                          <th className="py-2.5 px-2 text-center w-16">HEAT-LN</th>
-                          <th className="py-2.5 px-3">KLUB ASAL</th>
+                        <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[9.5px] tracking-wide">
+                          <th className="py-1.5 px-2.5 text-center w-16 whitespace-nowrap">#ACARA</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">POSISI</th>
+                          <th className="py-1.5 px-3">NAMA PERENANG</th>
+                          <th className="py-1.5 px-2.5 text-center w-24 whitespace-nowrap">WAKTU RESMI</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">SELISIH</th>
+                          <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">HEAT-LN</th>
+                          <th className="py-1.5 px-3">KLUB ASAL</th>
                         </tr>
                       </thead>
-                      <tbody>
-                        {Array.from(new Set(podiumLeftItems.map((p) => p.eventCode))).map((code) => {
-                          const items = podiumLeftItems.filter((p) => p.eventCode === code);
-                          const first = items[0];
-
+                      <tbody className="divide-y divide-slate-100">
+                        {podiumLeftItems.map((row, rIdx) => {
+                          const showEventHeader =
+                            rIdx === 0 || row.eventCode !== podiumLeftItems[rIdx - 1].eventCode;
                           return (
-                            <div key={code} className="contents">
-                              <tr className="bg-slate-900 text-white font-bold text-xs">
-                                <td colSpan={7} className="py-2 px-3">
-                                  <div className="flex items-center gap-2">
-                                    <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
-                                      ACARA #{first.eventCode}
-                                    </span>
-                                    <span className="font-bold text-slate-200 text-xs">
-                                      {first.eventName} • {first.ku}
-                                    </span>
-                                  </div>
+                            <Fragment key={rIdx}>
+                              {showEventHeader && (
+                                <tr className="bg-[#0b1e38] text-white font-bold text-xs border-b border-slate-800">
+                                  <td colSpan={7} className="py-1.5 px-3">
+                                    <div className="flex items-center gap-2">
+                                      <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
+                                        ACARA #{row.eventCode}
+                                      </span>
+                                      <span className="font-bold text-slate-200 text-xs truncate">
+                                        {row.eventName} • {row.ku}
+                                      </span>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              <tr className="border-b border-slate-100 hover:bg-slate-50 transition font-medium h-7">
+                                <td className="py-1 px-2.5 text-center font-mono font-black text-blue-600 whitespace-nowrap">
+                                  #{row.eventCode}
+                                </td>
+                                <td className="py-1 px-2 text-center whitespace-nowrap">
+                                  <span
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-black text-xs ${
+                                      row.rank === 1
+                                        ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                        : row.rank === 2
+                                        ? "bg-slate-100 text-slate-800 border border-slate-300"
+                                        : "bg-orange-100 text-amber-900 border border-orange-300"
+                                    }`}
+                                  >
+                                    {row.rank === 1 ? "🥇 1" : row.rank === 2 ? "🥈 2" : "🥉 3"}
+                                  </span>
+                                </td>
+                                <td className="py-1 px-3 font-black text-slate-900 uppercase truncate max-w-[180px]">
+                                  {row.swimmerName}
+                                </td>
+                                <td className="py-1 px-2.5 text-center font-mono font-black text-emerald-700 whitespace-nowrap">
+                                  {row.resultTime}
+                                </td>
+                                <td className="py-1 px-2 text-center font-mono text-slate-500 whitespace-nowrap">
+                                  {row.timeDiff}
+                                </td>
+                                <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
+                                  {row.heatLane}
+                                </td>
+                                <td className="py-1 px-3 text-slate-700 truncate max-w-[140px]">
+                                  {row.club}
                                 </td>
                               </tr>
+                            </Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
 
-                              {items.map((row, rIdx) => (
-                                <tr
-                                  key={rIdx}
-                                  className="border-b border-slate-100 hover:bg-slate-50 transition font-medium"
-                                >
-                                  <td className="py-2 px-3 text-center font-mono font-black text-blue-600">
+                {/* KOLOM KANAN PODIUM */}
+                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
+                  <div className="bg-[#0b1e38] text-white px-3.5 py-2 flex items-center justify-between">
+                    <span className="font-mono text-xs font-black tracking-wide text-sky-200">
+                      {podiumRightItems.length > 0
+                        ? `${(slide3Page - 1) * PODIUM_PER_PAGE + PODIUM_HALF + 1}-${Math.min(
+                            slide3Page * PODIUM_PER_PAGE,
+                            podiumList.length
+                          )}/${podiumList.length}`
+                        : "- / -"}
+                    </span>
+                    <span className="text-[11px] font-bold text-slate-300">
+                      {podiumRightItems.length} Juara
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    {podiumRightItems.length === 0 ? (
+                      <div className="p-12 text-center space-y-2">
+                        <p className="text-xs font-bold text-slate-400">
+                          Semua hasil selesai pada halaman ini tercantum di tabel kiri.
+                        </p>
+                      </div>
+                    ) : (
+                      <table className="w-full text-left border-collapse text-[10px] sm:text-[11px]">
+                        <thead>
+                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[9.5px] tracking-wide">
+                            <th className="py-1.5 px-2.5 text-center w-16 whitespace-nowrap">#ACARA</th>
+                            <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">POSISI</th>
+                            <th className="py-1.5 px-3">NAMA PERENANG</th>
+                            <th className="py-1.5 px-2.5 text-center w-24 whitespace-nowrap">WAKTU RESMI</th>
+                            <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">SELISIH</th>
+                            <th className="py-1.5 px-2 text-center w-16 whitespace-nowrap">HEAT-LN</th>
+                            <th className="py-1.5 px-3">KLUB ASAL</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {podiumRightItems.map((row, rIdx) => {
+                            const showEventHeader =
+                              rIdx === 0 || row.eventCode !== podiumRightItems[rIdx - 1].eventCode;
+                            return (
+                              <Fragment key={rIdx}>
+                                {showEventHeader && (
+                                  <tr className="bg-[#0b1e38] text-white font-bold text-xs border-b border-slate-800">
+                                    <td colSpan={7} className="py-1.5 px-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
+                                          ACARA #{row.eventCode}
+                                        </span>
+                                        <span className="font-bold text-slate-200 text-xs truncate">
+                                          {row.eventName} • {row.ku}
+                                        </span>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                )}
+                                <tr className="border-b border-slate-100 hover:bg-slate-50 transition font-medium h-7">
+                                  <td className="py-1 px-2.5 text-center font-mono font-black text-blue-600 whitespace-nowrap">
                                     #{row.eventCode}
                                   </td>
-                                  <td className="py-2 px-2 text-center">
+                                  <td className="py-1 px-2 text-center whitespace-nowrap">
                                     <span
                                       className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-black text-xs ${
                                         row.rank === 1
@@ -2055,127 +2355,29 @@ function LiveScoreboardContent() {
                                       {row.rank === 1 ? "🥇 1" : row.rank === 2 ? "🥈 2" : "🥉 3"}
                                     </span>
                                   </td>
-                                  <td className="py-2 px-3 font-black text-slate-900 uppercase">
+                                  <td className="py-1 px-3 font-black text-slate-900 uppercase truncate max-w-[180px]">
                                     {row.swimmerName}
                                   </td>
-                                  <td className="py-2 px-3 text-center font-mono font-black text-emerald-700">
+                                  <td className="py-1 px-2.5 text-center font-mono font-black text-emerald-700 whitespace-nowrap">
                                     {row.resultTime}
                                   </td>
-                                  <td className="py-2 px-2 text-center font-mono text-slate-500">
+                                  <td className="py-1 px-2 text-center font-mono text-slate-500 whitespace-nowrap">
                                     {row.timeDiff}
                                   </td>
-                                  <td className="py-2 px-2 text-center font-mono text-slate-600">
+                                  <td className="py-1 px-2 text-center font-mono font-bold text-slate-700 whitespace-nowrap">
                                     {row.heatLane}
                                   </td>
-                                  <td className="py-2 px-3 text-slate-700 truncate max-w-[150px]">
+                                  <td className="py-1 px-3 text-slate-700 truncate max-w-[140px]">
                                     {row.club}
                                   </td>
                                 </tr>
-                              ))}
-                            </div>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                {/* KOLOM KANAN PODIUM */}
-                <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden">
-                  <div className="bg-[#0b1e38] text-white px-4 py-2.5 flex items-center justify-between">
-                    <span className="font-mono text-xs font-black tracking-wide text-sky-200">
-                      {podiumRightItems.length > 0 ? `5-8/${podiumList.length}` : "-/4"}
-                    </span>
-                    <span className="text-[11px] font-bold text-slate-300">
-                      {podiumRightItems.length} Juara
-                    </span>
-                  </div>
-
-                  {podiumRightItems.length === 0 ? (
-                    <div className="p-16 text-center space-y-2">
-                      <p className="text-xs font-bold text-slate-400">
-                        Semua hasil selesai pada halaman ini tercantum di tabel kiri.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-left border-collapse text-xs">
-                        <thead>
-                          <tr className="bg-slate-100 border-b border-slate-200 text-slate-700 font-black uppercase text-[10px] tracking-wide">
-                            <th className="py-2.5 px-3 text-center w-16">#ACARA</th>
-                            <th className="py-2.5 px-2 text-center w-16">POSISI</th>
-                            <th className="py-2.5 px-3">NAMA PERENANG</th>
-                            <th className="py-2.5 px-3 text-center w-24">WAKTU RESMI</th>
-                            <th className="py-2.5 px-2 text-center w-16">SELISIH</th>
-                            <th className="py-2.5 px-2 text-center w-16">HEAT-LN</th>
-                            <th className="py-2.5 px-3">KLUB ASAL</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Array.from(new Set(podiumRightItems.map((p) => p.eventCode))).map((code) => {
-                            const items = podiumRightItems.filter((p) => p.eventCode === code);
-                            const first = items[0];
-
-                            return (
-                              <div key={code} className="contents">
-                                <tr className="bg-slate-900 text-white font-bold text-xs">
-                                  <td colSpan={7} className="py-2 px-3">
-                                    <div className="flex items-center gap-2">
-                                      <span className="px-2 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[10px]">
-                                        ACARA #{first.eventCode}
-                                      </span>
-                                      <span className="font-bold text-slate-200 text-xs">
-                                        {first.eventName} • {first.ku}
-                                      </span>
-                                    </div>
-                                  </td>
-                                </tr>
-
-                                {items.map((row, rIdx) => (
-                                  <tr
-                                    key={rIdx}
-                                    className="border-b border-slate-100 hover:bg-slate-50 transition font-medium"
-                                  >
-                                    <td className="py-2 px-3 text-center font-mono font-black text-blue-600">
-                                      #{row.eventCode}
-                                    </td>
-                                    <td className="py-2 px-2 text-center">
-                                      <span
-                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg font-black text-xs ${
-                                          row.rank === 1
-                                            ? "bg-amber-100 text-amber-900 border border-amber-300"
-                                            : row.rank === 2
-                                            ? "bg-slate-100 text-slate-800 border border-slate-300"
-                                            : "bg-orange-100 text-amber-900 border border-orange-300"
-                                        }`}
-                                      >
-                                        {row.rank === 1 ? "🥇 1" : row.rank === 2 ? "🥈 2" : "🥉 3"}
-                                      </span>
-                                    </td>
-                                    <td className="py-2 px-3 font-black text-slate-900 uppercase">
-                                      {row.swimmerName}
-                                    </td>
-                                    <td className="py-2 px-3 text-center font-mono font-black text-emerald-700">
-                                      {row.resultTime}
-                                    </td>
-                                    <td className="py-2 px-2 text-center font-mono text-slate-500">
-                                      {row.timeDiff}
-                                    </td>
-                                    <td className="py-2 px-2 text-center font-mono text-slate-600">
-                                      {row.heatLane}
-                                    </td>
-                                    <td className="py-2 px-3 text-slate-700 truncate max-w-[150px]">
-                                      {row.club}
-                                    </td>
-                                  </tr>
-                                ))}
-                              </div>
+                              </Fragment>
                             );
                           })}
                         </tbody>
                       </table>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -2187,13 +2389,13 @@ function LiveScoreboardContent() {
         {/* UNTUK KATEGORI HEAT & GROUP ABJAD                       */}
         {/* ======================================================= */}
         {activeSlide === 4 && (
-          <div className="space-y-4 animate-in fade-in duration-200">
+          <div className="space-y-2.5 sm:space-y-3 animate-in fade-in duration-200 relative">
             {/* SUBHEADER BAR SLIDE 4 */}
-            <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-              <div className="flex items-center gap-2.5">
+            <div className="flex items-center justify-between bg-white px-3.5 py-2 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide">
-                  SLIDE 4: SOROTAN PODIUM JUARA (6 ACARA PER LAYAR)
+                <h2 className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wide">
+                  SLIDE 4: SOROTAN PODIUM JUARA (9 ACARA PER LAYAR)
                 </h2>
               </div>
 
@@ -2221,25 +2423,25 @@ function LiveScoreboardContent() {
               </div>
             </div>
 
-            {/* FLOATING CIRCULAR NAVIGATION BUTTONS (LEFT & RIGHT) */}
+            {/* FLOATING CIRCULAR NAVIGATION BUTTONS (SAFE INSIDE PADDING) */}
             {totalSlide4Pages > 1 && (
               <>
                 {slide4Page > 1 && (
                   <button
                     onClick={() => setSlide4Page((p) => Math.max(1, p - 1))}
-                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
+                    className="absolute left-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
                     title="Halaman Sebelumnya"
                   >
-                    <ChevronLeft className="w-6 h-6" />
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
                 )}
                 {slide4Page < totalSlide4Pages && (
                   <button
                     onClick={() => setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1))}
-                    className="absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
                     title="Halaman Berikutnya"
                   >
-                    <ChevronRight className="w-6 h-6" />
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 )}
               </>
@@ -2247,8 +2449,8 @@ function LiveScoreboardContent() {
 
             {/* EVENT CARDS GRID */}
             {filteredSlide4Events.length === 0 ? (
-              <div className="p-16 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
-                <Medal className="w-12 h-12 text-slate-300 mx-auto" />
+              <div className="p-12 text-center space-y-2 bg-white rounded-2xl border border-slate-200">
+                <Medal className="w-10 h-10 text-slate-300 mx-auto" />
                 <h3 className="font-bold text-slate-700 text-sm">
                   Tidak Ada Nomor Lomba Sesuai Filter
                 </h3>
@@ -2257,7 +2459,7 @@ function LiveScoreboardContent() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 items-stretch">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-2.5 items-stretch">
                 {slide4PageItems.map((event) => {
                   const isPutri =
                     event.gender?.toUpperCase().includes("PI") ||
@@ -2274,12 +2476,12 @@ function LiveScoreboardContent() {
                   return (
                     <div
                       key={event.eventCode}
-                      className="bg-white rounded-2xl border border-blue-200/80 shadow-xs hover:shadow-md transition-shadow p-3.5 sm:p-4 flex flex-col justify-between gap-3 min-h-[220px]"
+                      className="bg-white rounded-2xl border border-blue-200/80 shadow-xs hover:shadow-md transition-shadow p-3 sm:p-3.5 flex flex-col justify-between gap-2.5"
                     >
                       {/* CARD TOP HEADER */}
-                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="px-2.5 py-0.5 rounded-md bg-blue-600 text-white font-mono font-black text-xs shrink-0 shadow-2xs">
+                          <span className="px-2 py-0.5 rounded-md bg-blue-600 text-white font-mono font-black text-xs shrink-0 shadow-2xs">
                             #{event.eventCode}
                           </span>
                           <h3
@@ -2290,12 +2492,12 @@ function LiveScoreboardContent() {
                           </h3>
                         </div>
 
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold text-[10px] sm:text-[11px] bg-slate-50">
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="px-1.5 py-0.5 rounded border border-slate-300 text-slate-700 font-bold text-[10px] bg-slate-50">
                             {event.ageGroup}
                           </span>
                           <span
-                            className={`px-2 py-0.5 rounded border font-bold text-[10px] sm:text-[11px] ${
+                            className={`px-1.5 py-0.5 rounded border font-bold text-[10px] ${
                               isPutri
                                 ? "bg-rose-50 text-rose-600 border-rose-200"
                                 : "bg-blue-50 text-blue-600 border-blue-200"
@@ -2307,33 +2509,33 @@ function LiveScoreboardContent() {
                       </div>
 
                       {/* CARD BODY: 3 ROWS (JUARA 1, JUARA 2, JUARA 3) */}
-                      <div className="flex-1 flex flex-col justify-between gap-2">
+                      <div className="flex-1 flex flex-col justify-between gap-1.5">
                         {/* ROW 1: JUARA 1 (EMAS) HIGHLIGHT CARD */}
                         {c1 ? (
-                          <div className="bg-[#FFFDF5] border border-amber-300/80 rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-2.5 shadow-2xs">
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
-                                <Medal className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                          <div className="bg-[#FFFDF5] border border-amber-300/90 rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2 shadow-2xs">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                <Medal className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                               </div>
-                              <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
                                 <div className="flex items-center gap-1.5">
-                                  <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
+                                  <span className="text-[9px] sm:text-[10px] font-black uppercase text-amber-800 tracking-wider">
                                     JUARA 1 (EMAS)
                                   </span>
                                   {c1.heatLane && (
-                                    <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-mono font-bold text-[9px]">
+                                    <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-900 font-mono font-bold text-[9px] shrink-0">
                                       {c1.heatLane}
                                     </span>
                                   )}
                                 </div>
                                 <div
-                                  className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-tight truncate max-w-[150px] sm:max-w-[190px]"
+                                  className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-tight truncate"
                                   title={c1.swimmerName}
                                 >
                                   {c1.swimmerName}
                                 </div>
                                 <div
-                                  className="text-[10px] sm:text-[11px] font-semibold uppercase text-slate-500 truncate max-w-[150px] sm:max-w-[190px]"
+                                  className="text-[10px] sm:text-[11px] font-semibold uppercase text-slate-500 truncate"
                                   title={c1.club}
                                 >
                                   {c1.club}
@@ -2345,15 +2547,15 @@ function LiveScoreboardContent() {
                               <div className="font-mono font-black text-sm sm:text-base text-emerald-800 tracking-tight">
                                 {c1.resultTime}
                               </div>
-                              <div className="font-mono text-[10px] text-slate-400">
+                              <div className="font-mono text-[9px] text-slate-400">
                                 {c1.timeDiff || "0.00"}
                               </div>
                             </div>
                           </div>
                         ) : (
-                          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 text-center space-y-1">
-                            <Clock className="w-5 h-5 text-amber-500 mx-auto" />
-                            <div className="text-[11px] font-bold text-slate-600">
+                          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl py-3 px-2 text-center flex items-center justify-center gap-2">
+                            <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+                            <div className="text-[11px] font-bold text-slate-500">
                               Menunggu Pencatatan Hasil Waktu
                             </div>
                           </div>
@@ -2361,18 +2563,18 @@ function LiveScoreboardContent() {
 
                         {/* ROW 2: JUARA 2 (PERAK) */}
                         {c2 ? (
-                          <div className="flex items-center justify-between gap-2 px-1 py-1 text-xs">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-sm shrink-0">🥈</span>
-                              <span className="font-black text-slate-800 text-xs shrink-0">2</span>
+                          <div className="flex items-center justify-between gap-2 px-1 py-0.5 text-xs border-t border-slate-100">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="text-xs shrink-0">🥈</span>
+                              <span className="font-black text-slate-800 text-[11px] shrink-0">2</span>
                               <span
-                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate max-w-[130px] sm:max-w-[150px]"
+                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate"
                                 title={c2.swimmerName}
                               >
                                 {c2.swimmerName}
                               </span>
                               <span
-                                className="text-[10px] font-semibold text-slate-400 uppercase truncate max-w-[100px] sm:max-w-[120px]"
+                                className="text-[10px] font-semibold text-slate-400 uppercase truncate shrink-0 max-w-[120px]"
                                 title={c2.club}
                               >
                                 ({c2.club})
@@ -2391,18 +2593,18 @@ function LiveScoreboardContent() {
 
                         {/* ROW 3: JUARA 3 (PERUNGGU) */}
                         {c3 ? (
-                          <div className="flex items-center justify-between gap-2 px-1 py-1 text-xs">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="text-sm shrink-0">🥉</span>
-                              <span className="font-black text-slate-800 text-xs shrink-0">3</span>
+                          <div className="flex items-center justify-between gap-2 px-1 py-0.5 text-xs border-t border-slate-100">
+                            <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                              <span className="text-xs shrink-0">🥉</span>
+                              <span className="font-black text-slate-800 text-[11px] shrink-0">3</span>
                               <span
-                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate max-w-[130px] sm:max-w-[150px]"
+                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate"
                                 title={c3.swimmerName}
                               >
                                 {c3.swimmerName}
                               </span>
                               <span
-                                className="text-[10px] font-semibold text-slate-400 uppercase truncate max-w-[100px] sm:max-w-[120px]"
+                                className="text-[10px] font-semibold text-slate-400 uppercase truncate shrink-0 max-w-[120px]"
                                 title={c3.club}
                               >
                                 ({c3.club})
