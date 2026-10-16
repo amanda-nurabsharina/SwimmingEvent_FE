@@ -1901,28 +1901,6 @@ function LiveScoreboardContent() {
 
               {/* KOLOM KANAN (5/12): ACARA BERIKUTNYA / CALLING ROOM / COC */}
               <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 space-y-3.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2 border-b border-slate-100 gap-2">
-                  <div>
-                    <h3 className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-full bg-blue-600" />
-                      ACARA BERIKUTNYA (CALLING ROOM / COC)
-                    </h3>
-                    <p className="text-[10px] font-bold text-slate-400">
-                      Antrean panggilan atlet &amp; percepatan pertandingan
-                    </p>
-                  </div>
-                  {manualLiveMatches.length > 0 && (
-                    <button
-                      onClick={handleResetLiveMatches}
-                      className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-black rounded-lg transition cursor-pointer flex items-center gap-1 shrink-0"
-                      title="Kembalikan urutan kolam ke jadwal berurutan normal"
-                    >
-                      <RotateCcw className="w-3 h-3 text-amber-700" />
-                      <span>Reset Urutan Kolam</span>
-                    </button>
-                  )}
-                </div>
-
                 {/* NOTIFIKASI PERCEPATAN TANDING */}
                 {accelerationNotice && (
                   <div className="p-2.5 bg-amber-500 text-slate-950 font-black text-xs rounded-xl flex items-center justify-between gap-2 shadow-xs animate-in fade-in slide-in-from-top-1">
@@ -1939,25 +1917,6 @@ function LiveScoreboardContent() {
                   </div>
                 )}
 
-                {/* STATUS SERENTAK SEDANG DI KOLAM */}
-                <div className="p-2 bg-blue-50/70 border border-blue-200/80 rounded-xl text-[11px] font-bold text-blue-800 flex items-center justify-between">
-                  <div>
-                    SEDANG TANDING DI KOLAM:{" "}
-                    <span className="font-mono font-black">
-                      {liveEvents.length > 0
-                        ? liveEvents
-                            .map((e) => `Acara #${e.eventCode} (Heat ${e.heatCurrent})`)
-                            .join(", ")
-                        : "Tidak ada pertandingan aktif"}
-                    </span>
-                  </div>
-                  {liveEvents.length > 0 && (
-                    <span className="px-1.5 py-0.5 rounded bg-rose-600 text-white font-mono font-black text-[9px] uppercase tracking-wider animate-pulse">
-                      LIVE
-                    </span>
-                  )}
-                </div>
-
                 {/* ========================================================= */}
                 {/* FITUR MANUAL SELECT ACARA & HEAT UNTUK CALLING ROOM / COC */}
                 {/* ========================================================= */}
@@ -1969,17 +1928,29 @@ function LiveScoreboardContent() {
                         PILIH TAMPIL MANUAL &amp; PERCEPATAN TANDING
                       </span>
                     </div>
-                    {(callingFilterEvent !== "all" || callingFilterHeat !== "all") && (
-                      <button
-                        onClick={() => {
-                          setCallingFilterEvent("all");
-                          setCallingFilterHeat("all");
-                        }}
-                        className="text-[10px] text-sky-300 hover:text-white underline cursor-pointer"
-                      >
-                        Tampilkan Semua Antrean
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {manualLiveMatches.length > 0 && (
+                        <button
+                          onClick={handleResetLiveMatches}
+                          className="px-2 py-0.5 bg-amber-400 hover:bg-amber-300 text-slate-950 text-[10px] font-black rounded-lg transition cursor-pointer flex items-center gap-1 shrink-0"
+                          title="Kembalikan urutan kolam ke jadwal berurutan normal"
+                        >
+                          <RotateCcw className="w-3 h-3 text-slate-900" />
+                          <span>Reset Urutan</span>
+                        </button>
+                      )}
+                      {(callingFilterEvent !== "all" || callingFilterHeat !== "all") && (
+                        <button
+                          onClick={() => {
+                            setCallingFilterEvent("all");
+                            setCallingFilterHeat("all");
+                          }}
+                          className="text-[10px] text-sky-300 hover:text-white underline cursor-pointer"
+                        >
+                          Tampilkan Semua Antrean
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 text-xs">
