@@ -1507,7 +1507,7 @@ export default function BukuAcaraViewer({
                                     <td className="py-1.5 px-3 text-center font-mono font-black border-r border-slate-100">
                                       {isEmpty ? (
                                         <span className="text-slate-300 font-bold text-xs">-</span>
-                                      ) : item.result && item.result !== "-" ? (
+                                      ) : item.result && item.result !== "-" && /[1-9]|DQ|DNF|DNS/.test(item.result) ? (
                                         <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-black text-xs border border-blue-100">
                                           {item.result}
                                         </span>
@@ -1516,7 +1516,7 @@ export default function BukuAcaraViewer({
                                       )}
                                     </td>
                                     <td className="py-1.5 px-3 text-center">
-                                      {!isEmpty && item.rank && item.rank > 0 ? (
+                                      {!isEmpty && item.rank && item.rank > 0 && item.result && item.result !== "-" && /[1-9]|DQ|DNF|DNS/.test(item.result) ? (
                                         isGroup ? (
                                           item.rank === 1 ? (
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-xs bg-purple-100 border border-purple-300 text-purple-900 shadow-xs">

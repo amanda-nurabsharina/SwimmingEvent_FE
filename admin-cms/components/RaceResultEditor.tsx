@@ -84,6 +84,15 @@ interface RaceResultEditorProps {
   onRefresh?: () => void;
 }
 
+// Check if string represents zero or empty time (e.g. "00", "00.00.00", "00:00.00", "-", "")
+export const isZeroOrEmptyTime = (timeStr?: string): boolean => {
+  if (!timeStr) return true;
+  const clean = timeStr.trim().toUpperCase();
+  if (clean === "" || clean === "-" || clean === "NT" || clean === "OK") return true;
+  if (clean.includes("DQ") || clean.includes("DNF") || clean.includes("DNS")) return false;
+  return !/[1-9]/.test(clean);
+};
+
 export default function RaceResultEditor({
   registrations = [],
   tournaments = [],
@@ -200,8 +209,10 @@ export default function RaceResultEditor({
   }, [tournaments, initialTournamentId]);
 
   // Fetch bagan data from backend
-  const fetchBaganData = async (tourneyId?: number) => {
-    setLoading(true);
+  const fetchBaganData = async (tourneyId?: number, isSilent: boolean = false) => {
+    if (!isSilent && eventGroups.length === 0) {
+      setLoading(true);
+    }
     const tid = tourneyId !== undefined ? tourneyId : selectedTournamentId;
     const res = await getBukuAcara(tid > 0 ? tid : undefined, "preliminary");
     if (res && res.success) {
@@ -338,7 +349,7 @@ export default function RaceResultEditor({
       }
 
       return true;
-    });
+    }).sort((a, b) => (a.event_code || 0) - (b.event_code || 0));
   }, [
     eventGroups,
     selectedCategoryFilter,
@@ -359,7 +370,7 @@ export default function RaceResultEditor({
       eg.heats.forEach((h) => {
         if (!h.is_empty && h.registration_id) {
           totalSwimmers++;
-          if (h.result && h.result !== "-" && h.result.trim() !== "") {
+          if (h.result && h.result !== "-" && h.result.trim() !== "" && !isZeroOrEmptyTime(h.result)) {
             recordedResults++;
           }
         }
@@ -443,18 +454,46 @@ export default function RaceResultEditor({
 
     setSavingResultId(regId);
     let finalTime = timeStr.trim();
+    let finalRank = rank;
+    const isReset = status === "OK" && isZeroOrEmptyTime(finalTime);
+
     if (status !== "OK") {
       finalTime = status;
+    } else if (isReset) {
+      finalTime = "";
+      finalRank = 0;
+    } else {
+      finalTime = normalizeSwimTime(finalTime);
     }
 
-    const res = await recordRaceResult(regId, finalTime, rank, status, "preliminary");
+    const res = await recordRaceResult(regId, finalTime, finalRank, status, "preliminary");
     setSavingResultId(null);
 
     if (res && res.success) {
       setEditingId(null);
-      toast.success("Catatan waktu hasil lomba berhasil disimpan!");
-      fetchBaganData(selectedTournamentId);
-      if (onRefresh) onRefresh();
+      if (isReset) {
+        toast.info("Catatan waktu hasil lomba dikosongkan / belum bertanding");
+      } else {
+        toast.success("Catatan waktu hasil lomba berhasil disimpan!");
+      }
+
+      // Update local state in place so the order, heat, and scroll remain completely stable
+      setEventGroups((prev) =>
+        prev.map((eg) => ({
+          ...eg,
+          heats: eg.heats.map((h) =>
+            h.registration_id === regId
+              ? {
+                  ...h,
+                  result: finalTime || "-",
+                  rank: finalRank,
+                }
+              : h
+          ),
+        }))
+      );
+
+      fetchBaganData(selectedTournamentId, true);
     } else {
       toast.error(res?.message || "Gagal menyimpan hasil lomba");
     }
@@ -464,7 +503,7 @@ export default function RaceResultEditor({
   const normalizeSwimTime = (raw: string): string => {
     if (!raw) return "-";
     const clean = raw.trim();
-    if (clean === "" || clean === "-" || clean === "00.00.00" || clean === "00:00.00" || clean === "OK") return "-";
+    if (isZeroOrEmptyTime(clean)) return "-";
     if (clean === "DQ" || clean === "DNF" || clean === "DNS") return clean;
 
     const normalized = clean.replace(/:/g, ".");
@@ -489,7 +528,7 @@ export default function RaceResultEditor({
     if (
       clean === "" ||
       clean === "-" ||
-      clean === "00.00.00" ||
+      isZeroOrEmptyTime(clean) ||
       clean === "NT" ||
       clean.includes("DQ") ||
       clean.includes("DNF") ||
@@ -659,10 +698,14 @@ export default function RaceResultEditor({
       const row = bulkValues[item.registration_id!];
       if (!row) return;
       let finalTime = normalizeSwimTime(row.time);
+      let finalRank = row.rank;
       if (row.status !== "OK") {
         finalTime = row.status;
+      } else if (isZeroOrEmptyTime(finalTime) || finalTime === "-") {
+        finalTime = "";
+        finalRank = 0;
       }
-      return recordRaceResult(item.registration_id!, finalTime, row.rank, row.status, "preliminary");
+      return recordRaceResult(item.registration_id!, finalTime, finalRank, row.status, "preliminary");
     });
 
     const results = await Promise.all(savePromises);
@@ -674,8 +717,26 @@ export default function RaceResultEditor({
     } else {
       toast.success(`Seluruh catatan waktu ${label} berhasil disimpan!`);
       handleCancelBulkHeat(heatKey);
-      fetchBaganData(selectedTournamentId);
-      if (onRefresh) onRefresh();
+
+      // Update local state in place so the order, heat, and scroll remain completely stable
+      setEventGroups((prev) =>
+        prev.map((eg) => ({
+          ...eg,
+          heats: eg.heats.map((h) => {
+            if (h.registration_id && bulkValues[h.registration_id]) {
+              const row = bulkValues[h.registration_id];
+              return {
+                ...h,
+                result: row.status !== "OK" ? row.status : row.time || "-",
+                rank: row.rank,
+              };
+            }
+            return h;
+          }),
+        }))
+      );
+
+      fetchBaganData(selectedTournamentId, true);
     }
   };
 
@@ -1610,12 +1671,12 @@ export default function RaceResultEditor({
                                           >
                                             <span
                                               className={
-                                                item.result && item.result !== "-"
+                                                item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result)
                                                   ? "text-blue-700 font-mono font-black text-xs"
                                                   : "text-slate-400 font-bold text-[11px] group-hover:text-sky-700"
                                               }
                                             >
-                                              {item.result && item.result !== "-" ? (
+                                              {item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result) ? (
                                                 item.result.includes("DQ") || item.result.includes("DNF") || item.result.includes("DNS") ? (
                                                   <span className={`px-2 py-0.5 rounded-lg font-black text-xs uppercase shadow-2xs ${
                                                     item.result.includes("DQ")
@@ -1667,7 +1728,7 @@ export default function RaceResultEditor({
                                             }}
                                             className="w-14 px-1 py-1.5 bg-white border-2 border-sky-500 rounded-xl text-center text-xs font-black text-amber-700 shadow-sm focus:outline-none"
                                           />
-                                        ) : item.rank && item.rank > 0 ? (
+                                        ) : item.rank && item.rank > 0 && item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result) ? (
                                           !isGroup ? (
                                             item.rank === 1 ? (
                                               <span className="px-2.5 py-1 rounded-xl font-black text-xs bg-amber-400 text-amber-950 shadow-sm inline-flex items-center gap-1 border border-amber-500">

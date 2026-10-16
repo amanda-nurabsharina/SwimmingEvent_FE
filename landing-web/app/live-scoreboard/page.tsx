@@ -98,6 +98,14 @@ interface PodiumItem {
 }
 
 // Speed time parser helper for single/multi-round swimming competitions
+function isValidResultTime(timeStr?: string): boolean {
+  if (!timeStr) return false;
+  const clean = timeStr.trim().toUpperCase();
+  if (clean === "" || clean === "-" || clean === "NT" || clean === "OK") return false;
+  if (clean.includes("DQ") || clean.includes("DNF") || clean.includes("DNS")) return true;
+  return /[1-9]/.test(clean);
+}
+
 function parseSpeedTimeToSeconds(timeStr?: string): number {
   if (!timeStr) return 9999999;
   const clean = timeStr.trim().toUpperCase();
@@ -105,6 +113,7 @@ function parseSpeedTimeToSeconds(timeStr?: string): number {
     clean === "" ||
     clean === "-" ||
     clean === "NT" ||
+    !/[1-9]/.test(clean) ||
     clean.includes("DQ") ||
     clean.includes("DNF") ||
     clean.includes("DNS") ||
@@ -382,15 +391,18 @@ function LiveScoreboardContent() {
           heatCurrent: hNum,
           heatTotal: totalHeats,
           estimatedTime: estTime,
-          lanes: heatLanes.map((h: any) => ({
-            laneNumber: h.line,
-            swimmerName: h.nama,
-            club: h.club,
-            seedTime: h.time_seed || "NT",
-            resultTime: h.result && h.result !== "-" ? h.result : undefined,
-            rank: h.rank,
-            isRacing: !h.result || h.result === "-",
-          })),
+          lanes: heatLanes.map((h: any) => {
+            const hasValid = isValidResultTime(h.result);
+            return {
+              laneNumber: h.line,
+              swimmerName: h.nama,
+              club: h.club,
+              seedTime: h.time_seed || "NT",
+              resultTime: hasValid ? h.result : undefined,
+              rank: hasValid ? h.rank : undefined,
+              isRacing: !hasValid,
+            };
+          }),
         });
       });
     });
@@ -553,8 +565,8 @@ function LiveScoreboardContent() {
             heat: h.heat,
             lane: h.line,
             seedTime: h.time_seed || "NT",
-            resultTime: h.result && h.result !== "-" ? h.result : "",
-            status: h.result && h.result !== "-" ? "SELESAI" : "BELUM TANDING",
+            resultTime: isValidResultTime(h.result) ? h.result : "",
+            status: isValidResultTime(h.result) ? "SELESAI" : "BELUM TANDING",
             name: (h.nama || "").toUpperCase(),
             ku: ev.age_group || "KU",
             gender:
@@ -577,8 +589,8 @@ function LiveScoreboardContent() {
           heat: 1,
           lane: (idx % 6) + 1,
           seedTime: r.time_seed || "NT",
-          resultTime: r.result || "",
-          status: r.result ? "SELESAI" : "BELUM TANDING",
+          resultTime: isValidResultTime(r.result) ? r.result : "",
+          status: isValidResultTime(r.result) ? "SELESAI" : "BELUM TANDING",
           name: (r.nama || "").toUpperCase(),
           ku: "KU",
           gender: (r.jenis_kelamin || "").toUpperCase().includes("PUTRI")
@@ -598,7 +610,7 @@ function LiveScoreboardContent() {
     const podium: PodiumItem[] = [];
     realEventGroups.forEach((ev: any) => {
       const winners = (ev.heats || [])
-        .filter((h: any) => !h.is_empty && h.rank && h.rank >= 1 && h.rank <= 3)
+        .filter((h: any) => !h.is_empty && isValidResultTime(h.result) && h.rank && h.rank >= 1 && h.rank <= 3)
         .sort((a: any, b: any) => (a.rank || 0) - (b.rank || 0));
 
       winners.forEach((w: any) => {
@@ -721,6 +733,29 @@ function LiveScoreboardContent() {
           };
         });
 
+        const validOverall = activeSwimmers
+          .map((s: any) => {
+            const sec = parseSpeedTimeToSeconds(s.result);
+            if (sec < 9999990) eventHasResults = true;
+            return { ...s, parsedSec: sec };
+          })
+          .filter((s: any) => s.parsedSec < 9999990)
+          .sort((a: any, b: any) => a.parsedSec - b.parsedSec);
+
+        const fastestSec = validOverall.length > 0 ? validOverall[0].parsedSec : 0;
+
+        const overallChampions = validOverall.slice(0, 3).map((s: any, idx: number) => ({
+          rank: (idx + 1) as 1 | 2 | 3,
+          swimmerName: s.nama,
+          club: s.club || "-",
+          resultTime: s.result,
+          timeDiff: idx === 0 ? "0.00" : formatSpeedDiff(s.parsedSec - fastestSec),
+          heatLane: `H${s.heat || 1}-L${s.line}`,
+          heat: s.heat,
+          lane: s.line,
+          parsedSeconds: s.parsedSec,
+        }));
+
         return {
           eventCode: ev.event_code,
           eventName: ev.event_name,
@@ -731,7 +766,7 @@ function LiveScoreboardContent() {
           isGroup: true,
           hasResults: eventHasResults,
           totalSwimmers: activeSwimmers.length,
-          overallChampions: [],
+          overallChampions,
           heatBreakdowns: [],
           groupBreakdowns,
         };
@@ -753,8 +788,8 @@ function LiveScoreboardContent() {
           swimmerName: s.nama,
           club: s.club || "-",
           resultTime: s.result,
-          timeDiff: idx === 0 ? "WAKTU TERCEPAT" : formatSpeedDiff(s.parsedSec - fastestSec),
-          heatLane: `Seri ${s.heat} • Line ${s.line}`,
+          timeDiff: idx === 0 ? "0.00" : formatSpeedDiff(s.parsedSec - fastestSec),
+          heatLane: `H${s.heat}-L${s.line}`,
           heat: s.heat,
           lane: s.line,
           parsedSeconds: s.parsedSec,
@@ -850,7 +885,7 @@ function LiveScoreboardContent() {
     return list;
   }, [slide4Events, slide4CategoryFilter, slide4StatusFilter, slide4Search]);
 
-  const SLIDE4_PER_PAGE = 2;
+  const SLIDE4_PER_PAGE = 6;
   const totalSlide4Pages = Math.max(1, Math.ceil(filteredSlide4Events.length / SLIDE4_PER_PAGE));
   const slide4PageItems = useMemo(() => {
     const start = (slide4Page - 1) * SLIDE4_PER_PAGE;
@@ -2154,110 +2189,61 @@ function LiveScoreboardContent() {
         {activeSlide === 4 && (
           <div className="space-y-4 animate-in fade-in duration-200">
             {/* SUBHEADER BAR SLIDE 4 */}
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-2xs">
-              <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex items-center justify-between bg-white px-4 py-2.5 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <div className="flex items-center gap-2.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse" />
-                <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide flex items-center gap-2">
-                  SLIDE 4: JUARA 1, 2, 3 NOMOR LOMBA (SPEED TIME)
+                <h2 className="text-sm sm:text-base font-black uppercase text-slate-900 tracking-wide">
+                  SLIDE 4: SOROTAN PODIUM JUARA (6 ACARA PER LAYAR)
                 </h2>
-                <span className="text-[11px] font-bold text-slate-500 hidden xl:inline">
-                  • Perhitungan Otomatis Catatan Waktu Tercepat untuk Kategori Heat &amp; Group Abjad
-                </span>
               </div>
 
-              <div className="flex items-center gap-2.5 flex-wrap">
-                {/* SEARCH INPUT */}
-                <div className="relative">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    value={slide4Search}
-                    onChange={(e) => setSlide4Search(e.target.value)}
-                    placeholder="Cari acara / perenang..."
-                    className="pl-8 pr-3 py-1 bg-slate-100 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500 border border-slate-200 w-36 sm:w-44"
-                  />
-                  {slide4Search && (
-                    <button
-                      onClick={() => setSlide4Search("")}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold"
-                    >
-                      ✕
-                    </button>
-                  )}
-                </div>
-
-                {/* FILTER KATEGORI: SEMUA / HEAT / GROUP ABJAD */}
-                <div className="flex items-center p-0.5 bg-slate-100 rounded-xl border border-slate-200 text-xs font-bold">
-                  <button
-                    onClick={() => setSlide4CategoryFilter("ALL")}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      slide4CategoryFilter === "ALL"
-                        ? "bg-white text-slate-900 font-black shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Semua ({slide4Events.length})
-                  </button>
-                  <button
-                    onClick={() => setSlide4CategoryFilter("HEAT")}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      slide4CategoryFilter === "HEAT"
-                        ? "bg-sky-600 text-white font-black shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Heat ({slide4Events.filter((e) => !e.isGroup).length})
-                  </button>
-                  <button
-                    onClick={() => setSlide4CategoryFilter("GROUP")}
-                    className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                      slide4CategoryFilter === "GROUP"
-                        ? "bg-purple-600 text-white font-black shadow-xs"
-                        : "text-slate-600 hover:text-slate-900"
-                    }`}
-                  >
-                    Group Abjad ({slide4Events.filter((e) => e.isGroup).length})
-                  </button>
-                </div>
-
-                {/* TOGGLE HANYA YANG SUDAH ADA HASIL */}
+              {/* PAGINATION CONTROLS */}
+              <div className="flex items-center gap-1.5">
+                <span className="px-2.5 py-0.5 rounded-lg bg-amber-100/70 border border-amber-300 font-mono text-xs font-black text-amber-900">
+                  Hal {slide4Page}/{totalSlide4Pages}
+                </span>
                 <button
-                  onClick={() =>
-                    setSlide4StatusFilter(slide4StatusFilter === "ALL" ? "HAS_RESULTS" : "ALL")
-                  }
-                  className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                    slide4StatusFilter === "HAS_RESULTS"
-                      ? "bg-emerald-50 border-emerald-300 text-emerald-800 font-black"
-                      : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                  }`}
+                  onClick={() => setSlide4Page((p) => Math.max(1, p - 1))}
+                  disabled={slide4Page <= 1}
+                  className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer transition"
+                  title="Hal Sebelumnya"
                 >
-                  {slide4StatusFilter === "HAS_RESULTS" ? "✓ Ada Hasil" : "Semua Status"}
+                  <ChevronLeft className="w-4 h-4 text-slate-700" />
                 </button>
-
-                {/* PAGINATION CONTROLS */}
-                <div className="flex items-center gap-1.5">
-                  <span className="px-2.5 py-1 rounded-xl bg-amber-50 border border-amber-200 font-mono text-xs font-black text-amber-800">
-                    Hal {slide4Page}/{totalSlide4Pages}
-                  </span>
-                  <button
-                    onClick={() => setSlide4Page((p) => Math.max(1, p - 1))}
-                    disabled={slide4Page <= 1}
-                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-                    title="Hal Sebelumnya"
-                  >
-                    <ChevronLeft className="w-4 h-4 text-slate-700" />
-                  </button>
-                  <button
-                    onClick={() => setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1))}
-                    disabled={slide4Page >= totalSlide4Pages}
-                    className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
-                    title="Hal Berikutnya"
-                  >
-                    <ChevronRight className="w-4 h-4 text-slate-700" />
-                  </button>
-                </div>
+                <button
+                  onClick={() => setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1))}
+                  disabled={slide4Page >= totalSlide4Pages}
+                  className="p-1 rounded-lg border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-30 cursor-pointer transition"
+                  title="Hal Berikutnya"
+                >
+                  <ChevronRight className="w-4 h-4 text-slate-700" />
+                </button>
               </div>
             </div>
+
+            {/* FLOATING CIRCULAR NAVIGATION BUTTONS (LEFT & RIGHT) */}
+            {totalSlide4Pages > 1 && (
+              <>
+                {slide4Page > 1 && (
+                  <button
+                    onClick={() => setSlide4Page((p) => Math.max(1, p - 1))}
+                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
+                    title="Halaman Sebelumnya"
+                  >
+                    <ChevronLeft className="w-6 h-6" />
+                  </button>
+                )}
+                {slide4Page < totalSlide4Pages && (
+                  <button
+                    onClick={() => setSlide4Page((p) => Math.min(totalSlide4Pages, p + 1))}
+                    className="absolute -right-3 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-slate-800/80 hover:bg-slate-900 text-white flex items-center justify-center shadow-lg transition-all z-20 cursor-pointer backdrop-blur-xs"
+                    title="Halaman Berikutnya"
+                  >
+                    <ChevronRight className="w-6 h-6" />
+                  </button>
+                )}
+              </>
+            )}
 
             {/* EVENT CARDS GRID */}
             {filteredSlide4Events.length === 0 ? (
@@ -2271,7 +2257,7 @@ function LiveScoreboardContent() {
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-5 items-start">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 sm:gap-4 items-stretch">
                 {slide4PageItems.map((event) => {
                   const isPutri =
                     event.gender?.toUpperCase().includes("PI") ||
@@ -2279,388 +2265,159 @@ function LiveScoreboardContent() {
                     event.gender?.toUpperCase() === "P" ||
                     event.gender?.toUpperCase() === "W";
 
+                  const displayEventName = event.stroke
+                    ? `${event.distance ? `${event.distance} ` : ""}${event.stroke}`
+                    : event.eventName;
+
+                  const [c1, c2, c3] = event.overallChampions || [];
+
                   return (
                     <div
                       key={event.eventCode}
-                      className="bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden flex flex-col justify-between"
+                      className="bg-white rounded-2xl border border-blue-200/80 shadow-xs hover:shadow-md transition-shadow p-3.5 sm:p-4 flex flex-col justify-between gap-3 min-h-[220px]"
                     >
-                      {/* CARD HEADER BANNER */}
-                      <div className="bg-[#0b1e38] text-white p-4 flex flex-wrap items-center justify-between gap-2.5 border-b border-slate-800">
-                        <div className="flex items-center gap-2.5 flex-wrap">
-                          <span className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 font-black text-xs tracking-wider uppercase font-mono shadow-xs">
-                            ACARA #{event.eventCode}
+                      {/* CARD TOP HEADER */}
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="px-2.5 py-0.5 rounded-md bg-blue-600 text-white font-mono font-black text-xs shrink-0 shadow-2xs">
+                            #{event.eventCode}
                           </span>
-                          <h3 className="text-sm sm:text-base font-black uppercase text-white tracking-wide">
-                            {event.distance} {event.stroke || event.eventName}
+                          <h3
+                            className="text-xs sm:text-sm font-extrabold text-slate-900 tracking-tight truncate"
+                            title={displayEventName}
+                          >
+                            {displayEventName}
                           </h3>
-                          <span className="px-2 py-0.5 rounded-full bg-white/10 text-slate-200 text-[11px] font-black border border-white/20">
-                            {event.ageGroup}
-                          </span>
                         </div>
 
-                        <div className="flex items-center gap-2">
-                          {event.isGroup ? (
-                            <span className="px-2.5 py-0.5 rounded-full bg-purple-600/90 text-white text-[10px] font-black tracking-wider uppercase flex items-center gap-1 shadow-xs border border-purple-400/40">
-                              <Sparkles className="w-3 h-3 text-purple-200" />
-                              <span>GROUP ABJAD</span>
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-0.5 rounded-full bg-sky-600/90 text-white text-[10px] font-black tracking-wider uppercase flex items-center gap-1 shadow-xs border border-sky-400/40">
-                              <Timer className="w-3 h-3 text-sky-200" />
-                              <span>HEAT (TIMED FINAL)</span>
-                            </span>
-                          )}
-
-                          <span
-                            className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                              isPutri
-                                ? "bg-rose-500/20 text-rose-300 border-rose-500/40"
-                                : "bg-sky-500/20 text-sky-300 border-sky-500/40"
-                            }`}
-                          >
-                            {event.gender}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="px-2 py-0.5 rounded border border-slate-300 text-slate-700 font-bold text-[10px] sm:text-[11px] bg-slate-50">
+                            {event.ageGroup}
                           </span>
-
                           <span
-                            className={`px-2 py-0.5 rounded-md text-[10px] font-bold uppercase ${
-                              event.hasResults
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                : "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                            className={`px-2 py-0.5 rounded border font-bold text-[10px] sm:text-[11px] ${
+                              isPutri
+                                ? "bg-rose-50 text-rose-600 border-rose-200"
+                                : "bg-blue-50 text-blue-600 border-blue-200"
                             }`}
                           >
-                            {event.hasResults ? "✓ Ada Hasil" : "⏳ Menunggu"}
+                            {isPutri ? "Putri" : "Putra"}
                           </span>
                         </div>
                       </div>
 
-                      {/* CARD BODY CONTENT */}
-                      <div className="p-4 sm:p-5 space-y-4 bg-slate-50/50 flex-1">
-                        {!event.hasResults ? (
-                          <div className="bg-white p-8 rounded-xl border border-dashed border-slate-300 text-center space-y-1.5 my-2">
-                            <Clock className="w-8 h-8 text-amber-500/70 mx-auto" />
-                            <div className="text-xs font-black text-slate-800 uppercase tracking-wide">
-                              Menunggu Pencatatan Hasil Waktu Juri
-                            </div>
-                            <p className="text-[11px] text-slate-500 max-w-sm mx-auto">
-                              Juara 1, 2, dan 3 berdasarkan catatan waktu (speed time) akan dihitung otomatis segera setelah panitia memasukkan hasil lomba ({event.totalSwimmers} perenang terdaftar).
-                            </p>
-                          </div>
-                        ) : !event.isGroup ? (
-                          /* ============================================== */
-                          /* HEAT CATEGORY: PODIUM OVERALL TOP 3            */
-                          /* ============================================== */
-                          <div className="space-y-3.5">
-                            <div className="flex items-center justify-between text-xs">
-                              <span className="font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
-                                <Trophy className="w-4 h-4 text-amber-500" />
-                                <span>Podium Juara 1, 2, 3 Nomor Lomba (Waktu Tercepat):</span>
-                              </span>
-                              <span className="text-[11px] font-bold text-slate-500">
-                                {event.totalSwimmers} Peserta Lomba
-                              </span>
-                            </div>
-
-                            {/* 3 PODIUM CARDS (EMAS, PERAK, PERUNGGU) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                              {/* 🥇 JUARA 1 (EMAS) */}
-                              {event.overallChampions[0] ? (
-                                <div className="bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex items-center justify-between gap-1 mb-2">
-                                      <span className="px-2 py-0.5 bg-amber-400 text-amber-950 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1">
-                                        🥇 JUARA 1
-                                      </span>
-                                      <span className="text-[9px] font-black uppercase text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200">
-                                        EMAS
-                                      </span>
-                                    </div>
-                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
-                                      {event.overallChampions[0].swimmerName}
-                                    </div>
-                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
-                                      {event.overallChampions[0].club}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 pt-2.5 border-t border-amber-200 flex items-center justify-between">
-                                    <div>
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Waktu Resmi
-                                      </span>
-                                      <span className="text-base font-mono font-black text-amber-950">
-                                        {event.overallChampions[0].resultTime}
-                                      </span>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Lintasan
-                                      </span>
-                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
-                                        {event.overallChampions[0].heatLane}
-                                      </span>
-                                    </div>
-                                  </div>
+                      {/* CARD BODY: 3 ROWS (JUARA 1, JUARA 2, JUARA 3) */}
+                      <div className="flex-1 flex flex-col justify-between gap-2">
+                        {/* ROW 1: JUARA 1 (EMAS) HIGHLIGHT CARD */}
+                        {c1 ? (
+                          <div className="bg-[#FFFDF5] border border-amber-300/80 rounded-xl p-2.5 sm:p-3 flex items-center justify-between gap-2.5 shadow-2xs">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-2xs">
+                                <Medal className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[10px] font-black uppercase text-amber-800 tracking-wider">
+                                    JUARA 1 (EMAS)
+                                  </span>
+                                  {c1.heatLane && (
+                                    <span className="px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-mono font-bold text-[9px]">
+                                      {c1.heatLane}
+                                    </span>
+                                  )}
                                 </div>
-                              ) : (
-                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
-                                  Belum ada perenang finis Juara 1
+                                <div
+                                  className="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-tight truncate max-w-[150px] sm:max-w-[190px]"
+                                  title={c1.swimmerName}
+                                >
+                                  {c1.swimmerName}
                                 </div>
-                              )}
-
-                              {/* 🥈 JUARA 2 (PERAK) */}
-                              {event.overallChampions[1] ? (
-                                <div className="bg-gradient-to-b from-slate-100/60 to-white border-2 border-slate-300 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex items-center justify-between gap-1 mb-2">
-                                      <span className="px-2 py-0.5 bg-slate-200 text-slate-900 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1 border border-slate-300">
-                                        🥈 JUARA 2
-                                      </span>
-                                      <span className="text-[9px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">
-                                        {event.overallChampions[1].timeDiff}
-                                      </span>
-                                    </div>
-                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
-                                      {event.overallChampions[1].swimmerName}
-                                    </div>
-                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
-                                      {event.overallChampions[1].club}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between">
-                                    <div>
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Waktu Resmi
-                                      </span>
-                                      <span className="text-base font-mono font-black text-slate-800">
-                                        {event.overallChampions[1].resultTime}
-                                      </span>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Lintasan
-                                      </span>
-                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
-                                        {event.overallChampions[1].heatLane}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
-                                  Belum ada perenang finis Juara 2
-                                </div>
-                              )}
-
-                              {/* 🥉 JUARA 3 (PERUNGGU) */}
-                              {event.overallChampions[2] ? (
-                                <div className="bg-gradient-to-b from-orange-50/50 to-white border-2 border-orange-300/80 rounded-xl p-3.5 shadow-xs relative overflow-hidden flex flex-col justify-between">
-                                  <div>
-                                    <div className="flex items-center justify-between gap-1 mb-2">
-                                      <span className="px-2 py-0.5 bg-orange-200 text-orange-950 rounded-lg text-[10px] font-black tracking-wider uppercase inline-flex items-center gap-1 border border-orange-300">
-                                        🥉 JUARA 3
-                                      </span>
-                                      <span className="text-[9px] font-bold text-orange-800 bg-orange-100 px-1.5 py-0.5 rounded border border-orange-200">
-                                        {event.overallChampions[2].timeDiff}
-                                      </span>
-                                    </div>
-                                    <div className="font-black text-xs sm:text-sm text-slate-900 uppercase leading-snug line-clamp-2">
-                                      {event.overallChampions[2].swimmerName}
-                                    </div>
-                                    <div className="text-[11px] font-bold text-slate-500 truncate mt-0.5 uppercase">
-                                      {event.overallChampions[2].club}
-                                    </div>
-                                  </div>
-
-                                  <div className="mt-3 pt-2.5 border-t border-orange-200 flex items-center justify-between">
-                                    <div>
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Waktu Resmi
-                                      </span>
-                                      <span className="text-base font-mono font-black text-orange-950">
-                                        {event.overallChampions[2].resultTime}
-                                      </span>
-                                    </div>
-                                    <div className="text-right">
-                                      <span className="text-[9px] font-bold text-slate-400 block uppercase">
-                                        Lintasan
-                                      </span>
-                                      <span className="text-[11px] font-bold text-slate-700 font-mono">
-                                        {event.overallChampions[2].heatLane}
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className="bg-white border border-dashed border-slate-300 rounded-xl p-4 text-center text-slate-400 text-xs">
-                                  Belum ada perenang finis Juara 3
-                                </div>
-                              )}
-                            </div>
-
-                            {/* PER-HEAT BREAKDOWN STRIP (IF MULTIPLE HEATS) */}
-                            {event.heatBreakdowns.length > 1 && (
-                              <div className="bg-white rounded-xl border border-slate-200 p-3 space-y-2">
-                                <div className="text-[11px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5">
-                                  <SlidersHorizontal className="w-3 h-3 text-sky-600" />
-                                  <span>Hasil Juara Tercepat Per-Seri (Heat):</span>
-                                </div>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-                                  {event.heatBreakdowns.map((hb) => (
-                                    <div
-                                      key={hb.heatNum}
-                                      className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-xs space-y-1"
-                                    >
-                                      <div className="font-black text-slate-800 text-[11px] flex items-center justify-between">
-                                        <span>SERI {hb.heatNum}</span>
-                                        <span className="text-[10px] text-slate-500 font-normal">
-                                          {hb.champions.length} finis
-                                        </span>
-                                      </div>
-                                      {hb.champions.slice(0, 3).map((c, cIdx) => (
-                                        <div
-                                          key={cIdx}
-                                          className="flex items-center justify-between text-[11px]"
-                                        >
-                                          <span className="truncate pr-1 font-bold text-slate-700">
-                                            {c.rank === 1 ? "🥇" : c.rank === 2 ? "🥈" : "🥉"}{" "}
-                                            {c.swimmerName}
-                                          </span>
-                                          <span className="font-mono font-black text-slate-900 shrink-0">
-                                            {c.resultTime}
-                                          </span>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ))}
+                                <div
+                                  className="text-[10px] sm:text-[11px] font-semibold uppercase text-slate-500 truncate max-w-[150px] sm:max-w-[190px]"
+                                  title={c1.club}
+                                >
+                                  {c1.club}
                                 </div>
                               </div>
-                            )}
-                          </div>
-                        ) : (
-                          /* ============================================== */
-                          /* GROUP ABJAD CATEGORY: JUARA 1, 2, 3 PER GROUP   */
-                          /* ============================================== */
-                          <div className="space-y-3.5">
-                            <div className="flex items-center justify-between text-xs bg-purple-50/80 p-2.5 rounded-xl border border-purple-200/80">
-                              <span className="font-black text-purple-900 uppercase tracking-wide flex items-center gap-1.5">
-                                <Sparkles className="w-4 h-4 text-purple-600" />
-                                <span>Juara 1, 2, 3 di Setiap Group Abjad (Waktu Tercepat):</span>
-                              </span>
-                              <span className="text-[11px] font-bold text-purple-700">
-                                Total {event.groupBreakdowns.length} Group
-                              </span>
                             </div>
 
-                            {/* GRID OF GROUP BOXES */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                              {event.groupBreakdowns.map((grp) => (
-                                <div
-                                  key={grp.groupNum}
-                                  className="bg-white border-2 border-purple-200 rounded-xl p-3.5 shadow-2xs space-y-2.5 relative overflow-hidden"
-                                >
-                                  {/* GROUP HEADER */}
-                                  <div className="flex items-center justify-between border-b border-purple-100 pb-2">
-                                    <span className="px-2.5 py-0.5 bg-purple-600 text-white rounded-lg text-xs font-black tracking-wider uppercase shadow-xs">
-                                      GROUP {grp.groupLabel}
-                                    </span>
-                                    <span className="text-[10px] font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded">
-                                      {grp.allSwimmersCount} Perenang
-                                    </span>
-                                  </div>
-
-                                  {/* JUARA 1, 2, 3 ROWS */}
-                                  <div className="space-y-2">
-                                    {/* 🥇 JUARA 1 GROUP */}
-                                    {grp.champions[0] ? (
-                                      <div className="p-2 rounded-lg bg-amber-50/70 border border-amber-300 flex items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="px-1.5 py-0.5 rounded bg-amber-400 text-amber-950 font-black text-[9px]">
-                                              🥇 1
-                                            </span>
-                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
-                                              {grp.champions[0].swimmerName}
-                                            </span>
-                                          </div>
-                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
-                                            {grp.champions[0].club} • Line {grp.champions[0].lane}
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <div className="font-mono font-black text-xs text-amber-950">
-                                            {grp.champions[0].resultTime}
-                                          </div>
-                                          <div className="text-[9px] font-bold text-amber-700">
-                                            Waktu Tercepat
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : (
-                                      <div className="p-2 text-center text-slate-400 text-[11px] italic">
-                                        Belum ada finis di Group {grp.groupLabel}
-                                      </div>
-                                    )}
-
-                                    {/* 🥈 JUARA 2 GROUP */}
-                                    {grp.champions[1] ? (
-                                      <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 flex items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="px-1.5 py-0.5 rounded bg-slate-200 text-slate-800 font-black text-[9px]">
-                                              🥈 2
-                                            </span>
-                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
-                                              {grp.champions[1].swimmerName}
-                                            </span>
-                                          </div>
-                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
-                                            {grp.champions[1].club} • Line {grp.champions[1].lane}
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <div className="font-mono font-black text-xs text-slate-800">
-                                            {grp.champions[1].resultTime}
-                                          </div>
-                                          <div className="text-[9px] font-bold text-slate-500">
-                                            {grp.champions[1].timeDiff}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : null}
-
-                                    {/* 🥉 JUARA 3 GROUP */}
-                                    {grp.champions[2] ? (
-                                      <div className="p-2 rounded-lg bg-orange-50/50 border border-orange-200 flex items-center justify-between gap-2">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="px-1.5 py-0.5 rounded bg-orange-200 text-orange-950 font-black text-[9px]">
-                                              🥉 3
-                                            </span>
-                                            <span className="font-black text-xs text-slate-900 uppercase truncate">
-                                              {grp.champions[2].swimmerName}
-                                            </span>
-                                          </div>
-                                          <div className="text-[10px] font-medium text-slate-500 truncate pl-6">
-                                            {grp.champions[2].club} • Line {grp.champions[2].lane}
-                                          </div>
-                                        </div>
-                                        <div className="text-right shrink-0">
-                                          <div className="font-mono font-black text-xs text-orange-950">
-                                            {grp.champions[2].resultTime}
-                                          </div>
-                                          <div className="text-[9px] font-bold text-orange-700">
-                                            {grp.champions[2].timeDiff}
-                                          </div>
-                                        </div>
-                                      </div>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              ))}
+                            <div className="text-right shrink-0">
+                              <div className="font-mono font-black text-sm sm:text-base text-emerald-800 tracking-tight">
+                                {c1.resultTime}
+                              </div>
+                              <div className="font-mono text-[10px] text-slate-400">
+                                {c1.timeDiff || "0.00"}
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="bg-slate-50 border border-dashed border-slate-200 rounded-xl p-3 text-center space-y-1">
+                            <Clock className="w-5 h-5 text-amber-500 mx-auto" />
+                            <div className="text-[11px] font-bold text-slate-600">
+                              Menunggu Pencatatan Hasil Waktu
                             </div>
                           </div>
                         )}
+
+                        {/* ROW 2: JUARA 2 (PERAK) */}
+                        {c2 ? (
+                          <div className="flex items-center justify-between gap-2 px-1 py-1 text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm shrink-0">🥈</span>
+                              <span className="font-black text-slate-800 text-xs shrink-0">2</span>
+                              <span
+                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate max-w-[130px] sm:max-w-[150px]"
+                                title={c2.swimmerName}
+                              >
+                                {c2.swimmerName}
+                              </span>
+                              <span
+                                className="text-[10px] font-semibold text-slate-400 uppercase truncate max-w-[100px] sm:max-w-[120px]"
+                                title={c2.club}
+                              >
+                                ({c2.club})
+                              </span>
+                              {c2.heatLane && (
+                                <span className="text-[9px] font-mono font-bold text-sky-600 shrink-0">
+                                  {c2.heatLane}
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-mono font-black text-xs sm:text-sm text-slate-900 shrink-0">
+                              {c2.resultTime}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* ROW 3: JUARA 3 (PERUNGGU) */}
+                        {c3 ? (
+                          <div className="flex items-center justify-between gap-2 px-1 py-1 text-xs">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="text-sm shrink-0">🥉</span>
+                              <span className="font-black text-slate-800 text-xs shrink-0">3</span>
+                              <span
+                                className="font-black uppercase text-slate-900 text-[11px] sm:text-xs truncate max-w-[130px] sm:max-w-[150px]"
+                                title={c3.swimmerName}
+                              >
+                                {c3.swimmerName}
+                              </span>
+                              <span
+                                className="text-[10px] font-semibold text-slate-400 uppercase truncate max-w-[100px] sm:max-w-[120px]"
+                                title={c3.club}
+                              >
+                                ({c3.club})
+                              </span>
+                              {c3.heatLane && (
+                                <span className="text-[9px] font-mono font-bold text-sky-600 shrink-0">
+                                  {c3.heatLane}
+                                </span>
+                              )}
+                            </div>
+                            <div className="font-mono font-black text-xs sm:text-sm text-slate-900 shrink-0">
+                              {c3.resultTime}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   );

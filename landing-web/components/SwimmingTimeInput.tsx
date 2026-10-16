@@ -12,6 +12,40 @@ export interface SwimmingTimeInputProps {
   size?: "sm" | "md" | "lg";
   className?: string;
   showLabels?: boolean;
+  dataRegId?: number | string;
+}
+
+// Convert any incoming time format (e.g. "01.25.43", "28.14", "01:25.43") into clean digits string (max 6 digits)
+function extractDigits(val?: string): string {
+  if (!val || val === "-" || val.toUpperCase() === "NT") return "";
+  const clean = val.trim().replace(/:/g, ".");
+  const parts = clean.split(".");
+  if (parts.length === 2) {
+    const s = parts[0].replace(/\D/g, "").slice(0, 2);
+    const ms = parts[1].replace(/\D/g, "").slice(0, 2);
+    const combined = `00${s.padStart(2, "0")}${ms.padEnd(2, "0")}`;
+    const num = combined.replace(/^0+/, "");
+    return num || "";
+  } else if (parts.length >= 3) {
+    const m = parts[0].replace(/\D/g, "").slice(0, 2);
+    const s = parts[1].replace(/\D/g, "").slice(0, 2);
+    const ms = parts[2].replace(/\D/g, "").slice(0, 2);
+    const combined = `${m.padStart(2, "0")}${s.padStart(2, "0")}${ms.padEnd(2, "0")}`;
+    const num = combined.replace(/^0+/, "");
+    return num || "";
+  }
+  const onlyDigits = val.replace(/\D/g, "").slice(0, 6);
+  return onlyDigits.replace(/^0+/, "");
+}
+
+// Format digits into fixed MM.SS.MS format with static dots (e.g. "2814" -> "00.28.14")
+function formatDigits(digits: string): string {
+  if (!digits) return "00.00.00";
+  const padded = digits.padStart(6, "0").slice(-6);
+  const mm = padded.slice(0, 2);
+  const ss = padded.slice(2, 4);
+  const ms = padded.slice(4, 6);
+  return `${mm}.${ss}.${ms}`;
 }
 
 export default function SwimmingTimeInput({
@@ -24,286 +58,170 @@ export default function SwimmingTimeInput({
   size = "md",
   className = "",
   showLabels = false,
+  dataRegId,
 }: SwimmingTimeInputProps) {
-  const mmRef = useRef<HTMLInputElement>(null);
-  const ssRef = useRef<HTMLInputElement>(null);
-  const msRef = useRef<HTMLInputElement>(null);
-
-  // Parse incoming value into mm, ss, ms
-  const parseVal = (v?: string) => {
-    if (!v || v === "-" || v.toUpperCase() === "NT") {
-      return { mm: "00", ss: "00", ms: "00" };
-    }
-    const clean = v.trim().replace(/:/g, ".");
-    const parts = clean.split(".");
-    if (parts.length >= 3) {
-      return {
-        mm: parts[0].replace(/\D/g, "").slice(0, 2),
-        ss: parts[1].replace(/\D/g, "").slice(0, 2),
-        ms: parts[2].replace(/\D/g, "").slice(0, 2),
-      };
-    } else if (parts.length === 2) {
-      return {
-        mm: "00",
-        ss: parts[0].replace(/\D/g, "").slice(0, 2),
-        ms: parts[1].replace(/\D/g, "").slice(0, 2),
-      };
-    }
-    return { mm: "00", ss: "00", ms: "00" };
-  };
-
-  const initial = parseVal(value);
-  const [mm, setMm] = useState<string>(initial.mm);
-  const [ss, setSs] = useState<string>(initial.ss);
-  const [ms, setMs] = useState<string>(initial.ms);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [digits, setDigits] = useState<string>(() => extractDigits(value));
   const [isFocused, setIsFocused] = useState<boolean>(false);
+  const [shouldReplace, setShouldReplace] = useState<boolean>(true);
 
   // Sync state if external value changes while NOT focused
   useEffect(() => {
     if (isFocused) return;
-    const parsed = parseVal(value);
-    setMm(parsed.mm);
-    setSs(parsed.ss);
-    setMs(parsed.ms);
+    setDigits(extractDigits(value));
+    setShouldReplace(true);
   }, [value, isFocused]);
 
-  // Autofocus on mount if requested
+  // Autofocus and select on mount if requested
   useEffect(() => {
-    if (autoFocus && mmRef.current) {
-      mmRef.current.focus();
-      mmRef.current.select();
+    if (autoFocus && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
     }
   }, [autoFocus]);
 
-  const emitChange = (newMm: string, newSs: string, newMs: string) => {
-    const pad = (s: string) => (s ? s.padStart(2, "0") : "00");
-    const formatted = `${pad(newMm)}.${pad(newSs)}.${pad(newMs)}`;
-    onChange(formatted);
-  };
+  const displayValue = formatDigits(digits);
 
-  const handleMmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setMm(val);
-    emitChange(val, ss, ms);
-  };
-
-  const handleSsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setSs(val);
-    emitChange(mm, val, ms);
-  };
-
-  const handleMsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, "").slice(0, 2);
-    setMs(val);
-    emitChange(mm, ss, val);
+  const handleFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    setIsFocused(true);
+    setShouldReplace(true);
+    e.target.select();
   };
 
   const handleBlur = () => {
     setIsFocused(false);
-    const pad = (s: string) => (s ? s.padStart(2, "0") : "00");
-    const finalMm = pad(mm);
-    const finalSs = pad(ss);
-    const finalMs = pad(ms);
-    setMm(finalMm);
-    setSs(finalSs);
-    setMs(finalMs);
-    onChange(`${finalMm}.${finalSs}.${finalMs}`);
+    setShouldReplace(true);
+    onChange(formatDigits(digits));
   };
 
-  const handleKeyDown = (
-    e: React.KeyboardEvent<HTMLInputElement>,
-    field: "mm" | "ss" | "ms"
-  ) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") {
       e.preventDefault();
       onEnter?.();
-    } else if (e.key === "Escape") {
+      return;
+    }
+    if (e.key === "Escape") {
       e.preventDefault();
       onEscape?.();
-    } else if (e.key === "." || e.key === ":") {
+      return;
+    }
+    if (
+      e.key === "Tab" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown"
+    ) {
+      setShouldReplace(false);
+      return;
+    }
+
+    if (e.key === "Backspace") {
       e.preventDefault();
-      if (field === "mm" && ssRef.current) {
-        ssRef.current.focus();
-        ssRef.current.select();
-      } else if (field === "ss" && msRef.current) {
-        msRef.current.focus();
-        msRef.current.select();
+      if (shouldReplace) {
+        setDigits("");
+        setShouldReplace(false);
+        onChange("00.00.00");
+        return;
       }
-    } else if (e.key === "Backspace") {
-      if (field === "ms" && !ms && ssRef.current) {
-        e.preventDefault();
-        ssRef.current.focus();
-        ssRef.current.select();
-      } else if (field === "ss" && !ss && mmRef.current) {
-        e.preventDefault();
-        mmRef.current.focus();
-        mmRef.current.select();
-      }
-    } else if (e.key === "ArrowRight") {
-      const input = e.currentTarget;
-      if (input.selectionStart === input.value.length) {
-        if (field === "mm" && ssRef.current) {
-          e.preventDefault();
-          ssRef.current.focus();
-          ssRef.current.select();
-        } else if (field === "ss" && msRef.current) {
-          e.preventDefault();
-          msRef.current.focus();
-          msRef.current.select();
-        }
-      }
-    } else if (e.key === "ArrowLeft") {
-      const input = e.currentTarget;
-      if (input.selectionStart === 0) {
-        if (field === "ms" && ssRef.current) {
-          e.preventDefault();
-          ssRef.current.focus();
-          ssRef.current.select();
-        } else if (field === "ss" && mmRef.current) {
-          e.preventDefault();
-          mmRef.current.focus();
-          mmRef.current.select();
-        }
-      }
+      const nextDigits = digits.slice(0, -1);
+      setDigits(nextDigits);
+      onChange(formatDigits(nextDigits));
+      return;
     }
-  };
 
-  const handlePaste = (e: React.ClipboardEvent) => {
+    if (e.key === "Delete") {
+      e.preventDefault();
+      setDigits("");
+      setShouldReplace(false);
+      onChange("00.00.00");
+      return;
+    }
+
+    if (e.key === "." || e.key === ":") {
+      e.preventDefault();
+      setShouldReplace(false);
+      if (digits.length > 0 && digits.length <= 2) {
+        // User typed seconds (e.g. "28"), shift to seconds column
+        const nextDigits = digits + "00";
+        setDigits(nextDigits);
+        onChange(formatDigits(nextDigits));
+      }
+      return;
+    }
+
+    // Only allow numeric digits 0-9
+    if (/^[0-9]$/.test(e.key)) {
+      e.preventDefault();
+      let nextDigits = digits;
+      if (shouldReplace) {
+        nextDigits = e.key === "0" ? "" : e.key;
+        setShouldReplace(false);
+      } else {
+        if (nextDigits.length >= 6) return;
+        nextDigits = (nextDigits + e.key).replace(/^0+/, "");
+      }
+      setDigits(nextDigits);
+      onChange(formatDigits(nextDigits));
+      return;
+    }
+
+    // Block any other key to enforce strict numeric entry
     e.preventDefault();
-    const text = e.clipboardData.getData("text").trim().replace(/:/g, ".");
-    let parsed = { mm: "00", ss: "00", ms: "00" };
-
-    if (text.includes(".")) {
-      const parts = text.split(".");
-      if (parts.length >= 3) {
-        parsed = {
-          mm: parts[0].replace(/\D/g, "").padStart(2, "0").slice(-2),
-          ss: parts[1].replace(/\D/g, "").padStart(2, "0").slice(-2),
-          ms: parts[2].replace(/\D/g, "").padStart(2, "0").slice(-2),
-        };
-      } else if (parts.length === 2) {
-        parsed = {
-          mm: "00",
-          ss: parts[0].replace(/\D/g, "").padStart(2, "0").slice(-2),
-          ms: parts[1].replace(/\D/g, "").padStart(2, "0").slice(-2),
-        };
-      }
-    } else {
-      const digits = text.replace(/\D/g, "");
-      if (digits.length >= 6) {
-        parsed = {
-          mm: digits.slice(0, 2),
-          ss: digits.slice(2, 4),
-          ms: digits.slice(4, 6),
-        };
-      } else if (digits.length >= 4) {
-        parsed = {
-          mm: "00",
-          ss: digits.slice(0, 2),
-          ms: digits.slice(2, 4),
-        };
-      }
-    }
-
-    setMm(parsed.mm);
-    setSs(parsed.ss);
-    setMs(parsed.ms);
-    onChange(`${parsed.mm}.${parsed.ss}.${parsed.ms}`);
   };
 
-  // Dimensions & font sizing based on prop
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const text = e.clipboardData.getData("text");
+    const extracted = extractDigits(text);
+    setDigits(extracted);
+    setShouldReplace(false);
+    onChange(formatDigits(extracted));
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const raw = e.target.value;
+    const extracted = extractDigits(raw);
+    setDigits(extracted);
+    setShouldReplace(false);
+    onChange(formatDigits(extracted));
+  };
+
+  // Dimensions based on prop
   const isSm = size === "sm";
-  const boxHeight = isSm ? "h-8" : "h-10";
-  const inputWidth = isSm ? "w-7" : "w-9";
-  const textSize = isSm ? "text-xs" : "text-sm";
+  const isLg = size === "lg";
+  const boxHeight = isSm ? "h-8" : isLg ? "h-11" : "h-10";
+  const boxWidth = isSm ? "w-28" : isLg ? "w-36" : "w-32";
+  const textSize = isSm ? "text-xs" : isLg ? "text-base" : "text-sm";
 
   return (
     <div className={`inline-flex flex-col items-center ${className}`}>
-      <div
-        className={`inline-flex items-center justify-center font-mono font-black transition-all ${boxHeight} ${
+      <input
+        ref={inputRef}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        disabled={disabled}
+        value={displayValue}
+        data-reg-id={dataRegId}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
+        onChange={handleChange}
+        onKeyDown={handleKeyDown}
+        onPaste={disabled ? undefined : handlePaste}
+        placeholder="00.00.00"
+        title="Input catatan waktu lomba (Format 00.00.00 - Ketik angka saja)"
+        className={`${boxWidth} ${boxHeight} ${textSize} text-center font-mono font-black tracking-widest transition-all rounded-xl select-all ${
           disabled
             ? "bg-slate-100 border-2 border-slate-200 text-slate-400 cursor-not-allowed opacity-75"
             : isFocused
-            ? "bg-white border-2 border-sky-500 ring-2 ring-sky-100 shadow-sm text-slate-900"
-            : "bg-white border-2 border-sky-400 hover:border-sky-500 shadow-xs text-slate-900"
-        } rounded-2xl px-2.5 py-0.5 select-none`}
-        onPaste={disabled ? undefined : handlePaste}
-      >
-        {/* MM (Menit) */}
-        <input
-          ref={mmRef}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          disabled={disabled}
-          value={mm}
-          onFocus={(e) => {
-            setIsFocused(true);
-            e.target.select();
-          }}
-          onBlur={handleBlur}
-          onChange={handleMmChange}
-          onKeyDown={(e) => handleKeyDown(e, "mm")}
-          placeholder="00"
-          className={`${inputWidth} ${textSize} text-center bg-transparent font-black tracking-tight focus:outline-none disabled:cursor-not-allowed focus:bg-sky-50/70 rounded`}
-          title="Menit (00-59)"
-        />
-
-        <span className={`px-0.5 font-black text-sky-600 select-none ${isSm ? "text-xs" : "text-sm"}`}>
-          .
-        </span>
-
-        {/* SS (Detik) */}
-        <input
-          ref={ssRef}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          disabled={disabled}
-          value={ss}
-          onFocus={(e) => {
-            setIsFocused(true);
-            e.target.select();
-          }}
-          onBlur={handleBlur}
-          onChange={handleSsChange}
-          onKeyDown={(e) => handleKeyDown(e, "ss")}
-          placeholder="00"
-          className={`${inputWidth} ${textSize} text-center bg-transparent font-black tracking-tight focus:outline-none disabled:cursor-not-allowed focus:bg-sky-50/70 rounded`}
-          title="Detik (00-59)"
-        />
-
-        <span className={`px-0.5 font-black text-sky-600 select-none ${isSm ? "text-xs" : "text-sm"}`}>
-          .
-        </span>
-
-        {/* ms (Ratusan Detik / Milidetik) */}
-        <input
-          ref={msRef}
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
-          disabled={disabled}
-          value={ms}
-          onFocus={(e) => {
-            setIsFocused(true);
-            e.target.select();
-          }}
-          onBlur={handleBlur}
-          onChange={handleMsChange}
-          onKeyDown={(e) => handleKeyDown(e, "ms")}
-          placeholder="00"
-          className={`${inputWidth} ${textSize} text-center bg-transparent font-black tracking-tight focus:outline-none disabled:cursor-not-allowed focus:bg-sky-50/70 rounded`}
-          title="1/100 Detik (00-99)"
-        />
-      </div>
+            ? "bg-white border-2 border-sky-500 ring-2 ring-sky-200 text-sky-950 shadow-sm"
+            : "bg-sky-50/40 border-2 border-sky-300 hover:border-sky-400 text-slate-800 shadow-2xs"
+        } focus:outline-none`}
+      />
 
       {showLabels && (
-        <div className="flex items-center justify-between w-full px-3 mt-1 text-[9px] font-black uppercase text-slate-400">
+        <div className="flex items-center justify-between w-full px-2 mt-1 text-[9px] font-black uppercase text-slate-400 tracking-wider">
           <span>Menit</span>
           <span>Detik</span>
           <span>1/100s</span>

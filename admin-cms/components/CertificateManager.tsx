@@ -200,6 +200,7 @@ export interface WatermarkConfig {
   bodyVenueText: string;
   bodyLocationText: string;
   useCustomBodyText: boolean;
+  timeLabel?: string;
 }
 
 const DEFAULT_CONFIG: WatermarkConfig = {
@@ -222,6 +223,7 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   bodyVenueText: "MODERN GOLF AND COUNTRY CLUB",
   bodyLocationText: "KOTA MODERN, KOTA TANGERANG",
   useCustomBodyText: false,
+  timeLabel: "OFFICIAL TIME:",
 };
 
 interface CertificateManagerProps {
@@ -1372,10 +1374,52 @@ export default function CertificateManager({
                           {formatEventRaceLine(activeCertificate)}
                         </div>
 
+                        {/* 12b. OFFICIAL TIME RESULT (WAKTU RESMI) */}
+                        {Boolean(
+                          activeCertificate.timeResult &&
+                            activeCertificate.timeResult.trim() !== "" &&
+                            activeCertificate.timeResult !== "-" &&
+                            !/^0+(\.0+)*$/.test(activeCertificate.timeResult)
+                        ) && (
+                          <div
+                            style={{
+                              marginTop: "7px",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "5px",
+                              fontSize: "9.5px",
+                              letterSpacing: "0.8px",
+                              textTransform: "uppercase",
+                            }}
+                          >
+                            <span style={{ color: "#475569", fontWeight: 700 }}>
+                              {config.timeLabel || "OFFICIAL TIME:"}
+                            </span>
+                            <span
+                              style={{
+                                fontFamily: "'Oswald', 'Roboto Condensed', 'Courier New', monospace",
+                                fontWeight: 700,
+                                fontSize: "11px",
+                                color: "#0f766e",
+                                letterSpacing: "0.5px",
+                              }}
+                            >
+                              {activeCertificate.timeResult}
+                            </span>
+                          </div>
+                        )}
+
                         {/* 13. PARTICIPATION DETAILS (+10%, GAP 30PX, LINE-HEIGHT ~1.45) */}
                         <div
                           style={{
-                            marginTop: "30px",
+                            marginTop: Boolean(
+                              activeCertificate.timeResult &&
+                                activeCertificate.timeResult.trim() !== "" &&
+                                activeCertificate.timeResult !== "-" &&
+                                !/^0+(\.0+)*$/.test(activeCertificate.timeResult)
+                            )
+                              ? "20px"
+                              : "30px",
                             width: "320px",
                             fontSize: "8.8px",
                             lineHeight: "12.8px",
@@ -1783,6 +1827,19 @@ export default function CertificateManager({
                           value={config.bodyLocationText}
                           onChange={(e) => saveConfig({ ...config, bodyLocationText: e.target.value })}
                           placeholder="KOTA MODERN, KOTA TANGERANG"
+                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
+                        />
+                      </div>
+
+                      <div className="sm:col-span-2">
+                        <label className="block text-[10px] font-bold text-slate-600 mb-1">
+                          Label Catatan Waktu Resmi di Sertifikat (Default: OFFICIAL TIME:)
+                        </label>
+                        <input
+                          type="text"
+                          value={config.timeLabel !== undefined ? config.timeLabel : "OFFICIAL TIME:"}
+                          onChange={(e) => saveConfig({ ...config, timeLabel: e.target.value })}
+                          placeholder="OFFICIAL TIME:"
                           className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-900"
                         />
                       </div>
