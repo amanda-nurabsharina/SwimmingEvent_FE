@@ -151,6 +151,8 @@ export default function ChampionsView({
             margin-bottom: 12px !important;
           }
           .print-event-title-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
             break-after: avoid !important;
             page-break-after: avoid !important;
           }
@@ -158,6 +160,35 @@ export default function ChampionsView({
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             margin-bottom: 4px !important;
+          }
+          .print-podium-table {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-bottom: 4px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+          }
+          thead {
+            display: table-header-group !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          td, th {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -697,7 +728,7 @@ export default function ChampionsView({
                 </div>
               ) : !champ.isGroup ? (
                 /* HEAT ANGKA (JUARA 1, 2, 3 PODIUM) */
-                <div className="print-heat-block">
+                <div className="print-podium-table">
                   <table className="w-full border-collapse text-[9px] leading-tight">
                     <thead>
                       <tr className="border-b border-black text-black font-bold">
@@ -767,7 +798,7 @@ export default function ChampionsView({
                 </div>
               ) : (
                 /* GROUP ABJAD (SEMUA PESERTA TIAP GROUP) */
-                <div className="print-heat-block">
+                <div className="print-podium-table">
                   <table className="w-full border-collapse text-[9px] leading-tight">
                     <thead>
                       <tr className="border-b border-black text-black font-bold">

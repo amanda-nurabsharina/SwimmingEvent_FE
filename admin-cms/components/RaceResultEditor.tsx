@@ -1533,6 +1533,8 @@ export default function RaceResultEditor({
             margin-bottom: 12px !important;
           }
           .print-event-title-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
             break-after: avoid !important;
             page-break-after: avoid !important;
           }
@@ -1540,6 +1542,30 @@ export default function RaceResultEditor({
             break-inside: avoid !important;
             page-break-inside: avoid !important;
             margin-bottom: 4px !important;
+          }
+          table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+          }
+          thead {
+            display: table-header-group !important;
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          tbody {
+            display: table-row-group !important;
+          }
+          tr {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+          }
+          td, th {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
