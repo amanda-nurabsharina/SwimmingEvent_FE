@@ -24,6 +24,65 @@ interface ChampionsViewProps {
   isPublic?: boolean;
 }
 
+function formatIndonesianDate(dateStr?: string, fallbackDate?: string): string {
+  if (!dateStr || !dateStr.trim()) {
+    if (fallbackDate && fallbackDate.trim()) return formatIndonesianDate(fallbackDate);
+    return "1 OKTOBER 2026";
+  }
+  const months = [
+    "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
+    "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
+  ];
+  const parts = dateStr.trim().split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      const year = parts[0];
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    } else if (parts[2].length === 4) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parts[2];
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    }
+  }
+  return dateStr.toUpperCase();
+}
+
+function getEventDisplayName(event: EventGroupData): string {
+  if (!event) return "-";
+  const dist = (event.distance || "").toUpperCase().trim();
+  let strk = (event.stroke || event.event_name || "").toUpperCase().trim();
+
+  if (strk === "FREESTYLE") strk = "GAYA BEBAS";
+  else if (strk === "BREASTSTROKE") strk = "GAYA DADA";
+  else if (strk === "BACKSTROKE") strk = "GAYA PUNGGUNG";
+  else if (strk === "BUTTERFLY") strk = "GAYA KUPU-KUPU";
+  else if (strk === "INDIVIDUALMEDLEY" || strk === "MEDLEY") strk = "GAYA GANTI PERORANGAN";
+  else if (strk === "FREESTYLE_FIN") strk = "GAYA BEBAS FIN";
+  else if (strk === "BACKSTROKE_FIN") strk = "GAYA PUNGGUNG FIN";
+  else if (strk === "BUTTERFLY_FIN") strk = "GAYA KUPU-KUPU FIN";
+  else if (strk === "KICKING_BOARD") strk = "KICKING BOARD";
+
+  const parts: string[] = [];
+  if (dist && !strk.includes(dist)) {
+    parts.push(dist);
+  }
+  parts.push(strk);
+
+  const g = (event.gender || "").toUpperCase().trim();
+  if (g && !strk.includes(g)) {
+    parts.push(g);
+  }
+
+  return `${parts.join(" ")}, SCM`;
+}
+
 export default function ChampionsView({
   events,
   tournamentName,
@@ -57,20 +116,23 @@ export default function ChampionsView({
   }
 
   return (
-    <div className="space-y-8 print:space-y-4">
-      {/* Global Print Stylesheet */}
+    <div className="space-y-8 print:space-y-0">
+      {/* Global Print Stylesheet (Matches Buku Acara) */}
       <style jsx global>{`
         @media print {
           @page {
             size: a4 portrait;
-            margin: 10mm 8mm;
+            margin: 7mm 6mm;
           }
           body {
             background: white !important;
             color: black !important;
             margin: 0 !important;
             padding: 0 !important;
-            font-size: 11px !important;
+            font-size: 9.5px !important;
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
           }
           .no-print {
             display: none !important;
@@ -78,45 +140,34 @@ export default function ChampionsView({
           aside, nav, header {
             display: none !important;
           }
-          .print-event-block {
+          .print-meet-header {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            margin-bottom: 6px !important;
+          }
+          .print-event-section {
             break-inside: auto !important;
             page-break-inside: auto !important;
-            margin-top: 0 !important;
-            margin-bottom: 16px !important;
-            overflow: visible !important;
+            margin-bottom: 12px !important;
           }
-          .print-event-header {
+          .print-event-title-block {
             break-after: avoid !important;
             page-break-after: avoid !important;
           }
-          .print-podium-block {
+          .print-heat-block {
             break-inside: avoid !important;
             page-break-inside: avoid !important;
-            margin-bottom: 12px !important;
-          }
-          table {
-            border-collapse: collapse !important;
-            width: 100% !important;
-          }
-          thead {
-            display: table-header-group !important;
-          }
-          tbody {
-            display: table-row-group !important;
-          }
-          tr {
-            break-inside: avoid !important;
-            page-break-inside: avoid !important;
-          }
-          th, td {
-            border: none !important;
-            padding: 3px 6px !important;
+            margin-bottom: 4px !important;
           }
         }
       `}</style>
 
-      {/* Top Title Banner */}
-      <div className="no-print bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 p-6 rounded-3xl text-white shadow-lg shadow-amber-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      {/* ============================================================ */}
+      {/* 1. SCREEN VIEW (INTERACTIVE & RICH PODIUM CARDS)            */}
+      {/* ============================================================ */}
+      <div className="no-print space-y-8">
+        {/* Top Title Banner */}
+        <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 p-6 rounded-3xl text-white shadow-lg shadow-amber-500/20 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center text-white shrink-0 border border-white/30 shadow-inner">
             <Trophy className="w-8 h-8 text-amber-200" />
@@ -585,6 +636,199 @@ export default function ChampionsView({
                   </div>
                 )}
               </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+
+      {/* ============================================================ */}
+      {/* 2. DENSE OFFICIAL PRINT-ONLY VIEW FOR PODIUM JUARA           */}
+      {/* ============================================================ */}
+      <div className="hidden print:block space-y-3">
+        {/* Document Header */}
+        <div className="text-center pb-2 mb-3 border-b-2 border-black print-meet-header">
+          <h1 className="text-xl font-bold uppercase tracking-widest text-black font-serif">
+            Hasil Juara &amp; Podium
+          </h1>
+          <p className="text-xs font-bold uppercase text-slate-800 tracking-wider">
+            {tournamentName || "Kejuaraan Renang Resmi"}
+          </p>
+        </div>
+
+        {/* Events Stream */}
+        {events.map((event, eventIdx) => {
+          const champ = calculateEventChampions(event);
+          const eventName = getEventDisplayName(event);
+
+          return (
+            <div
+              key={`podium-print-${event.event_code || ""}-${eventIdx}`}
+              className="print-event-section mb-3"
+            >
+              {/* Event Header Banner (Exact official PB PRSI format) */}
+              <div className="border-b-2 border-black pb-1 mb-1 print-event-title-block">
+                <div className="flex justify-between items-end">
+                  <div>
+                    <div className="text-sm font-black text-black">
+                      Acara {event.event_code}
+                    </div>
+                    <div className="text-[10px] font-bold text-black uppercase tracking-wide">
+                      {formatIndonesianDate(event.schedule_date)}
+                    </div>
+                  </div>
+                  <div className="text-center font-black text-xs text-black uppercase tracking-wider">
+                    {eventName}
+                  </div>
+                  <div className="text-right font-black text-xs text-black uppercase">
+                    {champ.isGroup ? "GROUP ABJAD" : "TIMED FINAL"}
+                  </div>
+                </div>
+                <div className="flex items-center gap-6 text-[9.5px] font-bold text-black border-t border-black pt-0.5 mt-1">
+                  <span className="w-28">Limit Perlombaan</span>
+                  <span>NO LIMIT ({event.age_group ? event.age_group.toUpperCase() : "OPEN"}) • {event.gender}</span>
+                </div>
+              </div>
+
+              {/* Dense Podium Table */}
+              {!champ.hasResults ? (
+                <div className="py-1 text-center text-[9px] font-bold text-slate-500 italic border-b border-black mb-1">
+                  (Belum ada catatan waktu hasil lomba tercatat untuk nomor ini)
+                </div>
+              ) : !champ.isGroup ? (
+                /* HEAT ANGKA (JUARA 1, 2, 3 PODIUM) */
+                <div className="print-heat-block">
+                  <table className="w-full border-collapse text-[9px] leading-tight">
+                    <thead>
+                      <tr className="border-b border-black text-black font-bold">
+                        <th className="py-0.5 px-1 text-left w-36">Peringkat</th>
+                        <th className="py-0.5 px-1 text-center w-16">Seri-Ln</th>
+                        <th className="py-0.5 px-1 text-left w-14">ID</th>
+                        <th className="py-0.5 px-1 text-left">Nama Atlet</th>
+                        <th className="py-0.5 px-1 text-center w-12">KU</th>
+                        <th className="py-0.5 px-1 text-left w-44">Nama Tim</th>
+                        <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
+                        <th className="py-0.5 px-1 text-right w-20">Hasil Lomba</th>
+                        <th className="py-0.5 px-1 text-right w-16">Selisih</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {[
+                        { label: "🥇 Juara 1 (Emas)", data: champ.juara1, diff: "00.00" },
+                        { label: "🥈 Juara 2 (Perak)", data: champ.juara2, diff: champ.juara2?.timeDiff || "-" },
+                        { label: "🥉 Juara 3 (Perunggu)", data: champ.juara3, diff: champ.juara3?.timeDiff || "-" },
+                      ]
+                        .filter((item) => Boolean(item.data))
+                        .map((row, rIdx) => {
+                          const swimmer = row.data!;
+                          const seedTime =
+                            swimmer.time_seed && swimmer.time_seed.trim() !== "" && swimmer.time_seed !== "-"
+                              ? swimmer.time_seed
+                              : "99.99.99";
+
+                          return (
+                            <tr key={rIdx} className="text-black">
+                              <td className="py-0.5 px-1 text-left font-bold">{row.label}</td>
+                              <td className="py-0.5 px-1 text-center font-mono">
+                                H{swimmer.heat} • L{swimmer.line}
+                              </td>
+                              <td className="py-0.5 px-1 text-left font-mono">
+                                {swimmer.registration_id || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
+                                {swimmer.nama}
+                              </td>
+                              <td className="py-0.5 px-1 text-center font-bold uppercase">
+                                {event.age_group || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
+                                {swimmer.club || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
+                              <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
+                                {swimmer.result}
+                              </td>
+                              <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-700">
+                                {row.diff}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                  <div className="border-b border-black mb-1" />
+                </div>
+              ) : (
+                /* GROUP ABJAD (JUARA TIAP GROUP) */
+                <div className="print-heat-block">
+                  <table className="w-full border-collapse text-[9px] leading-tight">
+                    <thead>
+                      <tr className="border-b border-black text-black font-bold">
+                        <th className="py-0.5 px-1 text-center w-20">Group</th>
+                        <th className="py-0.5 px-1 text-left w-28">Peringkat</th>
+                        <th className="py-0.5 px-1 text-center w-12">Ln</th>
+                        <th className="py-0.5 px-1 text-left w-14">ID</th>
+                        <th className="py-0.5 px-1 text-left">Nama Atlet</th>
+                        <th className="py-0.5 px-1 text-center w-12">KU</th>
+                        <th className="py-0.5 px-1 text-left w-44">Nama Tim</th>
+                        <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
+                        <th className="py-0.5 px-1 text-right w-20">Hasil Lomba</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {champ.groupResults.map((group, gIdx) => {
+                        const winner = group.winner;
+                        if (!winner) {
+                          return (
+                            <tr key={gIdx} className="text-black">
+                              <td className="py-0.5 px-1 text-center font-bold font-mono">
+                                Group {group.groupLabel}
+                              </td>
+                              <td
+                                className="py-0.5 px-1 text-center text-slate-500 font-bold italic"
+                                colSpan={8}
+                              >
+                                (Belum ada catatan waktu tercatat di group ini)
+                              </td>
+                            </tr>
+                          );
+                        }
+                        const seedTime =
+                          winner.time_seed && winner.time_seed.trim() !== "" && winner.time_seed !== "-"
+                            ? winner.time_seed
+                            : "99.99.99";
+
+                        return (
+                          <tr key={gIdx} className="text-black">
+                            <td className="py-0.5 px-1 text-center font-bold font-mono">
+                              Group {group.groupLabel}
+                            </td>
+                            <td className="py-0.5 px-1 text-left font-bold">★ Juara Group</td>
+                            <td className="py-0.5 px-1 text-center font-bold">{winner.line}</td>
+                            <td className="py-0.5 px-1 text-left font-mono">
+                              {winner.registration_id || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
+                              {winner.nama}
+                            </td>
+                            <td className="py-0.5 px-1 text-center font-bold uppercase">
+                              {event.age_group || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
+                              {winner.club || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
+                            <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
+                              {winner.result}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <div className="border-b border-black mb-1" />
+                </div>
+              )}
             </div>
           );
         })}

@@ -43,6 +43,7 @@ import {
   ExternalLink,
   Layers,
   SlidersHorizontal,
+  Printer,
 } from "lucide-react";
 import ChampionsView from "./ChampionsView";
 import SwimmingTimeInput from "./SwimmingTimeInput";
@@ -408,6 +409,101 @@ export const matchDistance = (
   return numRegex.test(n);
 };
 
+export function formatIndonesianDate(dateStr?: string, fallbackDate?: string): string {
+  if (!dateStr || !dateStr.trim()) {
+    if (fallbackDate && fallbackDate.trim()) return formatIndonesianDate(fallbackDate);
+    return "1 OKTOBER 2026";
+  }
+  const months = [
+    "JANUARI", "FEBRUARI", "MARET", "APRIL", "MEI", "JUNI",
+    "JULI", "AGUSTUS", "SEPTEMBER", "OKTOBER", "NOVEMBER", "DESEMBER"
+  ];
+  const parts = dateStr.trim().split(/[-/]/);
+  if (parts.length === 3) {
+    if (parts[0].length === 4) {
+      const year = parts[0];
+      const month = parseInt(parts[1], 10) - 1;
+      const day = parseInt(parts[2], 10);
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    } else if (parts[2].length === 4) {
+      const day = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10) - 1;
+      const year = parts[2];
+      if (month >= 0 && month < 12) {
+        return `${day} ${months[month]} ${year}`;
+      }
+    }
+  }
+  return dateStr.toUpperCase();
+}
+
+export function formatLahirAndAge(birthDate?: string, scheduleDate?: string): string {
+  if (!birthDate || !birthDate.trim() || birthDate === "-") return "-";
+  const bParts = birthDate.split(/[-/]/).map(Number);
+  if (bParts.length < 3 || isNaN(bParts[0]) || isNaN(bParts[1]) || isNaN(bParts[2])) {
+    const match = birthDate.match(/(\d{4})/);
+    if (!match) return birthDate;
+    const birthYear = parseInt(match[1], 10);
+    return `${birthYear}`;
+  }
+  const bYear = bParts[0];
+  const bMonth = bParts[1];
+  const bDay = bParts[2];
+
+  let refYear = new Date().getFullYear();
+  let refMonth = new Date().getMonth() + 1;
+  let refDay = new Date().getDate();
+
+  if (scheduleDate) {
+    const sParts = scheduleDate.split(/[-/]/).map(Number);
+    if (sParts.length >= 3 && !isNaN(sParts[0]) && !isNaN(sParts[1]) && !isNaN(sParts[2])) {
+      refYear = sParts[0];
+      refMonth = sParts[1];
+      refDay = sParts[2];
+    } else {
+      const sMatch = scheduleDate.match(/(\d{4})/);
+      if (sMatch) refYear = parseInt(sMatch[1], 10);
+    }
+  }
+
+  let age = refYear - bYear;
+  if (refMonth < bMonth || (refMonth === bMonth && refDay < bDay)) {
+    age--;
+  }
+
+  return `${bYear} (${age})`;
+}
+
+export function getEventDisplayName(event: any): string {
+  if (!event) return "-";
+  const dist = (event.distance || "").toUpperCase().trim();
+  let strk = (event.stroke || event.event_name || "").toUpperCase().trim();
+
+  if (strk === "FREESTYLE") strk = "GAYA BEBAS";
+  else if (strk === "BREASTSTROKE") strk = "GAYA DADA";
+  else if (strk === "BACKSTROKE") strk = "GAYA PUNGGUNG";
+  else if (strk === "BUTTERFLY") strk = "GAYA KUPU-KUPU";
+  else if (strk === "INDIVIDUALMEDLEY" || strk === "MEDLEY") strk = "GAYA GANTI PERORANGAN";
+  else if (strk === "FREESTYLE_FIN") strk = "GAYA BEBAS FIN";
+  else if (strk === "BACKSTROKE_FIN") strk = "GAYA PUNGGUNG FIN";
+  else if (strk === "BUTTERFLY_FIN") strk = "GAYA KUPU-KUPU FIN";
+  else if (strk === "KICKING_BOARD") strk = "KICKING BOARD";
+
+  const parts: string[] = [];
+  if (dist && !strk.includes(dist)) {
+    parts.push(dist);
+  }
+  parts.push(strk);
+
+  const g = (event.gender || "").toUpperCase().trim();
+  if (g && !strk.includes(g)) {
+    parts.push(g);
+  }
+
+  return `${parts.join(" ")}, SCM`;
+}
 
 export default function RaceResultEditor({
   registrations = [],
@@ -1402,236 +1498,292 @@ export default function RaceResultEditor({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {actionMessage && (
-        <div
-          className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-lg transition-all ${
-            actionMessage.success ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
-          }`}
-        >
-          <div className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 shrink-0" />
-            <span>{actionMessage.text}</span>
-          </div>
-          <button
-            onClick={() => setActionMessage(null)}
-            className="p-1 hover:bg-white/20 rounded-lg text-white"
+    <div className="space-y-6 print:space-y-0">
+      {/* Global Print Stylesheet (Matches Buku Acara) */}
+      <style jsx global>{`
+        @media print {
+          @page {
+            size: a4 portrait;
+            margin: 7mm 6mm;
+          }
+          body {
+            background: white !important;
+            color: black !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 9.5px !important;
+            font-family: Arial, "Helvetica Neue", Helvetica, sans-serif !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .no-print {
+            display: none !important;
+          }
+          aside, nav, header {
+            display: none !important;
+          }
+          .print-meet-header {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+            margin-bottom: 6px !important;
+          }
+          .print-event-section {
+            break-inside: auto !important;
+            page-break-inside: auto !important;
+            margin-bottom: 12px !important;
+          }
+          .print-event-title-block {
+            break-after: avoid !important;
+            page-break-after: avoid !important;
+          }
+          .print-heat-block {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
+            margin-bottom: 4px !important;
+          }
+        }
+      `}</style>
+
+      {/* TOP CONTROLS & FILTERS (SCREEN ONLY) */}
+      <div className="no-print space-y-6">
+        {/* Toast Notification */}
+        {actionMessage && (
+          <div
+            className={`p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-lg transition-all ${
+              actionMessage.success ? "bg-emerald-600 text-white" : "bg-red-600 text-white"
+            }`}
           >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
-
-      {/* 1. LOCK & PUBLISH STATUS BANNER */}
-      {!isLocked ? (
-        <div className="p-4 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-300">
-          <div className="flex items-start gap-3.5">
-            <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20 shrink-0 mt-0.5">
-              <Lock className="w-5 h-5" />
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 shrink-0" />
+              <span>{actionMessage.text}</span>
             </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
-                  Buku Acara Belum Dikunci (Mode Draft)
-                </span>
-                <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-[10px] font-black">
-                  Pencatatan Waktu Dikunci
-                </span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
-                    isPublished
-                      ? "bg-sky-200 text-sky-950 border border-sky-300"
-                      : "bg-slate-200 text-slate-700"
-                  }`}
-                >
-                  <Globe className="w-3 h-3" />
-                  {isPublished ? "🌐 Publik (Live)" : "Belum Dipublikasikan"}
-                </span>
-              </div>
-              <p className="text-xs font-bold text-amber-800 mt-0.5 leading-relaxed">
-                Sebelum memulai perlombaan dan mencatat waktu hasil lomba (hari H), Buku Acara harus dipatenkan/dikunci terlebih dahulu agar susunan seri dan lintasan resmi tidak bergeser otomatis.
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            disabled={isLocking || selectedTournamentId <= 0}
-            onClick={() => handleLockBukuAcara(true)}
-            className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
-          >
-            <Lock className="w-4 h-4" />
-            <span>{isLocking ? "Mengunci..." : "🔒 Kunci & Patenkan Buku Acara"}</span>
-          </button>
-        </div>
-      ) : (
-        <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-300 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 text-xs">
-          <div className="flex items-start sm:items-center gap-3">
-            <div className="p-2 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/30 shrink-0 mt-0.5">
-              <CheckCircle className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2 text-emerald-950 font-black">
-                <span>Buku Acara Resmi Terkunci & Dipatenkan — Mode Pencatatan Hasil Aktif</span>
-                <span
-                  className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
-                    isPublished
-                      ? "bg-sky-200 text-sky-950 border border-sky-300"
-                      : "bg-amber-200 text-amber-950 border border-amber-300"
-                  }`}
-                >
-                  <Globe className="w-3 h-3" />
-                  {isPublished ? "🌐 Publikasi Aktif (Live di Website)" : "Draft (Belum Tampil di Publik)"}
-                </span>
-              </div>
-              <p className="text-[11px] font-bold text-emerald-800 mt-0.5 leading-relaxed">
-                {isPublished
-                  ? "Hasil lomba dan bagan turnamen ini saat ini dapat diakses secara langsung oleh publik di website."
-                  : "Hasil lomba hanya terlihat oleh juri/admin. Klik 'Publikasikan ke Publik' agar dapat dilihat peserta & audiens."}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
-            {/* Publish Toggle Button */}
-            {isPublished ? (
-              <button
-                type="button"
-                disabled={publishingLoading}
-                onClick={() => handleTogglePublish(false)}
-                className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
-                title="Tarik publikasi agar tidak terlihat oleh publik"
-              >
-                <EyeOff className="w-3.5 h-3.5 text-slate-500" />
-                <span>{publishingLoading ? "Memproses..." : "Tarik Publikasi"}</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled={publishingLoading}
-                onClick={() => handleTogglePublish(true)}
-                className="px-3.5 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-sky-600/25"
-                title="Publikasikan buku acara & hasil lomba ke publik"
-              >
-                <Globe className="w-3.5 h-3.5" />
-                <span>{publishingLoading ? "Mempublikasikan..." : "🌐 Publikasikan ke Publik"}</span>
-              </button>
-            )}
-
-            {/* Public Page Direct Link */}
-            <a
-              href={`${PUBLIC_LANDING_URL}/buku-acara?tournament_id=${selectedTournamentId}&tab=juara`}
-              target="_blank"
-              rel="noreferrer"
-              className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-sky-700 rounded-xl transition-all shadow-sm"
-              title="Buka halaman Buku Acara di website publik"
-            >
-              <ExternalLink className="w-4 h-4" />
-            </a>
-
-            {/* Unlock Button */}
             <button
-              type="button"
-              disabled={isLocking}
-              onClick={async () => {
-                const ok = await confirmDialog({
-                  title: "Buka Kunci Buku Acara",
-                  message:
-                    "Buka kembali kunci Buku Acara ke mode draft?\n\nPerhatian: Jika dibuka, susunan seri & lintasan dapat digenerate ulang.",
-                  confirmText: "Ya, Buka Kunci",
-                  cancelText: "Batal",
-                  variant: "warning",
-                });
-                if (ok) {
-                  handleLockBukuAcara(false);
-                }
-              }}
-              className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+              onClick={() => setActionMessage(null)}
+              className="p-1 hover:bg-white/20 rounded-lg text-white"
             >
-              Buka Kunci
+              <X className="w-4 h-4" />
             </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 2. VIEW SELECTOR TABS: BAGAN & CATAT HASIL VS HASIL JUARA */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
-        {/* Pills */}
-        <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={() => setActiveTab("bagan")}
-            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-              activeTab === "bagan"
-                ? "bg-white text-slate-900 shadow-sm"
-                : "text-slate-600 hover:text-slate-900"
-            }`}
-          >
-            <Layers className="w-4 h-4 text-sky-600" />
-            <span>Susunan Bagan & Catat Hasil</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("juara")}
-            className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
-              activeTab === "juara"
-                ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25"
-                : "text-slate-600 hover:text-amber-700"
-            }`}
-          >
-            <Trophy className="w-4 h-4 text-amber-300" />
-            <span>Hasil Juara & Podium 🏆</span>
-          </button>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-500">
-            Perlombaan 1 Putaran (Timed Final)
-          </span>
-        </div>
-      </div>
-
-      {/* TOP CONTROL & FILTER PANEL */}
-      <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
-        {/* Header Title & Quick Stats */}
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-100">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <span className="p-2.5 bg-sky-500 text-white rounded-2xl shadow-md shadow-sky-500/20">
-                <Trophy className="w-5 h-5" />
-              </span>
+        {/* 1. LOCK & PUBLISH STATUS BANNER */}
+        {!isLocked ? (
+          <div className="p-4 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4 animate-in fade-in duration-300">
+            <div className="flex items-start gap-3.5">
+              <div className="p-2.5 bg-amber-500 text-white rounded-2xl shadow-md shadow-amber-500/20 shrink-0 mt-0.5">
+                <Lock className="w-5 h-5" />
+              </div>
               <div>
-                <h2 className="text-lg font-black text-slate-900">
-                  Catat Hasil Lomba (Tampilan Bagan Seri & Lintasan)
-                </h2>
-                <p className="text-xs text-slate-500 font-bold">
-                  Format visual bagan per nomor lomba & heat sama seperti Buku Acara. Memudahkan juri mencatat waktu dan menukar atlet langsung di bagan.
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-black text-amber-950 uppercase tracking-wide">
+                    Buku Acara Belum Dikunci (Mode Draft)
+                  </span>
+                  <span className="px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-[10px] font-black">
+                    Pencatatan Waktu Dikunci
+                  </span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                      isPublished
+                        ? "bg-sky-200 text-sky-950 border border-sky-300"
+                        : "bg-slate-200 text-slate-700"
+                    }`}
+                  >
+                    <Globe className="w-3 h-3" />
+                    {isPublished ? "🌐 Publik (Live)" : "Belum Dipublikasikan"}
+                  </span>
+                </div>
+                <p className="text-xs font-bold text-amber-800 mt-0.5 leading-relaxed">
+                  Sebelum memulai perlombaan dan mencatat waktu hasil lomba (hari H), Buku Acara harus dipatenkan/dikunci terlebih dahulu agar susunan seri dan lintasan resmi tidak bergeser otomatis.
                 </p>
               </div>
             </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="px-3.5 py-1.5 bg-slate-100 rounded-xl text-xs font-black text-slate-700">
-              Total Atlet: <span className="text-slate-900 font-black">{stats.totalSwimmers}</span>
-            </div>
-            <div className="px-3.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-black">
-              Tercatat: <span className="text-emerald-950 font-black">{stats.recordedResults}</span>
-            </div>
-            <div className="px-3.5 py-1.5 bg-amber-100 text-amber-800 rounded-xl text-xs font-black">
-              Belum: <span className="text-amber-950 font-black">{stats.pendingResults}</span>
-            </div>
             <button
               type="button"
-              onClick={() => fetchBaganData()}
-              className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
-              title="Refresh Data Bagan"
+              disabled={isLocking || selectedTournamentId <= 0}
+              onClick={() => handleLockBukuAcara(true)}
+              className="w-full md:w-auto px-5 py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-700 hover:to-amber-800 text-white text-xs font-black rounded-2xl shadow-md transition-all flex items-center justify-center gap-2 shrink-0 disabled:opacity-50"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
+              <Lock className="w-4 h-4" />
+              <span>{isLocking ? "Mengunci..." : "🔒 Kunci & Patenkan Buku Acara"}</span>
             </button>
           </div>
+        ) : (
+          <div className="p-4 rounded-3xl bg-emerald-50 border border-emerald-300 shadow-sm flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 text-xs">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="p-2 bg-emerald-600 text-white rounded-2xl shadow-md shadow-emerald-600/30 shrink-0 mt-0.5">
+                <CheckCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2 text-emerald-950 font-black">
+                  <span>Buku Acara Resmi Terkunci & Dipatenkan — Mode Pencatatan Hasil Aktif</span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                      isPublished
+                        ? "bg-sky-200 text-sky-950 border border-sky-300"
+                        : "bg-amber-200 text-amber-950 border border-amber-300"
+                    }`}
+                  >
+                    <Globe className="w-3 h-3" />
+                    {isPublished ? "🌐 Publikasi Aktif (Live di Website)" : "Draft (Belum Tampil di Publik)"}
+                  </span>
+                </div>
+                <p className="text-[11px] font-bold text-emerald-800 mt-0.5 leading-relaxed">
+                  {isPublished
+                    ? "Hasil lomba dan bagan turnamen ini saat ini dapat diakses secara langsung oleh publik di website."
+                    : "Hasil lomba hanya terlihat oleh juri/admin. Klik 'Publikasikan ke Publik' agar dapat dilihat peserta & audiens."}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 self-start lg:self-center shrink-0">
+              {/* Publish Toggle Button */}
+              {isPublished ? (
+                <button
+                  type="button"
+                  disabled={publishingLoading}
+                  onClick={() => handleTogglePublish(false)}
+                  className="px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+                  title="Tarik publikasi agar tidak terlihat oleh publik"
+                >
+                  <EyeOff className="w-3.5 h-3.5 text-slate-500" />
+                  <span>{publishingLoading ? "Memproses..." : "Tarik Publikasi"}</span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={publishingLoading}
+                  onClick={() => handleTogglePublish(true)}
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-700 hover:to-indigo-700 text-white text-xs font-black rounded-xl flex items-center gap-1.5 transition-all shadow-md shadow-sky-600/25"
+                  title="Publikasikan buku acara & hasil lomba ke publik"
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>{publishingLoading ? "Mempublikasikan..." : "🌐 Publikasikan ke Publik"}</span>
+                </button>
+              )}
+
+              {/* Public Page Direct Link */}
+              <a
+                href={`${PUBLIC_LANDING_URL}/buku-acara?tournament_id=${selectedTournamentId}&tab=juara`}
+                target="_blank"
+                rel="noreferrer"
+                className="p-1.5 bg-white hover:bg-slate-100 border border-slate-300 text-sky-700 rounded-xl transition-all shadow-sm"
+                title="Buka halaman Buku Acara di website publik"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+
+              {/* Unlock Button */}
+              <button
+                type="button"
+                disabled={isLocking}
+                onClick={async () => {
+                  const ok = await confirmDialog({
+                    title: "Buka Kunci Buku Acara",
+                    message:
+                      "Buka kembali kunci Buku Acara ke mode draft?\n\nPerhatian: Jika dibuka, susunan seri & lintasan dapat digenerate ulang.",
+                    confirmText: "Ya, Buka Kunci",
+                    cancelText: "Batal",
+                    variant: "warning",
+                  });
+                  if (ok) {
+                    handleLockBukuAcara(false);
+                  }
+                }}
+                className="px-2.5 py-1.5 bg-white hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-[11px] font-bold transition-all shadow-sm cursor-pointer"
+              >
+                Buka Kunci
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 2. VIEW SELECTOR TABS: BAGAN & CATAT HASIL VS HASIL JUARA */}
+        <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+          {/* Pills */}
+          <div className="flex items-center bg-slate-100 p-1.5 rounded-2xl gap-1.5 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setActiveTab("bagan")}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                activeTab === "bagan"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <Layers className="w-4 h-4 text-sky-600" />
+              <span>Susunan Bagan & Catat Hasil</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("juara")}
+              className={`flex-1 sm:flex-initial px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center justify-center gap-2 ${
+                activeTab === "juara"
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md shadow-amber-500/25"
+                  : "text-slate-600 hover:text-amber-700"
+              }`}
+            >
+              <Trophy className="w-4 h-4 text-amber-300" />
+              <span>Hasil Juara & Podium 🏆</span>
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-500">
+              Perlombaan 1 Putaran (Timed Final)
+            </span>
+          </div>
         </div>
+
+        {/* TOP CONTROL & FILTER PANEL */}
+        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm space-y-5">
+          {/* Header Title & Quick Stats */}
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <span className="p-2.5 bg-sky-500 text-white rounded-2xl shadow-md shadow-sky-500/20">
+                  <Trophy className="w-5 h-5" />
+                </span>
+                <div>
+                  <h2 className="text-lg font-black text-slate-900">
+                    Catat Hasil Lomba (Tampilan Bagan Seri & Lintasan)
+                  </h2>
+                  <p className="text-xs text-slate-500 font-bold">
+                    Format visual bagan per nomor lomba & heat sama seperti Buku Acara. Memudahkan juri mencatat waktu dan menukar atlet langsung di bagan.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="px-3.5 py-1.5 bg-slate-100 rounded-xl text-xs font-black text-slate-700">
+                Total Atlet: <span className="text-slate-900 font-black">{stats.totalSwimmers}</span>
+              </div>
+              <div className="px-3.5 py-1.5 bg-emerald-100 text-emerald-800 rounded-xl text-xs font-black">
+                Tercatat: <span className="text-emerald-950 font-black">{stats.recordedResults}</span>
+              </div>
+              <div className="px-3.5 py-1.5 bg-amber-100 text-amber-800 rounded-xl text-xs font-black">
+                Belum: <span className="text-amber-950 font-black">{stats.pendingResults}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => window.print()}
+                className="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-xl shadow-md shadow-blue-600/20 flex items-center gap-1.5 transition cursor-pointer"
+                title="Export PDF / Cetak Hasil Lomba Resmi"
+              >
+                <Printer className="w-3.5 h-3.5" />
+                <span>Export PDF Hasil</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => fetchBaganData()}
+                className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 cursor-pointer"
+                title="Refresh Data Bagan"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-sky-600" : ""}`} />
+              </button>
+            </div>
+          </div>
 
         {/* Search & Tournament Bar */}
         <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3">
@@ -1997,6 +2149,7 @@ export default function RaceResultEditor({
           </div>
         )}
       </div>
+      </div>
 
       {/* ============================================================ */}
       {/* 5. MAIN CONTENT: HASIL JUARA VS SUSUNAN BAGAN                */}
@@ -2007,12 +2160,12 @@ export default function RaceResultEditor({
           tournamentName={currentTournament?.name}
         />
       ) : loading ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 print:hidden">
           <RefreshCw className="w-8 h-8 text-sky-600 animate-spin mx-auto" />
           <div className="text-sm font-black text-slate-700">Memuat Bagan Acara Lomba...</div>
         </div>
       ) : filteredEvents.length === 0 ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4">
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-4 print:hidden">
           <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
           <div className="space-y-1">
             <div className="text-base font-black text-slate-800">Tidak ada nomor lomba yang sesuai filter</div>
@@ -2034,7 +2187,7 @@ export default function RaceResultEditor({
           )}
         </div>
       ) : !filteredEvents.some((ev) => ev.heats && ev.heats.length > 0) ? (
-        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3">
+        <div className="bg-white p-12 rounded-3xl border border-slate-200 text-center space-y-3 print:hidden">
           <AlertTriangle className="w-10 h-10 text-amber-500 mx-auto" />
           <div className="space-y-1">
             <div className="text-base font-black text-slate-800">Tidak ada atlet atau susunan seri pada filter ini</div>
@@ -2056,7 +2209,8 @@ export default function RaceResultEditor({
           )}
         </div>
       ) : (
-        <div className="space-y-6">
+        <>
+          <div className="space-y-6 print:hidden">
           {filteredEvents.map((event) => {
               const eventGenderLabel = getEventGenderLabel(event);
               const eventKULabel = getEventKULabel(event);
@@ -2634,14 +2788,160 @@ export default function RaceResultEditor({
               );
             })}
           </div>
-        )
-      }
+
+          {/* DENSE OFFICIAL PRINT-ONLY VIEW (PB PRSI MEET PROGRAM FORMAT) */}
+          <div className="hidden print:block space-y-3">
+            {/* Top Document Header */}
+            <div className="text-center pb-2 mb-3 border-b-2 border-black print-meet-header">
+              <h1 className="text-xl font-bold uppercase tracking-widest text-black font-serif">
+                Hasil Lomba Resmi (Buku Acara)
+              </h1>
+              <p className="text-xs font-bold uppercase text-slate-800 tracking-wider">
+                {currentTournament?.name || "Perlombaan Renang"}
+              </p>
+            </div>
+
+            {/* Events Stream */}
+            {filteredEvents.map((event, eventIdx) => {
+              const isGroup = event.heat_category === "GROUP" || event.heat_category === "CLUSTER";
+              const heatGroups = groupHeatsByNumber(event.heats || []);
+
+              return (
+                <div
+                  key={`print-${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
+                  className="print-event-section mb-3"
+                >
+                  {/* Event Header Banner (Exact official PB PRSI format) */}
+                  <div className="border-b-2 border-black pb-1 mb-1 print-event-title-block">
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <div className="text-sm font-black text-black">
+                          Acara {event.event_code}
+                        </div>
+                        <div className="text-[10px] font-bold text-black uppercase tracking-wide">
+                          {formatIndonesianDate(event.schedule_date, currentTournament?.event_start_date)}
+                        </div>
+                      </div>
+                      <div className="text-center font-black text-xs text-black uppercase tracking-wider">
+                        {getEventDisplayName(event)}
+                      </div>
+                      <div className="text-right font-black text-xs text-black uppercase">
+                        {event.round === "preliminary" ? "PENYISIHAN" : "AKHIR"}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-6 text-[9.5px] font-bold text-black border-t border-black pt-0.5 mt-1">
+                      <span className="w-28">Limit Perlombaan</span>
+                      <span>NO LIMIT ({event.age_group ? event.age_group.toUpperCase() : "OPEN"})</span>
+                    </div>
+                  </div>
+
+                  {/* Dense Heats Listing */}
+                  <div className="space-y-1">
+                    {heatGroups.map((group) => {
+                      const labelDisplay = isGroup
+                        ? group.heatLabel || String.fromCharCode(64 + group.heatNum)
+                        : String(group.heatNum).padStart(2, "0");
+                      const badgeText = isGroup ? `Group ${labelDisplay}` : `Seri ${labelDisplay}`;
+
+                      return (
+                        <div key={`print-heat-${group.heatNum}`} className="print-heat-block">
+                          <table className="w-full border-collapse text-[9px] leading-tight">
+                            <thead>
+                              <tr className="border-b border-black text-black font-bold">
+                                <th className="py-0.5 px-1 text-center w-6">Ln</th>
+                                <th className="py-0.5 px-1 text-left w-14">ID</th>
+                                <th className="py-0.5 px-1 text-left">Nama Atlet</th>
+                                <th className="py-0.5 px-1 text-center w-8">Ket</th>
+                                <th className="py-0.5 px-1 text-center w-16">Lahir</th>
+                                <th className="py-0.5 px-1 text-center w-10">KU</th>
+                                <th className="py-0.5 px-1 text-left w-44">Nama Tim</th>
+                                <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
+                                <th className="py-0.5 px-1 text-center w-20">ID Lomba</th>
+                                <th className="py-0.5 px-1 text-right w-28">
+                                  <span className="inline-block border border-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-black bg-white">
+                                    {badgeText}
+                                  </span>
+                                </th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {group.items.map((item, rIdx) => {
+                                const isEmpty = item.is_empty || item.nama === "(KOSONG)";
+                                const hasResult = !isEmpty && item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result);
+                                const isDisqualified = item.result && (item.result.includes("DQ") || item.result.includes("DNF") || item.result.includes("DNS"));
+                                return (
+                                  <tr key={rIdx} className="text-black">
+                                    <td className="py-0.5 px-1 text-center font-bold">{item.line}</td>
+                                    <td className="py-0.5 px-1 text-left font-mono">
+                                      {!isEmpty ? (item.registration_id || item.registration_code || "-") : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
+                                      {isEmpty ? "-" : item.nama}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-center">{!isEmpty ? "-" : ""}</td>
+                                    <td className="py-0.5 px-1 text-center font-medium">
+                                      {!isEmpty ? formatLahirAndAge(item.birth_date, event.schedule_date) : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-center font-bold uppercase">
+                                      {!isEmpty ? (item.age_group || event.age_group || "-") : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
+                                      {!isEmpty ? item.club : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-right font-mono">
+                                      {!isEmpty
+                                        ? item.time_seed && item.time_seed.trim() !== "" && item.time_seed !== "-"
+                                          ? item.time_seed
+                                          : "99.99.99"
+                                        : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-center font-mono text-[8.5px]">
+                                      {!isEmpty ? (item.registration_code || (currentTournament?.name ? `EV-${event.event_code}` : "-")) : ""}
+                                    </td>
+                                    <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-black">
+                                      {hasResult ? (
+                                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                                          <span className="font-bold">
+                                            {item.result.includes("DQ")
+                                              ? "DQ"
+                                              : item.result.includes("DNF")
+                                              ? "DNF"
+                                              : item.result.includes("DNS")
+                                              ? "DNS"
+                                              : item.result}
+                                          </span>
+                                          {item.rank && item.rank > 0 && !isDisqualified ? (
+                                            <span className="font-sans font-black text-[7.5px] text-black">
+                                              ({item.rank <= 3 ? `Juara ${item.rank}` : `Rank ${item.rank}`})
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-800">[ . . . . . . . . ]</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                          <div className="border-b border-black mb-1" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </>
+      )}
 
       {/* ============================================================ */}
       {/* 1. POPUP MODAL: TUKAR / PINDAH POSISI PERENANG               */}
       {/* ============================================================ */}
       {swapModalOpen && swimmerToMove && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in duration-200">
             {/* Header */}
             <div className="flex justify-between items-start pb-3 border-b border-slate-100">
@@ -2778,7 +3078,7 @@ export default function RaceResultEditor({
       {/* 2. POPUP MODAL: ISI LINTASAN KOSONG                         */}
       {/* ============================================================ */}
       {fillSlotModalOpen && targetSlot && (
-        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="no-print fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-start pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2.5">
