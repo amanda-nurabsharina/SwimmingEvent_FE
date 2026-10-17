@@ -45,6 +45,7 @@ import {
   doesHeatItemMatchGender,
   isZeroOrEmptyTime,
 } from "./RaceResultEditor";
+import ChampionsView from "./ChampionsView";
 
 interface HeatItem {
   registration_id?: number;
