@@ -713,53 +713,60 @@ export default function ChampionsView({
                       </tr>
                     </thead>
                     <tbody>
-                      {[
-                        { label: "🥇 Juara 1 (Emas)", data: champ.juara1, diff: "00.00" },
-                        { label: "🥈 Juara 2 (Perak)", data: champ.juara2, diff: champ.juara2?.timeDiff || "-" },
-                        { label: "🥉 Juara 3 (Perunggu)", data: champ.juara3, diff: champ.juara3?.timeDiff || "-" },
-                      ]
-                        .filter((item) => Boolean(item.data))
-                        .map((row, rIdx) => {
-                          const swimmer = row.data!;
-                          const seedTime =
-                            swimmer.time_seed && swimmer.time_seed.trim() !== "" && swimmer.time_seed !== "-"
-                              ? swimmer.time_seed
-                              : "99.99.99";
+                      {champ.allRanked.map((swimmer, rIdx) => {
+                        const seedTime =
+                          swimmer.time_seed && swimmer.time_seed.trim() !== "" && swimmer.time_seed !== "-"
+                            ? swimmer.time_seed
+                            : "99.99.99";
 
-                          return (
-                            <tr key={rIdx} className="text-black">
-                              <td className="py-0.5 px-1 text-left font-bold">{row.label}</td>
-                              <td className="py-0.5 px-1 text-center font-mono">
-                                H{swimmer.heat} • L{swimmer.line}
-                              </td>
-                              <td className="py-0.5 px-1 text-left font-mono">
-                                {swimmer.registration_id || "-"}
-                              </td>
-                              <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
-                                {swimmer.nama}
-                              </td>
-                              <td className="py-0.5 px-1 text-center font-bold uppercase">
-                                {event.age_group || "-"}
-                              </td>
-                              <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
-                                {swimmer.club || "-"}
-                              </td>
-                              <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
-                              <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
-                                {swimmer.result}
-                              </td>
-                              <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-700">
-                                {row.diff}
-                              </td>
-                            </tr>
-                          );
-                        })}
+                        let rankLabel = swimmer.overallRank === 999 
+                          ? (swimmer.statusLabel || "-") 
+                          : swimmer.overallRank === 1 
+                          ? "🥇 Juara 1 (Emas)" 
+                          : swimmer.overallRank === 2 
+                          ? "🥈 Juara 2 (Perak)" 
+                          : swimmer.overallRank === 3 
+                          ? "🥉 Juara 3 (Perunggu)" 
+                          : `#${swimmer.overallRank}`;
+
+                        const isTop3 = swimmer.overallRank >= 1 && swimmer.overallRank <= 3;
+
+                        return (
+                          <tr key={rIdx} className={`text-black ${isTop3 ? "font-bold" : ""}`}>
+                            <td className="py-0.5 px-1 text-left whitespace-nowrap font-bold">
+                              {rankLabel}
+                            </td>
+                            <td className="py-0.5 px-1 text-center font-mono">
+                              H{swimmer.heat} • L{swimmer.line}
+                            </td>
+                            <td className="py-0.5 px-1 text-left font-mono">
+                              {swimmer.registration_id || swimmer.registration_code || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-left uppercase truncate max-w-[200px]">
+                              {swimmer.nama}
+                            </td>
+                            <td className="py-0.5 px-1 text-center font-bold uppercase">
+                              {swimmer.age_group || event.age_group || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-left uppercase truncate max-w-[165px]">
+                              {swimmer.club || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
+                            <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
+                              {swimmer.result || "-"}
+                            </td>
+                            <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-700">
+                              {swimmer.timeDiff || "-"}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                   <div className="border-b border-black mb-1" />
                 </div>
               ) : (
-                /* GROUP ABJAD (JUARA TIAP GROUP) */
+                /* GROUP ABJAD (SEMUA PESERTA TIAP GROUP) */
                 <div className="print-heat-block">
                   <table className="w-full border-collapse text-[9px] leading-tight">
                     <thead>
@@ -773,56 +780,73 @@ export default function ChampionsView({
                         <th className="py-0.5 px-1 text-left w-44">Nama Tim</th>
                         <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
                         <th className="py-0.5 px-1 text-right w-20">Hasil Lomba</th>
+                        <th className="py-0.5 px-1 text-right w-16">Selisih</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {champ.groupResults.map((group, gIdx) => {
-                        const winner = group.winner;
-                        if (!winner) {
+                      {champ.groupResults.map((group) => {
+                        if (!group.swimmers || group.swimmers.length === 0) {
                           return (
-                            <tr key={gIdx} className="text-black">
+                            <tr key={group.groupNum} className="text-black">
                               <td className="py-0.5 px-1 text-center font-bold font-mono">
                                 Group {group.groupLabel}
                               </td>
                               <td
                                 className="py-0.5 px-1 text-center text-slate-500 font-bold italic"
-                                colSpan={8}
+                                colSpan={9}
                               >
                                 (Belum ada catatan waktu tercatat di group ini)
                               </td>
                             </tr>
                           );
                         }
-                        const seedTime =
-                          winner.time_seed && winner.time_seed.trim() !== "" && winner.time_seed !== "-"
-                            ? winner.time_seed
-                            : "99.99.99";
 
-                        return (
-                          <tr key={gIdx} className="text-black">
-                            <td className="py-0.5 px-1 text-center font-bold font-mono">
-                              Group {group.groupLabel}
-                            </td>
-                            <td className="py-0.5 px-1 text-left font-bold">★ Juara Group</td>
-                            <td className="py-0.5 px-1 text-center font-bold">{winner.line}</td>
-                            <td className="py-0.5 px-1 text-left font-mono">
-                              {winner.registration_id || "-"}
-                            </td>
-                            <td className="py-0.5 px-1 text-left font-bold uppercase truncate max-w-[200px]">
-                              {winner.nama}
-                            </td>
-                            <td className="py-0.5 px-1 text-center font-bold uppercase">
-                              {event.age_group || "-"}
-                            </td>
-                            <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
-                              {winner.club || "-"}
-                            </td>
-                            <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
-                            <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
-                              {winner.result}
-                            </td>
-                          </tr>
-                        );
+                        return group.swimmers.map((swimmer, sIdx) => {
+                          const seedTime =
+                            swimmer.time_seed && swimmer.time_seed.trim() !== "" && swimmer.time_seed !== "-"
+                              ? swimmer.time_seed
+                              : "99.99.99";
+
+                          const isWinner = swimmer.overallRank === 1;
+                          const rankLabel = swimmer.overallRank === 999 
+                            ? (swimmer.statusLabel || "-") 
+                            : isWinner 
+                            ? "★ Juara Group" 
+                            : `#${swimmer.overallRank}`;
+
+                          return (
+                            <tr key={`${group.groupNum}-${sIdx}`} className={`text-black ${isWinner ? "font-bold" : ""}`}>
+                              <td className="py-0.5 px-1 text-center font-bold font-mono">
+                                {sIdx === 0 ? `Group ${group.groupLabel}` : ""}
+                              </td>
+                              <td className="py-0.5 px-1 text-left font-bold">
+                                {rankLabel}
+                              </td>
+                              <td className="py-0.5 px-1 text-center font-mono">
+                                {swimmer.line}
+                              </td>
+                              <td className="py-0.5 px-1 text-left font-mono">
+                                {swimmer.registration_id || swimmer.registration_code || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-left uppercase truncate max-w-[200px]">
+                                {swimmer.nama}
+                              </td>
+                              <td className="py-0.5 px-1 text-center font-bold uppercase">
+                                {swimmer.age_group || event.age_group || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-left uppercase truncate max-w-[165px]">
+                                {swimmer.club || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-right font-mono">{seedTime}</td>
+                              <td className="py-0.5 px-1 text-right font-mono font-bold text-black">
+                                {swimmer.result || "-"}
+                              </td>
+                              <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-700">
+                                {swimmer.timeDiff || "-"}
+                              </td>
+                            </tr>
+                          );
+                        });
                       })}
                     </tbody>
                   </table>
