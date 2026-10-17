@@ -43,6 +43,7 @@ import {
   isOpenKU,
   doesHeatItemMatchKU,
   doesHeatItemMatchGender,
+  isZeroOrEmptyTime,
 } from "./RaceResultEditor";
 
 interface HeatItem {
@@ -1641,10 +1642,10 @@ export default function BukuAcaraViewer({
                                 <th className="py-0.5 px-1 text-center w-8">Ket</th>
                                 <th className="py-0.5 px-1 text-center w-16">Lahir</th>
                                 <th className="py-0.5 px-1 text-center w-10">KU</th>
-                                <th className="py-0.5 px-1 text-left w-48">Nama Tim</th>
+                                <th className="py-0.5 px-1 text-left w-44">Nama Tim</th>
                                 <th className="py-0.5 px-1 text-right w-16">Prestasi</th>
                                 <th className="py-0.5 px-1 text-center w-20">ID Lomba</th>
-                                <th className="py-0.5 px-1 text-right w-24">
+                                <th className="py-0.5 px-1 text-right w-28">
                                   <span className="inline-block border border-black px-2 py-0.5 text-[9px] font-black uppercase tracking-wider text-black bg-white">
                                     {badgeText}
                                   </span>
@@ -1654,6 +1655,8 @@ export default function BukuAcaraViewer({
                             <tbody>
                               {group.items.map((item, rIdx) => {
                                 const isEmpty = item.is_empty || item.nama === "(KOSONG)";
+                                const hasResult = !isEmpty && item.result && item.result !== "-" && !isZeroOrEmptyTime(item.result);
+                                const isDisqualified = item.result && (item.result.includes("DQ") || item.result.includes("DNF") || item.result.includes("DNS"));
                                 return (
                                   <tr key={rIdx} className="text-black">
                                     <td className="py-0.5 px-1 text-center font-bold">{item.line}</td>
@@ -1670,17 +1673,40 @@ export default function BukuAcaraViewer({
                                     <td className="py-0.5 px-1 text-center font-bold uppercase">
                                       {!isEmpty ? (item.age_group || event.age_group || "-") : ""}
                                     </td>
-                                    <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[180px]">
+                                    <td className="py-0.5 px-1 text-left font-medium uppercase truncate max-w-[165px]">
                                       {!isEmpty ? item.club : ""}
                                     </td>
                                     <td className="py-0.5 px-1 text-right font-mono">
-                                      {!isEmpty ? (item.time_seed && item.time_seed !== "99.99.99" && item.time_seed !== "-" ? item.time_seed : "-") : ""}
+                                      {!isEmpty
+                                        ? item.time_seed && item.time_seed.trim() !== "" && item.time_seed !== "-"
+                                          ? item.time_seed
+                                          : "99.99.99"
+                                        : ""}
                                     </td>
                                     <td className="py-0.5 px-1 text-center font-mono text-[8.5px]">
                                       {!isEmpty ? (item.registration_code || (currentTournament?.name ? `EV-${event.event_code}` : "-")) : ""}
                                     </td>
-                                    <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-slate-800">
-                                      [ . . . . . . . . ]
+                                    <td className="py-0.5 px-1 text-right font-mono text-[8.5px] text-black">
+                                      {hasResult ? (
+                                        <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                                          <span className="font-bold">
+                                            {item.result.includes("DQ")
+                                              ? "DQ"
+                                              : item.result.includes("DNF")
+                                              ? "DNF"
+                                              : item.result.includes("DNS")
+                                              ? "DNS"
+                                              : item.result}
+                                          </span>
+                                          {item.rank && item.rank > 0 && !isDisqualified ? (
+                                            <span className="font-sans font-black text-[7.5px] text-black">
+                                              ({item.rank <= 3 ? `Juara ${item.rank}` : `Rank ${item.rank}`})
+                                            </span>
+                                          ) : null}
+                                        </div>
+                                      ) : (
+                                        <span className="text-slate-800">[ . . . . . . . . ]</span>
+                                      )}
                                     </td>
                                   </tr>
                                 );
