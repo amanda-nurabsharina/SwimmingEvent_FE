@@ -22,11 +22,20 @@ import {
   ShieldCheck,
   FileText,
   Palette,
+  Download,
+  Package,
+  Layers,
+  FileArchive,
+  Loader2,
+  Check,
+  AlertCircle,
 } from "lucide-react";
 import { getBukuAcara, getRegistrations, uploadImage } from "../lib/api-admin";
 import { toast } from "./Toast";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
 import QRCode from "qrcode";
+import JSZip from "jszip";
+import html2canvas from "html2canvas";
 
 function formatEventTitle(name: string) {
   if (!name) return "";
@@ -226,6 +235,688 @@ const DEFAULT_CONFIG: WatermarkConfig = {
   timeLabel: "OFFICIAL TIME:",
 };
 
+export const THEME_CONFIG = {
+  winner: {
+    key: "winner",
+    bgSvgUrl: "/certificate/certificate-bg.svg",
+    outerBorder: "#172237",
+    bannerBg: "#172238",
+    bannerGradient: "linear-gradient(90deg, #131b2c 0%, #1d2940 55%, #172237 100%)",
+    bannerText: "#e5b74b",
+    bannerSubText: "#fae89f",
+    bannerLogoGrad: ["#fffdf2", "#fae89f", "#caa048"],
+    ribbonBg: "#172237",
+    ribbonGradient: "linear-gradient(180deg, #131b2c 0%, #1d2940 45%, #172237 100%)",
+    stripeColor: "#172237",
+    stripeGoldStart: "#b8860b",
+    stripeGoldMid: "#eed87e",
+    stripeGoldEnd: "#caa048",
+    titleColor: "#172237",
+    categoryColor: "#1d2940",
+    wavePrimary: "#172237",
+    wavePrimaryMid: "#1d2940",
+    waveGold: "#d4a72c",
+    waveGoldLight: "#eed87e",
+    waveGoldDeep: "#b8860b",
+    goldAccentLine: "linear-gradient(90deg, #b8860b 0%, #eed87e 50%, #d4a72c 100%)",
+    numeralGrad: ["#fffdf0", "#eed87e", "#f5c94c", "#d4a72c", "#996515"],
+    numeralStroke: "#a16207",
+    titleCategory: "OF CHAMPION",
+  },
+  best_swimmer: {
+    key: "best_swimmer",
+    bgSvgUrl: "/certificate/certificate-bg-gold.svg",
+    outerBorder: "#ca8a04",
+    bannerBg: "#b48306",
+    bannerGradient: "linear-gradient(90deg, #946804 0%, #ca8a04 35%, #eab308 55%, #facc15 65%, #ca8a04 85%, #946804 100%)",
+    bannerText: "#ffffff",
+    bannerSubText: "#fef9c3",
+    bannerLogoGrad: ["#ffffff", "#fef08a", "#fde047"],
+    ribbonBg: "#b48306",
+    ribbonGradient: "linear-gradient(180deg, #946804 0%, #ca8a04 50%, #eab308 100%)",
+    stripeColor: "#ca8a04",
+    stripeGoldStart: "#facc15",
+    stripeGoldMid: "#ffffff",
+    stripeGoldEnd: "#ca8a04",
+    titleColor: "#6b4902",
+    categoryColor: "#9e6d03",
+    wavePrimary: "#ca8a04",
+    wavePrimaryMid: "#eab308",
+    waveGold: "#facc15",
+    waveGoldLight: "#fef08a",
+    waveGoldDeep: "#946804",
+    goldAccentLine: "linear-gradient(90deg, #ca8a04 0%, #fef08a 50%, #eab308 100%)",
+    numeralGrad: ["#ffffff", "#fef08a", "#fde047", "#facc15", "#ca8a04"],
+    numeralStroke: "#946804",
+    titleCategory: "OF BEST SWIMMER",
+  },
+  participant: {
+    key: "participant",
+    bgSvgUrl: "/certificate/certificate-bg-maroon.svg",
+    outerBorder: "#580818",
+    bannerBg: "#580818",
+    bannerGradient: "linear-gradient(90deg, #420511 0%, #6e0e22 55%, #580818 100%)",
+    bannerText: "#fffdf2",
+    bannerSubText: "#fae89f",
+    bannerLogoGrad: ["#fffdf2", "#fae89f", "#d4af37"],
+    ribbonBg: "#580818",
+    ribbonGradient: "linear-gradient(180deg, #420511 0%, #6e0e22 45%, #580818 100%)",
+    stripeColor: "#580818",
+    stripeGoldStart: "#c59b27",
+    stripeGoldMid: "#fae89f",
+    stripeGoldEnd: "#d4af37",
+    titleColor: "#420511",
+    categoryColor: "#580818",
+    wavePrimary: "#580818",
+    wavePrimaryMid: "#6e0e22",
+    waveGold: "#c59b27",
+    waveGoldLight: "#fae89f",
+    waveGoldDeep: "#420511",
+    goldAccentLine: "linear-gradient(90deg, #580818 0%, #d4af37 50%, #580818 100%)",
+    numeralGrad: ["#fffdf0", "#fae89f", "#d4af37", "#a6192e", "#580818"],
+    numeralStroke: "#580818",
+    titleCategory: "OF PARTICIPANT",
+  },
+};
+
+export function getCertificateTheme(
+  cert?: CertificateItem | null,
+  overrideMode?: "winner" | "best_swimmer" | "participant" | null
+) {
+  if (overrideMode) {
+    return THEME_CONFIG[overrideMode] || THEME_CONFIG.winner;
+  }
+  return cert?.isChampion ? THEME_CONFIG.winner : THEME_CONFIG.participant;
+}
+
+export async function generateQrDataUrl(docNumberOrId: string): Promise<string> {
+  const baseUrl = process.env.NEXT_PUBLIC_LANDING_URL || "https://masc.fourplusone.my.id";
+  const targetUrl = `${baseUrl}/#status-check?code=${encodeURIComponent(docNumberOrId)}`;
+  try {
+    return await QRCode.toDataURL(targetUrl, {
+      width: 256,
+      margin: 1,
+      color: {
+        dark: "#0f172a",
+        light: "#ffffff",
+      },
+    });
+  } catch {
+    return "";
+  }
+}
+
+export interface CertificateCanvasProps {
+  cert: CertificateItem;
+  theme: (typeof THEME_CONFIG)["winner"];
+  config: WatermarkConfig;
+  qrCodeUrl?: string;
+  scale?: number;
+  id?: string;
+  className?: string;
+  style?: React.CSSProperties;
+}
+
+export const CertificateCanvas = React.forwardRef<HTMLDivElement, CertificateCanvasProps>(
+  function CertificateCanvas(
+    { cert, theme, config, qrCodeUrl, scale = 1, id, className = "", style = {} },
+    ref
+  ) {
+    const idPrefix = String(cert.id || "c").replace(/[^a-zA-Z0-9]/g, "_");
+    const bannerLogoGradId = `topBannerLogoGrad_${idPrefix}`;
+    const rankGoldNumGradId = `rankGoldNumGrad_${idPrefix}`;
+    const medallionSunburstId = `medallionSunburst_${idPrefix}`;
+    const medallionRimGradId = `medallionRimGrad_${idPrefix}`;
+
+    const certCategoryTitle = theme.titleCategory;
+
+    return (
+      <div
+        ref={ref}
+        id={id}
+        className={`certificateCanvas select-none ${className}`}
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: "590px",
+          height: "834px",
+          overflow: "hidden",
+          background: "#f8f5ee",
+          transformOrigin: "top left",
+          transform: scale !== 1 ? `scale(${scale})` : undefined,
+          boxShadow: scale === 1 ? undefined : "0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.12)",
+          ...style,
+        }}
+      >
+        {/* 1. MASTER BACKGROUND SVG (DYNAMICALLY ADAPTED BY SELECTED THEME: BLUE, GOLD, MAROON) */}
+        <img
+          src={theme.bgSvgUrl || "/certificate/certificate-bg.svg"}
+          alt="Certificate Background"
+          className="absolute inset-0 w-full h-full pointer-events-none select-none"
+          style={{ zIndex: 0 }}
+        />
+
+        {/* 2. OPTIONAL WATERMARK LAYER (WHEN ENABLED, Z-INDEX: 5) */}
+        {config.enabled && (
+          <div
+            style={{
+              position: "absolute",
+              left: 0,
+              top: 0,
+              width: "590px",
+              height: "834px",
+              zIndex: 5,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              pointerEvents: "none",
+              opacity: config.opacity || 0.12,
+            }}
+          >
+            {(config.type === "both" || config.type === "logo") && config.logoUrl && (
+              <img
+                src={config.logoUrl}
+                alt="Watermark"
+                style={{ width: "160px", height: "160px", objectFit: "contain" }}
+              />
+            )}
+            {(config.type === "both" || config.type === "text") && config.text && (
+              <div
+                style={{
+                  position: "absolute",
+                  fontSize: "20px",
+                  fontWeight: 900,
+                  textTransform: "uppercase",
+                  color: "#94a3b8",
+                  transform: "rotate(-45deg)",
+                  letterSpacing: "4px",
+                  userSelect: "none",
+                }}
+              >
+                {config.text}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 3. DOCUMENT NUMBER (DYNAMIC, TOP-CENTERED, Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "140px",
+            top: "42px",
+            width: "240px",
+            textAlign: "center",
+            fontSize: "7px",
+            fontWeight: 600,
+            letterSpacing: "1.4px",
+            color: "#364153",
+            fontFamily: "monospace",
+            zIndex: 10,
+            pointerEvents: "none",
+          }}
+        >
+          {getScreenshotDocNumber(cert)}
+        </div>
+
+        {/* 4. ORGANIZATION HEADER (CLEAN DARK NAVY BAND, INTEGRATED, Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "45px",
+            top: "72px",
+            width: "380px",
+            height: "42px",
+            background: theme.bannerBg || "#172238",
+            borderRadius: 0,
+            boxShadow: "none",
+            zIndex: 10,
+            display: "flex",
+            alignItems: "center",
+          }}
+        >
+          {/* Logo: left approx 18px */}
+          <div
+            style={{
+              position: "absolute",
+              left: "18px",
+              width: "24px",
+              height: "24px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <svg viewBox="0 0 100 100" className="w-full h-full">
+              <defs>
+                <linearGradient id={bannerLogoGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                  <stop offset="0%" stopColor={theme.bannerLogoGrad[0]} />
+                  <stop offset="50%" stopColor={theme.bannerLogoGrad[1]} />
+                  <stop offset="100%" stopColor={theme.bannerLogoGrad[2]} />
+                </linearGradient>
+              </defs>
+              <path d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z" fill={`url(#${bannerLogoGradId})`} />
+              <path d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z" fill={`url(#${bannerLogoGradId})`} />
+              <path d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z" fill={`url(#${bannerLogoGradId})`} />
+              <path d="M 50 61 L 64 71 L 50 82 L 36 71 Z" fill={`url(#${bannerLogoGradId})`} />
+            </svg>
+          </div>
+
+          {/* Org Text: left approx 48px */}
+          <div style={{ position: "absolute", left: "48px", textAlign: "left", lineHeight: 1.15 }}>
+            <div
+              style={{
+                fontSize: "10.5px",
+                fontWeight: 900,
+                textTransform: "uppercase",
+                letterSpacing: "1.2px",
+                color: theme.bannerText,
+              }}
+            >
+              MODERN AQUATIC
+            </div>
+            <div
+              style={{
+                fontSize: "9px",
+                fontWeight: 700,
+                textTransform: "uppercase",
+                letterSpacing: "1px",
+                color: theme.bannerSubText,
+              }}
+            >
+              SWIMMING CLUB
+            </div>
+          </div>
+        </div>
+
+        {/* 5. MAIN TITLE (CERTIFICATE, CONDENSED, Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "73px",
+            top: "150px",
+            fontFamily: "'Oswald', 'Roboto Condensed', 'Arial Narrow', sans-serif",
+            fontSize: "31.5px",
+            fontWeight: 700,
+            lineHeight: 0.95,
+            letterSpacing: "0.5px",
+            color: "#263047",
+            textTransform: "uppercase",
+            zIndex: 10,
+          }}
+        >
+          CERTIFICATE
+        </div>
+
+        {/* 6. CATEGORY (Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "73px",
+            top: "188px",
+            fontSize: "9px",
+            fontWeight: 600,
+            letterSpacing: "2px",
+            color: "#263047",
+            textTransform: "uppercase",
+            zIndex: 10,
+          }}
+        >
+          {certCategoryTitle}
+        </div>
+
+        {/* 7. GOLD UNDERLINE (Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "73px",
+            top: "206px",
+            width: "120px",
+            height: "2px",
+            background: "#d6a81f",
+            zIndex: 10,
+          }}
+        />
+
+        {/* 8. RANK NUMBER (MOVED 7PX RIGHT TO 347PX, DYNAMIC, Z-INDEX: 15) */}
+        {cert.isChampion && (
+          <div
+            style={{
+              position: "absolute",
+              left: "347px",
+              top: "148px",
+              width: "55px",
+              textAlign: "center",
+              zIndex: 15,
+              pointerEvents: "none",
+              filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18))",
+            }}
+          >
+            <svg viewBox="0 0 55 64" className="w-[55px] h-[64px]">
+              <defs>
+                <linearGradient id={rankGoldNumGradId} x1="20%" y1="0%" x2="80%" y2="100%">
+                  <stop offset="0%" stopColor="#fffdf0" />
+                  <stop offset="25%" stopColor="#fae89f" />
+                  <stop offset="60%" stopColor="#d4a72c" />
+                  <stop offset="100%" stopColor="#996515" />
+                </linearGradient>
+              </defs>
+              <text
+                x="50%"
+                y="54"
+                textAnchor="middle"
+                fill={`url(#${rankGoldNumGradId})`}
+                stroke={theme.numeralStroke || "#a16207"}
+                strokeWidth="0.8"
+                fontFamily="'Oswald', 'Arial Narrow', sans-serif"
+                fontWeight="700"
+                fontSize="56"
+              >
+                {cert.rank && cert.rank <= 3 ? cert.rank : 1}
+              </text>
+            </svg>
+          </div>
+        )}
+
+        {/* 9. MEDAL (ROSETTE, INTEGRATED SOFT SHADOW, Z-INDEX: 30) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "445px",
+            top: "175px",
+            width: "74px",
+            height: "74px",
+            zIndex: 30,
+            pointerEvents: "none",
+            filter: "drop-shadow(0 4px 8px rgba(0, 0, 0, 0.22)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12))",
+          }}
+        >
+          <svg viewBox="0 0 100 100" className="w-full h-full">
+            <defs>
+              <radialGradient id={medallionSunburstId} cx="38%" cy="32%" r="68%">
+                <stop offset="0%" stopColor="#fffdf2" />
+                <stop offset="22%" stopColor="#fae896" />
+                <stop offset="52%" stopColor="#e5b73e" />
+                <stop offset="82%" stopColor="#b8860b" />
+                <stop offset="100%" stopColor="#8c5e07" />
+              </radialGradient>
+              <linearGradient id={medallionRimGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#fffdf0" />
+                <stop offset="20%" stopColor="#fae89f" />
+                <stop offset="50%" stopColor="#e5b74b" />
+                <stop offset="80%" stopColor="#ca8a04" />
+                <stop offset="100%" stopColor="#996515" />
+              </linearGradient>
+            </defs>
+
+            {/* 16-Scallop Rosette Fluted Outer Medallion Border */}
+            <path
+              d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
+              fill={`url(#${medallionRimGradId})`}
+              stroke="#b8860b"
+              strokeWidth="0.8"
+            />
+
+            {/* Inner Scallop Shadow Ring */}
+            <circle cx="50" cy="50" r="42.5" fill={`url(#${medallionRimGradId})`} stroke="#a16207" strokeWidth="0.6" />
+
+            {/* Polished Inner Ring Ridge */}
+            <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fffdf2" strokeWidth="1.2" strokeOpacity="0.95" />
+            <circle cx="50" cy="50" r="38" fill="none" stroke="#8c5e07" strokeWidth="0.65" strokeOpacity="0.75" />
+
+            {/* Center Gold Face */}
+            <circle cx="50" cy="50" r="36.5" fill={`url(#${medallionSunburstId})`} stroke="#e5b74b" strokeWidth="0.8" />
+            <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf2" strokeWidth="0.8" strokeOpacity="0.7" />
+
+            {/* MASC Geometric Emblem in Pure Golden Relief */}
+            <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
+              <path
+                d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
+                fill={`url(#${medallionRimGradId})`}
+                stroke="#b8860b"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
+                fill={`url(#${medallionRimGradId})`}
+                stroke="#b8860b"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
+                fill={`url(#${medallionRimGradId})`}
+                stroke="#b8860b"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
+                fill={`url(#${medallionRimGradId})`}
+                stroke="#b8860b"
+                strokeWidth="1.2"
+                strokeLinejoin="round"
+              />
+            </g>
+          </svg>
+        </div>
+
+        {/* BODY CONTENT CONTAINER (FLEX COLUMN FOR DYNAMIC SPACING SAFETY, LEFT: 73PX, Z-INDEX: 10) */}
+        <div
+          style={{
+            position: "absolute",
+            left: "73px",
+            top: "236px",
+            width: "320px",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "flex-start",
+            zIndex: 10,
+          }}
+        >
+          {/* 10. RECOGNITION TEXT (+8%, READABILITY) */}
+          <div
+            style={{
+              fontSize: "9.2px",
+              fontWeight: 600,
+              letterSpacing: "1.5px",
+              color: "#5b6b80",
+              textTransform: "uppercase",
+              lineHeight: "11px",
+            }}
+          >
+            AS A MARK OF RECOGNITION FOR
+          </div>
+
+          {/* 11. RECIPIENT NAME (BOLD, GAP 20PX, MAX 2 LINES) */}
+          <div
+            style={{
+              marginTop: "20px",
+              maxWidth: "310px",
+              fontSize: "16.5px",
+              fontWeight: 800,
+              lineHeight: "19px",
+              color: "#101827",
+              textTransform: "uppercase",
+            }}
+          >
+            {cert.swimmerName}
+          </div>
+
+          {/* 12. EVENT (+8%, GAP 13PX, MAX 2 LINES) */}
+          <div
+            style={{
+              marginTop: "13px",
+              maxWidth: "320px",
+              fontSize: "10.3px",
+              fontWeight: 600,
+              lineHeight: "14px",
+              color: "#1e293b",
+            }}
+          >
+            {formatEventRaceLine(cert)}
+          </div>
+
+          {/* 12b. OFFICIAL TIME RESULT (WAKTU RESMI) */}
+          {Boolean(
+            cert.timeResult &&
+              cert.timeResult.trim() !== "" &&
+              cert.timeResult !== "-" &&
+              !/^0+(\.0+)*$/.test(cert.timeResult)
+          ) && (
+            <div
+              style={{
+                marginTop: "7px",
+                display: "flex",
+                alignItems: "center",
+                gap: "5px",
+                fontSize: "9.5px",
+                letterSpacing: "0.8px",
+                textTransform: "uppercase",
+              }}
+            >
+              <span style={{ color: "#475569", fontWeight: 700 }}>
+                {config.timeLabel || "OFFICIAL TIME:"}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Oswald', 'Roboto Condensed', 'Courier New', monospace",
+                  fontWeight: 700,
+                  fontSize: "11px",
+                  color: "#0f766e",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                {cert.timeResult}
+              </span>
+            </div>
+          )}
+
+          {/* 13. PARTICIPATION DETAILS (+10%, GAP 30PX, LINE-HEIGHT ~1.45) */}
+          <div
+            style={{
+              marginTop: Boolean(
+                cert.timeResult &&
+                  cert.timeResult.trim() !== "" &&
+                  cert.timeResult !== "-" &&
+                  !/^0+(\.0+)*$/.test(cert.timeResult)
+              )
+                ? "20px"
+                : "30px",
+              width: "320px",
+              fontSize: "8.8px",
+              lineHeight: "12.8px",
+              color: "#475569",
+              textTransform: "uppercase",
+            }}
+          >
+            <div style={{ marginBottom: "2px", fontWeight: 500 }}>
+              {(config.useCustomBodyText && config.bodyPreText) || "FOR PARTICIPATING IN THE"}
+            </div>
+            <div style={{ fontWeight: 800, color: "#101827", marginBottom: "2px" }}>
+              {(config.useCustomBodyText && config.bodyCompetitionName) || `${cert.tournamentName} ORGANIZED BY`}
+            </div>
+            <div style={{ marginBottom: "2px", fontWeight: 500 }}>
+              {(config.useCustomBodyText && config.bodyOrganizerName) || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
+            </div>
+            <div style={{ fontWeight: 500 }}>
+              {(config.useCustomBodyText && config.bodyDateText) || formatCertificateDate(cert.tournamentDate || cert.issueDate)}
+            </div>
+          </div>
+
+          {/* 14. VENUE (+10%, GAP 26PX, CLEAR SEPARATION) */}
+          <div
+            style={{
+              marginTop: "26px",
+              width: "320px",
+              fontSize: "8.8px",
+              lineHeight: "12.8px",
+              textTransform: "uppercase",
+            }}
+          >
+            <div style={{ fontWeight: 700, color: "#101827", marginBottom: "2px" }}>
+              {(config.useCustomBodyText && config.bodyVenueText) || cert.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
+            </div>
+            <div style={{ color: "#475569", fontWeight: 400 }}>
+              {(config.useCustomBodyText && config.bodyLocationText) || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}
+            </div>
+          </div>
+
+          {/* 15 & 16. QR + SIGNATORY GROUP (ONE VISUAL GROUP, GAP 42PX, STRICTLY ALIGNED LEFT 73PX) */}
+          <div
+            style={{
+              marginTop: "42px",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "flex-start",
+            }}
+          >
+            {/* QR CODE (+5% TO 50PX) */}
+            <div
+              style={{
+                width: "50px",
+                height: "50px",
+              }}
+            >
+              {qrCodeUrl ? (
+                <img
+                  src={qrCodeUrl}
+                  alt="QR Code"
+                  style={{ width: "50px", height: "50px", objectFit: "contain", display: "block" }}
+                />
+              ) : (
+                <div
+                  style={{
+                    width: "50px",
+                    height: "50px",
+                    background: "#f1f5f9",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "7px",
+                    color: "#94a3b8",
+                  }}
+                >
+                  QR
+                </div>
+              )}
+            </div>
+
+            {/* SIGNATORY NAME & TITLE (QR ↓ 9PX, NAME ↓ 2.5PX TITLE) */}
+            <div style={{ marginTop: "9px" }}>
+              <div
+                style={{
+                  fontSize: "8.5px",
+                  fontWeight: 800,
+                  lineHeight: "11px",
+                  color: "#101827",
+                  textTransform: "uppercase",
+                }}
+              >
+                {config.signatory1Name}
+              </div>
+              <div
+                style={{
+                  fontSize: "6.7px",
+                  fontWeight: 500,
+                  color: "#68768a",
+                  textTransform: "uppercase",
+                  marginTop: "2.5px",
+                  lineHeight: "9px",
+                }}
+              >
+                {config.signatory1Title}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+);
+
 interface CertificateManagerProps {
   tournaments: any[];
   initialTournamentId?: number;
@@ -258,6 +949,42 @@ export default function CertificateManager({
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [config, setConfig] = useState<WatermarkConfig>(DEFAULT_CONFIG);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Batch Download & Multi-page print state
+  const [showBatchModal, setShowBatchModal] = useState(false);
+  const [isBatchPrinting, setIsBatchPrinting] = useState(false);
+  const [isPreparingBatchPrint, setIsPreparingBatchPrint] = useState(false);
+  const [batchQrMap, setBatchQrMap] = useState<Record<string | number, string>>({});
+  const [batchProgress, setBatchProgress] = useState<{
+    active: boolean;
+    current: number;
+    total: number;
+    swimmerName: string;
+    status: "idle" | "preparing" | "rendering" | "zipping" | "done" | "error";
+  }>({
+    active: false,
+    current: 0,
+    total: 0,
+    swimmerName: "",
+    status: "idle",
+  });
+  const cancelBatchRef = useRef<boolean>(false);
+  const hiddenRenderRef = useRef<HTMLDivElement>(null);
+  const [hiddenCertData, setHiddenCertData] = useState<{
+    cert: CertificateItem;
+    qrUrl: string;
+  } | null>(null);
+
+  // Reset batch print mode on afterprint
+  useEffect(() => {
+    const handleAfterPrint = () => {
+      setIsBatchPrinting(false);
+    };
+    window.addEventListener("afterprint", handleAfterPrint);
+    return () => {
+      window.removeEventListener("afterprint", handleAfterPrint);
+    };
+  }, []);
 
   const printAreaRef = useRef<HTMLDivElement>(null);
   const viewportRef = useRef<HTMLDivElement>(null);
@@ -561,91 +1288,6 @@ export default function CertificateManager({
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
-  // Theme Color Presets for Blue (Winner), Gold (Best Swimmer), and Maroon (Participant)
-  const THEME_CONFIG = {
-    winner: {
-      key: "winner",
-      bgSvgUrl: "/certificate/certificate-bg.svg",
-      outerBorder: "#172237",
-      bannerBg: "#172238",
-      bannerGradient: "linear-gradient(90deg, #131b2c 0%, #1d2940 55%, #172237 100%)",
-      bannerText: "#e5b74b",
-      bannerSubText: "#fae89f",
-      bannerLogoGrad: ["#fffdf2", "#fae89f", "#caa048"],
-      ribbonBg: "#172237",
-      ribbonGradient: "linear-gradient(180deg, #131b2c 0%, #1d2940 45%, #172237 100%)",
-      stripeColor: "#172237",
-      stripeGoldStart: "#b8860b",
-      stripeGoldMid: "#eed87e",
-      stripeGoldEnd: "#caa048",
-      titleColor: "#172237",
-      categoryColor: "#1d2940",
-      wavePrimary: "#172237",
-      wavePrimaryMid: "#1d2940",
-      waveGold: "#d4a72c",
-      waveGoldLight: "#eed87e",
-      waveGoldDeep: "#b8860b",
-      goldAccentLine: "linear-gradient(90deg, #b8860b 0%, #eed87e 50%, #d4a72c 100%)",
-      numeralGrad: ["#fffdf0", "#eed87e", "#f5c94c", "#d4a72c", "#996515"],
-      numeralStroke: "#a16207",
-      titleCategory: "OF CHAMPION",
-    },
-    best_swimmer: {
-      key: "best_swimmer",
-      bgSvgUrl: "/certificate/certificate-bg-gold.svg",
-      outerBorder: "#ca8a04",
-      bannerBg: "#b48306",
-      bannerGradient: "linear-gradient(90deg, #946804 0%, #ca8a04 35%, #eab308 55%, #facc15 65%, #ca8a04 85%, #946804 100%)",
-      bannerText: "#ffffff",
-      bannerSubText: "#fef9c3",
-      bannerLogoGrad: ["#ffffff", "#fef08a", "#fde047"],
-      ribbonBg: "#b48306",
-      ribbonGradient: "linear-gradient(180deg, #946804 0%, #ca8a04 50%, #eab308 100%)",
-      stripeColor: "#ca8a04",
-      stripeGoldStart: "#facc15",
-      stripeGoldMid: "#ffffff",
-      stripeGoldEnd: "#ca8a04",
-      titleColor: "#6b4902",
-      categoryColor: "#9e6d03",
-      wavePrimary: "#ca8a04",
-      wavePrimaryMid: "#eab308",
-      waveGold: "#facc15",
-      waveGoldLight: "#fef08a",
-      waveGoldDeep: "#946804",
-      goldAccentLine: "linear-gradient(90deg, #ca8a04 0%, #fef08a 50%, #eab308 100%)",
-      numeralGrad: ["#ffffff", "#fef08a", "#fde047", "#facc15", "#ca8a04"],
-      numeralStroke: "#946804",
-      titleCategory: "OF BEST SWIMMER",
-    },
-    participant: {
-      key: "participant",
-      bgSvgUrl: "/certificate/certificate-bg-maroon.svg",
-      outerBorder: "#580818",
-      bannerBg: "#580818",
-      bannerGradient: "linear-gradient(90deg, #420511 0%, #6e0e22 55%, #580818 100%)",
-      bannerText: "#fffdf2",
-      bannerSubText: "#fae89f",
-      bannerLogoGrad: ["#fffdf2", "#fae89f", "#d4af37"],
-      ribbonBg: "#580818",
-      ribbonGradient: "linear-gradient(180deg, #420511 0%, #6e0e22 45%, #580818 100%)",
-      stripeColor: "#580818",
-      stripeGoldStart: "#c59b27",
-      stripeGoldMid: "#fae89f",
-      stripeGoldEnd: "#d4af37",
-      titleColor: "#420511",
-      categoryColor: "#580818",
-      wavePrimary: "#580818",
-      wavePrimaryMid: "#6e0e22",
-      waveGold: "#c59b27",
-      waveGoldLight: "#fae89f",
-      waveGoldDeep: "#420511",
-      goldAccentLine: "linear-gradient(90deg, #580818 0%, #d4af37 50%, #580818 100%)",
-      numeralGrad: ["#fffdf0", "#fae89f", "#d4af37", "#a6192e", "#580818"],
-      numeralStroke: "#580818",
-      titleCategory: "OF PARTICIPANT",
-    },
-  };
-
   // Compute active template type (winner, best_swimmer, or participant)
   const activeTemplateType = useMemo(() => {
     if (selectedTemplateMode) {
@@ -677,9 +1319,190 @@ export default function CertificateManager({
       .catch((err) => console.error("Error generating QR code:", err));
   }, [activeCertificate]);
 
-  // 6. Print / Download handler
-  const handlePrint = () => {
-    window.print();
+  // 6. Download single active certificate as high-resolution PNG
+  const handleDownloadCurrentPng = async () => {
+    if (!activeCertificate || !printAreaRef.current) return;
+    try {
+      toast.info("Sedang mengenerate file PNG sertifikat...");
+      const canvas = await html2canvas(printAreaRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#f8f5ee",
+        logging: false,
+      });
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = activeCertificate.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
+      a.download = `Sertifikat_${safeName}_${activeCertificate.eventCode}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Sertifikat PNG berhasil diunduh!");
+    } catch (err: any) {
+      toast.error("Gagal mengunduh PNG: " + err.message);
+    }
+  };
+
+  // 7. Start Batch ZIP Download (Direct all certificates into 1 ZIP file)
+  const startBatchZipDownload = async () => {
+    if (filteredCertificates.length === 0) {
+      toast.error("Tidak ada data peserta untuk diunduh!");
+      return;
+    }
+
+    cancelBatchRef.current = false;
+    const total = filteredCertificates.length;
+    setBatchProgress({
+      active: true,
+      current: 0,
+      total,
+      swimmerName: "Menyiapkan antrean gambar...",
+      status: "preparing",
+    });
+
+    try {
+      const zip = new JSZip();
+
+      for (let i = 0; i < total; i++) {
+        if (cancelBatchRef.current) {
+          toast.info("Download ZIP dibatalkan oleh pengguna.");
+          setBatchProgress((prev) => ({ ...prev, active: false, status: "idle" }));
+          setHiddenCertData(null);
+          return;
+        }
+
+        const cert = filteredCertificates[i];
+        setBatchProgress({
+          active: true,
+          current: i + 1,
+          total,
+          swimmerName: cert.swimmerName,
+          status: "rendering",
+        });
+
+        // 1. Get or generate QR code
+        let qrUrl = batchQrMap[cert.id];
+        if (!qrUrl) {
+          qrUrl = await generateQrDataUrl(getScreenshotDocNumber(cert));
+          setBatchQrMap((prev) => ({ ...prev, [cert.id]: qrUrl }));
+        }
+
+        // 2. Render to offscreen canvas
+        setHiddenCertData({ cert, qrUrl });
+        // Allow browser 60ms to paint DOM and load background
+        await new Promise((resolve) => setTimeout(resolve, 60));
+
+        if (!hiddenRenderRef.current) {
+          continue;
+        }
+
+        // 3. Capture with html2canvas
+        const canvas = await html2canvas(hiddenRenderRef.current, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: "#f8f5ee",
+          logging: false,
+        });
+
+        // 4. Convert canvas to Blob
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob((b) => resolve(b), "image/png")
+        );
+
+        if (blob) {
+          const safeName = cert.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
+          const safeEvent = (cert.eventName || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
+          const rankTag = cert.isChampion ? `Juara_${cert.rank}` : "Peserta";
+          const fileName = `${String(i + 1).padStart(3, "0")}_${rankTag}_${safeName}_${safeEvent}.png`;
+          zip.file(fileName, blob);
+        }
+      }
+
+      if (cancelBatchRef.current) {
+        toast.info("Download ZIP dibatalkan oleh pengguna.");
+        setBatchProgress((prev) => ({ ...prev, active: false, status: "idle" }));
+        setHiddenCertData(null);
+        return;
+      }
+
+      setBatchProgress((prev) => ({
+        ...prev,
+        status: "zipping",
+        swimmerName: "Mengompresi semua sertifikat ke file ZIP...",
+      }));
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      const tourneyName = (currentTournament?.name || "Turnamen").replace(/[/\\?%*:|"<>]/g, "_");
+      a.download = `Sertifikat_${tourneyName}_Total_${total}_Peserta.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(downloadUrl);
+
+      setBatchProgress((prev) => ({
+        ...prev,
+        status: "done",
+        swimmerName: "Selesai diunduh!",
+      }));
+      toast.success(`Berhasil mengunduh ${total} sertifikat peserta dalam file ZIP!`);
+      setTimeout(() => {
+        setBatchProgress((prev) => ({ ...prev, active: false, status: "idle" }));
+        setShowBatchModal(false);
+      }, 1500);
+    } catch (err: any) {
+      console.error("Error generating batch ZIP:", err);
+      toast.error("Gagal mengunduh ZIP: " + err.message);
+      setBatchProgress((prev) => ({ ...prev, status: "error" }));
+    } finally {
+      setHiddenCertData(null);
+    }
+  };
+
+  // 8. Cancel running batch download
+  const handleCancelBatchZip = () => {
+    cancelBatchRef.current = true;
+    toast.info("Membatalkan proses download...");
+  };
+
+  // 9. Trigger batch multi-page print (Browser Print -> Save as Multi-page PDF)
+  const handleBatchPrint = async () => {
+    if (filteredCertificates.length === 0) return;
+    setIsPreparingBatchPrint(true);
+    toast.info(`Menyiapkan ${filteredCertificates.length} halaman sertifikat untuk dicetak...`);
+    try {
+      const qrMap: Record<string | number, string> = {};
+      for (const cert of filteredCertificates) {
+        if (!batchQrMap[cert.id]) {
+          const docNum = getScreenshotDocNumber(cert);
+          qrMap[cert.id] = await generateQrDataUrl(docNum);
+        } else {
+          qrMap[cert.id] = batchQrMap[cert.id];
+        }
+      }
+      setBatchQrMap((prev) => ({ ...prev, ...qrMap }));
+      setIsBatchPrinting(true);
+      setShowBatchModal(false);
+
+      setTimeout(() => {
+        setIsPreparingBatchPrint(false);
+        window.print();
+      }, 500);
+    } catch (err: any) {
+      setIsPreparingBatchPrint(false);
+      toast.error("Gagal menyiapkan cetak masal: " + err.message);
+    }
+  };
+
+  // 10. Single print handler
+  const handleSinglePrint = () => {
+    setIsBatchPrinting(false);
+    setTimeout(() => {
+      window.print();
+    }, 50);
   };
 
   // 7. Handle Watermark Logo Upload
@@ -719,23 +1542,63 @@ export default function CertificateManager({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
           <button
             onClick={() => setShowConfigModal(true)}
-            className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all flex items-center gap-2 shadow-2xs active:scale-95 cursor-pointer"
-            title="Atur teks, logo watermark & tanda tangan"
+            className="px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer"
+            title="Atur teks, watermark, dan pejabat penandatangan"
           >
             <Settings className="w-4 h-4 text-slate-600" />
-            <span>Config Certificate</span>
+            <span>Config</span>
           </button>
 
           <button
-            onClick={handlePrint}
+            onClick={handleDownloadCurrentPng}
             disabled={!activeCertificate}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold rounded-xl transition-all flex items-center gap-2 shadow-md shadow-blue-600/25 active:scale-95 cursor-pointer disabled:opacity-50"
+            className="px-3.5 py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Unduh 1 sertifikat ini sebagai gambar PNG kualitas tinggi"
           >
-            <Printer className="w-4 h-4" />
-            <span>Cetak / Unduh PDF Sertifikat</span>
+            <Download className="w-4 h-4 text-sky-600" />
+            <span className="hidden sm:inline">Unduh</span>
+            <span>PNG</span>
+          </button>
+
+          <button
+            onClick={handleSinglePrint}
+            disabled={!activeCertificate}
+            className="px-3.5 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Cetak atau simpan 1 sertifikat ini sebagai PDF A4"
+          >
+            <Printer className="w-4 h-4 text-slate-200" />
+            <span className="hidden sm:inline">Cetak</span>
+            <span>PDF</span>
+          </button>
+
+          {/* DIRECT USER-REQUESTED BUTTON: DOWNLOAD ALL IN ZIP */}
+          <button
+            onClick={startBatchZipDownload}
+            disabled={filteredCertificates.length === 0 || batchProgress.active}
+            className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-800 text-white text-xs font-black rounded-xl transition-all flex items-center gap-2 shadow-md shadow-emerald-600/30 active:scale-95 cursor-pointer disabled:opacity-50 ring-2 ring-emerald-500/30"
+            title="Download langsung semua sertifikat peserta dalam 1 file ZIP"
+          >
+            {batchProgress.active && batchProgress.status !== "idle" ? (
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-100" />
+            ) : (
+              <FileArchive className="w-4 h-4 text-emerald-100" />
+            )}
+            <span>Download Semua (.ZIP)</span>
+            <span className="px-2 py-0.5 rounded-full bg-white/20 text-white text-[11px] font-black">
+              {filteredCertificates.length}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setShowBatchModal(true)}
+            disabled={filteredCertificates.length === 0}
+            className="p-2.5 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 shadow-2xs active:scale-95 cursor-pointer disabled:opacity-50"
+            title="Buka menu opsi export sertifikat (ZIP / PDF Multi Halaman)"
+          >
+            <Layers className="w-4 h-4 text-slate-600" />
           </button>
         </div>
       </div>
@@ -987,547 +1850,15 @@ export default function CertificateManager({
                       margin: "0 auto",
                     }}
                   >
-                    <div
+                    <CertificateCanvas
                       ref={printAreaRef}
                       id="certificate-print-area"
-                      className="certificateCanvas select-none"
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        width: "590px",
-                        height: "834px",
-                        overflow: "hidden",
-                        background: "#f8f5ee",
-                        transformOrigin: "top left",
-                        transform: `scale(${canvasScale})`,
-                        boxShadow: "0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(0, 0, 0, 0.12)",
-                      }}
-                    >
-                      {/* 1. MASTER BACKGROUND SVG (DYNAMICALLY ADAPTED BY SELECTED THEME: BLUE, GOLD, MAROON) */}
-                      <img
-                        src={currentTheme.bgSvgUrl || "/certificate/certificate-bg.svg"}
-                        alt="Certificate Background"
-                        className="absolute inset-0 w-full h-full pointer-events-none select-none"
-                        style={{ zIndex: 0 }}
-                      />
-
-                      {/* 2. OPTIONAL WATERMARK LAYER (WHEN ENABLED, Z-INDEX: 5) */}
-                      {config.enabled && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: 0,
-                            top: 0,
-                            width: "590px",
-                            height: "834px",
-                            zIndex: 5,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            pointerEvents: "none",
-                            opacity: config.opacity || 0.12,
-                          }}
-                        >
-                          {(config.type === "both" || config.type === "logo") && config.logoUrl && (
-                            <img
-                              src={config.logoUrl}
-                              alt="Watermark"
-                              style={{ width: "160px", height: "160px", objectFit: "contain" }}
-                            />
-                          )}
-                          {(config.type === "both" || config.type === "text") && config.text && (
-                            <div
-                              style={{
-                                position: "absolute",
-                                fontSize: "20px",
-                                fontWeight: 900,
-                                textTransform: "uppercase",
-                                color: "#94a3b8",
-                                transform: "rotate(-45deg)",
-                                letterSpacing: "4px",
-                                userSelect: "none",
-                              }}
-                            >
-                              {config.text}
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* 3. DOCUMENT NUMBER (DYNAMIC, TOP-CENTERED, Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "140px",
-                          top: "42px",
-                          width: "240px",
-                          textAlign: "center",
-                          fontSize: "7px",
-                          fontWeight: 600,
-                          letterSpacing: "1.4px",
-                          color: "#364153",
-                          fontFamily: "monospace",
-                          zIndex: 10,
-                          pointerEvents: "none",
-                        }}
-                      >
-                        {getScreenshotDocNumber(activeCertificate)}
-                      </div>
-
-                      {/* 4. ORGANIZATION HEADER (CLEAN DARK NAVY BAND, INTEGRATED, Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "45px",
-                          top: "72px",
-                          width: "380px",
-                          height: "42px",
-                          background: currentTheme.bannerBg || "#172238",
-                          borderRadius: 0,
-                          boxShadow: "none",
-                          zIndex: 10,
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        {/* Logo: left approx 18px */}
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "18px",
-                            width: "24px",
-                            height: "24px",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          <svg viewBox="0 0 100 100" className="w-full h-full">
-                            <defs>
-                              <linearGradient id="topBannerLogoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                                <stop offset="0%" stopColor={currentTheme.bannerLogoGrad[0]} />
-                                <stop offset="50%" stopColor={currentTheme.bannerLogoGrad[1]} />
-                                <stop offset="100%" stopColor={currentTheme.bannerLogoGrad[2]} />
-                              </linearGradient>
-                            </defs>
-                            <path d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z" fill="url(#topBannerLogoGrad)" />
-                            <path d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z" fill="url(#topBannerLogoGrad)" />
-                            <path d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z" fill="url(#topBannerLogoGrad)" />
-                            <path d="M 50 61 L 64 71 L 50 82 L 36 71 Z" fill="url(#topBannerLogoGrad)" />
-                          </svg>
-                        </div>
-
-                        {/* Org Text: left approx 48px */}
-                        <div style={{ position: "absolute", left: "48px", textAlign: "left", lineHeight: 1.15 }}>
-                          <div
-                            style={{
-                              fontSize: "10.5px",
-                              fontWeight: 900,
-                              textTransform: "uppercase",
-                              letterSpacing: "1.2px",
-                              color: currentTheme.bannerText,
-                            }}
-                          >
-                            MODERN AQUATIC
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "9px",
-                              fontWeight: 700,
-                              textTransform: "uppercase",
-                              letterSpacing: "1px",
-                              color: currentTheme.bannerSubText,
-                            }}
-                          >
-                            SWIMMING CLUB
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 5. MAIN TITLE (CERTIFICATE, CONDENSED, Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "73px",
-                          top: "150px",
-                          fontFamily: "'Oswald', 'Roboto Condensed', 'Arial Narrow', sans-serif",
-                          fontSize: "31.5px",
-                          fontWeight: 700,
-                          lineHeight: 0.95,
-                          letterSpacing: "0.5px",
-                          color: "#263047",
-                          textTransform: "uppercase",
-                          zIndex: 10,
-                        }}
-                      >
-                        CERTIFICATE
-                      </div>
-
-                      {/* 6. CATEGORY (Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "73px",
-                          top: "188px",
-                          fontSize: "9px",
-                          fontWeight: 600,
-                          letterSpacing: "2px",
-                          color: "#263047",
-                          textTransform: "uppercase",
-                          zIndex: 10,
-                        }}
-                      >
-                        {certCategoryTitle}
-                      </div>
-
-                      {/* 7. GOLD UNDERLINE (Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "73px",
-                          top: "206px",
-                          width: "120px",
-                          height: "2px",
-                          background: "#d6a81f",
-                          zIndex: 10,
-                        }}
-                      />
-
-                      {/* 8. RANK NUMBER (MOVED 7PX RIGHT TO 347PX, DYNAMIC, Z-INDEX: 15) */}
-                      {activeCertificate.isChampion && (
-                        <div
-                          style={{
-                            position: "absolute",
-                            left: "347px",
-                            top: "148px",
-                            width: "55px",
-                            textAlign: "center",
-                            zIndex: 15,
-                            pointerEvents: "none",
-                            filter: "drop-shadow(0 2px 4px rgba(0, 0, 0, 0.18))",
-                          }}
-                        >
-                          <svg viewBox="0 0 55 64" className="w-[55px] h-[64px]">
-                            <defs>
-                              <linearGradient id="rankGoldNumGrad" x1="20%" y1="0%" x2="80%" y2="100%">
-                                <stop offset="0%" stopColor="#fffdf0" />
-                                <stop offset="25%" stopColor="#fae89f" />
-                                <stop offset="60%" stopColor="#d4a72c" />
-                                <stop offset="100%" stopColor="#996515" />
-                              </linearGradient>
-                            </defs>
-                            <text
-                              x="50%"
-                              y="54"
-                              textAnchor="middle"
-                              fill="url(#rankGoldNumGrad)"
-                              stroke={currentTheme.numeralStroke || "#a16207"}
-                              strokeWidth="0.8"
-                              fontFamily="'Oswald', 'Arial Narrow', sans-serif"
-                              fontWeight="700"
-                              fontSize="56"
-                            >
-                              {activeCertificate.rank && activeCertificate.rank <= 3 ? activeCertificate.rank : 1}
-                            </text>
-                          </svg>
-                        </div>
-                      )}
-
-                      {/* 9. MEDAL (ROSETTE, INTEGRATED SOFT SHADOW, Z-INDEX: 30) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "445px",
-                          top: "175px",
-                          width: "74px",
-                          height: "74px",
-                          zIndex: 30,
-                          pointerEvents: "none",
-                          filter: "drop-shadow(0 4px 8px rgba(0, 0, 0, 0.22)) drop-shadow(0 1px 3px rgba(0, 0, 0, 0.12))",
-                        }}
-                      >
-                        <svg viewBox="0 0 100 100" className="w-full h-full">
-                          <defs>
-                            <radialGradient id="medallionSunburst" cx="38%" cy="32%" r="68%">
-                              <stop offset="0%" stopColor="#fffdf2" />
-                              <stop offset="22%" stopColor="#fae896" />
-                              <stop offset="52%" stopColor="#e5b73e" />
-                              <stop offset="82%" stopColor="#b8860b" />
-                              <stop offset="100%" stopColor="#8c5e07" />
-                            </radialGradient>
-                            <linearGradient id="medallionRimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                              <stop offset="0%" stopColor="#fffdf0" />
-                              <stop offset="20%" stopColor="#fae89f" />
-                              <stop offset="50%" stopColor="#e5b74b" />
-                              <stop offset="80%" stopColor="#ca8a04" />
-                              <stop offset="100%" stopColor="#996515" />
-                            </linearGradient>
-                          </defs>
-
-                          {/* 16-Scallop Rosette Fluted Outer Medallion Border */}
-                          <path
-                            d="M 94.50 50.00 Q 98.25 59.60 91.11 67.03 Q 90.91 77.33 81.47 81.47 Q 77.33 90.91 67.03 91.11 Q 59.60 98.25 50.00 94.50 Q 40.40 98.25 32.97 91.11 Q 22.67 90.91 18.53 81.47 Q 9.09 77.33 8.89 67.03 Q 1.75 59.60 5.50 50.00 Q 1.75 40.40 8.89 32.97 Q 9.09 22.67 18.53 18.53 Q 22.67 9.09 32.97 8.89 Q 40.40 1.75 50.00 5.50 Q 59.60 1.75 67.03 8.89 Q 77.33 9.09 81.47 18.53 Q 90.91 22.67 91.11 32.97 Q 98.25 40.40 94.50 50.00 Z"
-                            fill="url(#medallionRimGrad)"
-                            stroke="#b8860b"
-                            strokeWidth="0.8"
-                          />
-
-                          {/* Inner Scallop Shadow Ring */}
-                          <circle cx="50" cy="50" r="42.5" fill="url(#medallionRimGrad)" stroke="#a16207" strokeWidth="0.6" />
-
-                          {/* Polished Inner Ring Ridge */}
-                          <circle cx="50" cy="50" r="39.5" fill="none" stroke="#fffdf2" strokeWidth="1.2" strokeOpacity="0.95" />
-                          <circle cx="50" cy="50" r="38" fill="none" stroke="#8c5e07" strokeWidth="0.65" strokeOpacity="0.75" />
-
-                          {/* Center Gold Face */}
-                          <circle cx="50" cy="50" r="36.5" fill="url(#medallionSunburst)" stroke="#e5b74b" strokeWidth="0.8" />
-                          <circle cx="50" cy="50" r="35" fill="none" stroke="#fffdf2" strokeWidth="0.8" strokeOpacity="0.7" />
-
-                          {/* MASC Geometric Emblem in Pure Golden Relief */}
-                          <g transform="translate(50, 50) scale(0.62) translate(-50, -50)">
-                            <path
-                              d="M 50 16 L 76 33 L 76 43 L 50 26 L 24 43 L 24 33 Z"
-                              fill="url(#medallionRimGrad)"
-                              stroke="#b8860b"
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M 50 31 L 70 44 L 70 54 L 50 41 L 30 54 L 30 44 Z"
-                              fill="url(#medallionRimGrad)"
-                              stroke="#b8860b"
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M 50 46 L 70 59 L 70 69 L 50 56 L 30 69 L 30 59 Z"
-                              fill="url(#medallionRimGrad)"
-                              stroke="#b8860b"
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                            <path
-                              d="M 50 61 L 64 71 L 50 82 L 36 71 Z"
-                              fill="url(#medallionRimGrad)"
-                              stroke="#b8860b"
-                              strokeWidth="1.2"
-                              strokeLinejoin="round"
-                            />
-                          </g>
-                        </svg>
-                      </div>
-
-                      {/* BODY CONTENT CONTAINER (FLEX COLUMN FOR DYNAMIC SPACING SAFETY, LEFT: 73PX, Z-INDEX: 10) */}
-                      <div
-                        style={{
-                          position: "absolute",
-                          left: "73px",
-                          top: "236px",
-                          width: "320px",
-                          display: "flex",
-                          flexDirection: "column",
-                          alignItems: "flex-start",
-                          zIndex: 10,
-                        }}
-                      >
-                        {/* 10. RECOGNITION TEXT (+8%, READABILITY) */}
-                        <div
-                          style={{
-                            fontSize: "9.2px",
-                            fontWeight: 600,
-                            letterSpacing: "1.5px",
-                            color: "#5b6b80",
-                            textTransform: "uppercase",
-                            lineHeight: "11px",
-                          }}
-                        >
-                          AS A MARK OF RECOGNITION FOR
-                        </div>
-
-                        {/* 11. RECIPIENT NAME (BOLD, GAP 20PX, MAX 2 LINES) */}
-                        <div
-                          style={{
-                            marginTop: "20px",
-                            maxWidth: "310px",
-                            fontSize: "16.5px",
-                            fontWeight: 800,
-                            lineHeight: "19px",
-                            color: "#101827",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          {activeCertificate.swimmerName}
-                        </div>
-
-                        {/* 12. EVENT (+8%, GAP 13PX, MAX 2 LINES) */}
-                        <div
-                          style={{
-                            marginTop: "13px",
-                            maxWidth: "320px",
-                            fontSize: "10.3px",
-                            fontWeight: 600,
-                            lineHeight: "14px",
-                            color: "#1e293b",
-                          }}
-                        >
-                          {formatEventRaceLine(activeCertificate)}
-                        </div>
-
-                        {/* 12b. OFFICIAL TIME RESULT (WAKTU RESMI) */}
-                        {Boolean(
-                          activeCertificate.timeResult &&
-                            activeCertificate.timeResult.trim() !== "" &&
-                            activeCertificate.timeResult !== "-" &&
-                            !/^0+(\.0+)*$/.test(activeCertificate.timeResult)
-                        ) && (
-                          <div
-                            style={{
-                              marginTop: "7px",
-                              display: "flex",
-                              alignItems: "center",
-                              gap: "5px",
-                              fontSize: "9.5px",
-                              letterSpacing: "0.8px",
-                              textTransform: "uppercase",
-                            }}
-                          >
-                            <span style={{ color: "#475569", fontWeight: 700 }}>
-                              {config.timeLabel || "OFFICIAL TIME:"}
-                            </span>
-                            <span
-                              style={{
-                                fontFamily: "'Oswald', 'Roboto Condensed', 'Courier New', monospace",
-                                fontWeight: 700,
-                                fontSize: "11px",
-                                color: "#0f766e",
-                                letterSpacing: "0.5px",
-                              }}
-                            >
-                              {activeCertificate.timeResult}
-                            </span>
-                          </div>
-                        )}
-
-                        {/* 13. PARTICIPATION DETAILS (+10%, GAP 30PX, LINE-HEIGHT ~1.45) */}
-                        <div
-                          style={{
-                            marginTop: Boolean(
-                              activeCertificate.timeResult &&
-                                activeCertificate.timeResult.trim() !== "" &&
-                                activeCertificate.timeResult !== "-" &&
-                                !/^0+(\.0+)*$/.test(activeCertificate.timeResult)
-                            )
-                              ? "20px"
-                              : "30px",
-                            width: "320px",
-                            fontSize: "8.8px",
-                            lineHeight: "12.8px",
-                            color: "#475569",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          <div style={{ marginBottom: "2px", fontWeight: 500 }}>
-                            {(config.useCustomBodyText && config.bodyPreText) || "FOR PARTICIPATING IN THE"}
-                          </div>
-                          <div style={{ fontWeight: 800, color: "#101827", marginBottom: "2px" }}>
-                            {(config.useCustomBodyText && config.bodyCompetitionName) || `${activeCertificate.tournamentName} ORGANIZED BY`}
-                          </div>
-                          <div style={{ marginBottom: "2px", fontWeight: 500 }}>
-                            {(config.useCustomBodyText && config.bodyOrganizerName) || config.orgName || "MODERN AQUATIC SWIMMING CLUB ( MASC )"}
-                          </div>
-                          <div style={{ fontWeight: 500 }}>
-                            {(config.useCustomBodyText && config.bodyDateText) || formatCertificateDate(activeCertificate.tournamentDate || activeCertificate.issueDate)}
-                          </div>
-                        </div>
-
-                        {/* 14. VENUE (+10%, GAP 26PX, CLEAR SEPARATION) */}
-                        <div
-                          style={{
-                            marginTop: "26px",
-                            width: "320px",
-                            fontSize: "8.8px",
-                            lineHeight: "12.8px",
-                            textTransform: "uppercase",
-                          }}
-                        >
-                          <div style={{ fontWeight: 700, color: "#101827", marginBottom: "2px" }}>
-                            {(config.useCustomBodyText && config.bodyVenueText) || activeCertificate.tournamentLocation?.toUpperCase() || "MODERN GOLF AND COUNTRY CLUB"}
-                          </div>
-                          <div style={{ color: "#475569", fontWeight: 400 }}>
-                            {(config.useCustomBodyText && config.bodyLocationText) || config.city?.toUpperCase() || "KOTA MODERN, KOTA TANGERANG"}
-                          </div>
-                        </div>
-
-                        {/* 15 & 16. QR + SIGNATORY GROUP (ONE VISUAL GROUP, GAP 42PX, STRICTLY ALIGNED LEFT 73PX) */}
-                        <div
-                          style={{
-                            marginTop: "42px",
-                            display: "flex",
-                            flexDirection: "column",
-                            alignItems: "flex-start",
-                          }}
-                        >
-                          {/* QR CODE (+5% TO 50PX) */}
-                          <div
-                            style={{
-                              width: "50px",
-                              height: "50px",
-                            }}
-                          >
-                            {qrCodeUrl ? (
-                              <img
-                                src={qrCodeUrl}
-                                alt="QR Code"
-                                style={{ width: "50px", height: "50px", objectFit: "contain", display: "block" }}
-                              />
-                            ) : (
-                              <div
-                                style={{
-                                  width: "50px",
-                                  height: "50px",
-                                  background: "#f1f5f9",
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: "7px",
-                                  color: "#94a3b8",
-                                }}
-                              >
-                                QR
-                              </div>
-                            )}
-                          </div>
-
-                          {/* SIGNATORY NAME & TITLE (QR ↓ 9PX, NAME ↓ 2.5PX TITLE) */}
-                          <div style={{ marginTop: "9px" }}>
-                            <div
-                              style={{
-                                fontSize: "8.5px",
-                                fontWeight: 800,
-                                lineHeight: "11px",
-                                color: "#101827",
-                                textTransform: "uppercase",
-                              }}
-                            >
-                              {config.signatory1Name}
-                            </div>
-                            <div
-                              style={{
-                                fontSize: "6.7px",
-                                fontWeight: 500,
-                                color: "#68768a",
-                                textTransform: "uppercase",
-                                marginTop: "2.5px",
-                                lineHeight: "9px",
-                              }}
-                            >
-                              {config.signatory1Title}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+                      cert={activeCertificate}
+                      theme={currentTheme}
+                      config={config}
+                      qrCodeUrl={qrCodeUrl}
+                      scale={canvasScale}
+                    />
                   </div>
                 </div>
               </div>
@@ -1934,7 +2265,251 @@ export default function CertificateManager({
         </div>
       )}
 
-      {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE A4 PORTRAIT) */}
+      {/* 5. OFFSCREEN HIDDEN RENDER CONTAINER FOR ZIP PNG CAPTURE */}
+      <div
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "590px",
+          height: "834px",
+          overflow: "hidden",
+          zIndex: -100,
+          pointerEvents: "none",
+          visibility: "hidden",
+        }}
+      >
+        {hiddenCertData && (
+          <div ref={hiddenRenderRef} style={{ width: "590px", height: "834px", position: "relative" }}>
+            <CertificateCanvas
+              cert={hiddenCertData.cert}
+              theme={getCertificateTheme(hiddenCertData.cert, selectedTemplateMode)}
+              config={config}
+              qrCodeUrl={hiddenCertData.qrUrl}
+              scale={1}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 6. BATCH PRINT CONTAINER (MULTI-PAGE A4) */}
+      {isBatchPrinting && (
+        <div id="batch-certificates-print-area" className="hidden print:block">
+          {filteredCertificates.map((cert, idx) => {
+            const theme = getCertificateTheme(cert, selectedTemplateMode);
+            const qrUrl = batchQrMap[cert.id] || qrCodeUrl;
+            return (
+              <div
+                key={`batch-${cert.id}-${idx}`}
+                className="batch-cert-sheet"
+                style={{
+                  width: "210mm",
+                  height: "297mm",
+                  pageBreakAfter: idx === filteredCertificates.length - 1 ? "avoid" : "always",
+                  breakAfter: idx === filteredCertificates.length - 1 ? "avoid" : "page",
+                  position: "relative",
+                  overflow: "hidden",
+                  background: "#ffffff",
+                }}
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: 0,
+                    width: "590px",
+                    height: "834.4px",
+                    transform: "scale(1.342)",
+                    transformOrigin: "0 0",
+                  }}
+                >
+                  <CertificateCanvas
+                    cert={cert}
+                    theme={theme}
+                    config={config}
+                    qrCodeUrl={qrUrl}
+                    scale={1}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* 7. BATCH ZIP GENERATION PROGRESS OVERLAY MODAL */}
+      {batchProgress.active && (
+        <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 sm:p-7 space-y-5 animate-in fade-in zoom-in-95">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center shrink-0">
+                {batchProgress.status === "done" ? (
+                  <Check className="w-6 h-6 text-emerald-600" />
+                ) : batchProgress.status === "error" ? (
+                  <AlertCircle className="w-6 h-6 text-rose-600" />
+                ) : (
+                  <Loader2 className="w-6 h-6 text-emerald-600 animate-spin" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-base font-black text-slate-900 truncate">
+                  {batchProgress.status === "done"
+                    ? "Berhasil Diunduh!"
+                    : batchProgress.status === "zipping"
+                    ? "Membuat File ZIP..."
+                    : "Memproses Sertifikat Peserta"}
+                </h3>
+                <p className="text-xs text-slate-500 font-medium truncate">
+                  {batchProgress.swimmerName}
+                </p>
+              </div>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs font-bold">
+                <span className="text-slate-600">
+                  {batchProgress.status === "zipping"
+                    ? "Kompresi arsip..."
+                    : `Sertifikat ${batchProgress.current} dari ${batchProgress.total}`}
+                </span>
+                <span className="text-emerald-600">
+                  {batchProgress.total > 0
+                    ? `${Math.round((batchProgress.current / batchProgress.total) * 100)}%`
+                    : "0%"}
+                </span>
+              </div>
+              <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5 border border-slate-200">
+                <div
+                  className="h-full bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full transition-all duration-200 ease-out"
+                  style={{
+                    width: `${
+                      batchProgress.total > 0
+                        ? Math.max(5, (batchProgress.current / batchProgress.total) * 100)
+                        : 5
+                    }%`,
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200/80 text-[11px] text-slate-600 space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Format:</span>
+                <span className="font-bold text-slate-800">PNG Resolusi Tinggi (2x)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-500">Output:</span>
+                <span className="font-bold text-slate-800">1 File ZIP Terarsip</span>
+              </div>
+            </div>
+
+            {batchProgress.status !== "done" && (
+              <div className="flex justify-end">
+                <button
+                  onClick={handleCancelBatchZip}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
+                >
+                  Batalkan Proses
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 8. BATCH DOWNLOAD & EXPORT OPTIONS MODAL */}
+      {showBatchModal && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full p-6 sm:p-7 space-y-6 my-8 animate-in fade-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600">
+                  <Package className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-slate-900">
+                    Download Semua Sertifikat
+                  </h3>
+                  <p className="text-xs text-slate-500 font-semibold">
+                    Total {filteredCertificates.length} peserta terpilih siap diekspor
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowBatchModal(false)}
+                className="p-2 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Option 1: ZIP PNG */}
+              <div className="p-5 rounded-2xl border-2 border-emerald-500/60 bg-emerald-50/40 hover:bg-emerald-50/80 transition-all flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase">
+                    Rekomendasi
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    Paket ZIP (.zip)
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Setiap peserta dibuatkan file gambar PNG beresolusi tinggi (2x) terpisah dan digabung dalam 1 file ZIP rapi.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowBatchModal(false);
+                    startBatchZipDownload();
+                  }}
+                  disabled={filteredCertificates.length === 0 || batchProgress.active}
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md shadow-emerald-600/25 flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  <FileArchive className="w-4 h-4" />
+                  <span>Download ZIP ({filteredCertificates.length} PNG)</span>
+                </button>
+              </div>
+
+              {/* Option 2: Multi-page PDF */}
+              <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100/70 transition-all flex flex-col justify-between space-y-4">
+                <div className="space-y-2">
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-blue-100 text-blue-800 text-[10px] font-black uppercase">
+                    1 Dokumen
+                  </div>
+                  <h4 className="text-sm font-black text-slate-900">
+                    Cetak / 1 File PDF
+                  </h4>
+                  <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                    Semua sertifikat peserta digabungkan ke dalam 1 dokumen multi-halaman A4 (1 lembar per peserta).
+                  </p>
+                </div>
+                <button
+                  onClick={handleBatchPrint}
+                  disabled={filteredCertificates.length === 0 || isPreparingBatchPrint}
+                  className="w-full py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-95 disabled:opacity-50"
+                >
+                  {isPreparingBatchPrint ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Printer className="w-4 h-4" />
+                  )}
+                  <span>Cetak PDF ({filteredCertificates.length} Hal)</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-3.5 bg-slate-100/80 rounded-2xl border border-slate-200 text-xs text-slate-600 space-y-1 font-medium">
+              <span className="font-bold text-slate-800">Catatan Filter:</span>
+              <p>
+                Jumlah sertifikat yang diekspor mengikuti filter dan pencarian aktif saat ini ({filteredCertificates.length} peserta).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE OR MULTI-PAGE A4 PORTRAIT) */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&display=swap');
 
@@ -1946,12 +2521,9 @@ export default function CertificateManager({
           html,
           body {
             width: 210mm !important;
-            height: 297mm !important;
-            max-width: 210mm !important;
-            max-height: 297mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             background: #ffffff !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
@@ -1984,39 +2556,86 @@ export default function CertificateManager({
           body * {
             visibility: hidden;
           }
-          #certificate-print-area,
-          #certificate-print-area * {
-            visibility: visible;
-          }
-          #certificate-print-area {
-            position: fixed !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 590px !important;
-            height: 834.4px !important;
-            max-width: 590px !important;
-            max-height: 834.4px !important;
-            min-width: 590px !important;
-            min-height: 834.4px !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            box-sizing: border-box !important;
-            border: none !important;
-            border-radius: 0 !important;
-            box-shadow: none !important;
-            overflow: hidden !important;
-            transform-origin: 0 0 !important;
-            -webkit-transform-origin: 0 0 !important;
-            transform: scale(1.342) !important;
-            -webkit-transform: scale(1.342) !important;
-            z-index: 999999 !important;
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
-            page-break-before: avoid !important;
-            break-after: avoid !important;
-            break-inside: avoid !important;
-            break-before: avoid !important;
-          }
+
+          /* SINGLE CERTIFICATE PRINT MODE */
+          ${!isBatchPrinting
+            ? `
+            #certificate-print-area,
+            #certificate-print-area * {
+              visibility: visible;
+            }
+            #certificate-print-area {
+              position: fixed !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 590px !important;
+              height: 834.4px !important;
+              max-width: 590px !important;
+              max-height: 834.4px !important;
+              min-width: 590px !important;
+              min-height: 834.4px !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              box-sizing: border-box !important;
+              border: none !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+              overflow: hidden !important;
+              transform-origin: 0 0 !important;
+              -webkit-transform-origin: 0 0 !important;
+              transform: scale(1.342) !important;
+              -webkit-transform: scale(1.342) !important;
+              z-index: 999999 !important;
+              page-break-after: avoid !important;
+              page-break-inside: avoid !important;
+              break-after: avoid !important;
+              break-inside: avoid !important;
+            }
+            #batch-certificates-print-area {
+              display: none !important;
+            }
+          `
+            : `
+            #certificate-print-area {
+              display: none !important;
+            }
+            #batch-certificates-print-area,
+            #batch-certificates-print-area * {
+              visibility: visible;
+            }
+            #batch-certificates-print-area {
+              display: block !important;
+              position: static !important;
+              width: 210mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+            }
+            .batch-cert-sheet {
+              width: 210mm !important;
+              height: 297mm !important;
+              position: relative !important;
+              overflow: hidden !important;
+              box-sizing: border-box !important;
+              page-break-after: always !important;
+              page-break-inside: avoid !important;
+              break-after: page !important;
+              break-inside: avoid !important;
+              background: #ffffff !important;
+            }
+            .batch-cert-sheet:last-child {
+              page-break-after: avoid !important;
+              break-after: avoid !important;
+            }
+            .batch-cert-sheet > div {
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 590px !important;
+              height: 834.4px !important;
+              transform: scale(1.342) !important;
+              transform-origin: 0 0 !important;
+            }
+          `}
         }
       `}</style>
     </div>
