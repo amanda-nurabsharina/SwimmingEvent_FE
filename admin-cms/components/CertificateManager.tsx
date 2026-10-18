@@ -1401,6 +1401,14 @@ export default function CertificateManager({
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
+  // Certificates to render in print portal (active certificate for single print, or full filtered list for batch print)
+  const printCertificates = useMemo(() => {
+    if (isBatchPrinting) {
+      return filteredCertificates;
+    }
+    return activeCertificate ? [activeCertificate] : [];
+  }, [isBatchPrinting, filteredCertificates, activeCertificate]);
+
   // Compute active template type (winner -> biru, best_swimmer -> emas, participant -> merah)
   const activeTemplateType = useMemo(() => {
     if (selectedTemplateMode) {
@@ -1497,46 +1505,73 @@ export default function CertificateManager({
           status: "rendering",
         });
 
-        // 1. Get or generate QR code
-        let qrUrl = batchQrMap[cert.id];
-        if (!qrUrl) {
-          qrUrl = await generateQrDataUrl(getScreenshotDocNumber(cert, certType));
-          setBatchQrMap((prev) => ({ ...prev, [cert.id]: qrUrl }));
-        }
-
-        // 2. Render to offscreen canvas with specific theme for this participant
-        setHiddenCertData({ cert, qrUrl, theme });
-        // Allow browser 60ms to paint DOM and load background
-        await new Promise((resolve) => setTimeout(resolve, 60));
-
-        if (!hiddenRenderRef.current) {
-          continue;
-        }
-
-        // 3. Capture with html2canvas
-        const canvas = await html2canvas(hiddenRenderRef.current, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: "#f8f5ee",
-          logging: false,
-        });
-
-        // 4. Convert canvas to Blob
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob((b) => resolve(b), "image/png")
-        );
-
-        if (blob) {
-          const safeName = cert.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
-          const safeEvent = (cert.eventName || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
-          let rankTag = "Peserta";
-          if (certType === "best_swimmer") {
-            rankTag = "Best_Swimmer";
-          } else if (certType === "winner") {
-            rankTag = cert.rank && cert.rank <= 3 ? `Juara_${cert.rank}` : "Juara";
+        try {
+          // 1. Get or generate QR code
+          let qrUrl = batchQrMap[cert.id];
+          if (!qrUrl) {
+            qrUrl = await generateQrDataUrl(getScreenshotDocNumber(cert, certType));
+            setBatchQrMap((prev) => ({ ...prev, [cert.id]: qrUrl }));
           }
-          const fileName = `${String(i + 1).padStart(3, "0")}_${rankTag}_${safeName}_${safeEvent}.png`;
-          zip.file(fileName, blob);
+
+          // 2. Render to offscreen canvas with specific theme for this participant
+          setHiddenCertData({ cert, qrUrl, theme });
+          
+          // Allow DOM to mount and paint
+          await new Promise((resolve) => setTimeout(resolve, 80));
+
+          if (!hiddenRenderRef.current) {
+            continue;
+          }
+
+          // Wait for all images in the canvas to be fully decoded
+          const imgs = Array.from(hiddenRenderRef.current.querySelectorAll("img"));
+          await Promise.all(
+            imgs.map((img) => {
+              if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+              return new Promise<void>((res) => {
+                img.onload = () => res();
+                img.onerror = () => res();
+                setTimeout(res, 200);
+              });
+            })
+          );
+
+          // 3. Capture with html2canvas
+          const canvas = await html2canvas(hiddenRenderRef.current, {
+            scale: 2,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: "#f8f5ee",
+            logging: false,
+            width: 590,
+            height: 834,
+            x: 0,
+            y: 0,
+            scrollX: 0,
+            scrollY: 0,
+            windowWidth: 590,
+            windowHeight: 834,
+          });
+
+          // 4. Convert canvas to Blob
+          const blob = await new Promise<Blob | null>((resolve) =>
+            canvas.toBlob((b) => resolve(b), "image/png")
+          );
+
+          if (blob) {
+            const safeName = cert.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
+            const safeEvent = (cert.eventName || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
+            let rankTag = "Peserta";
+            if (certType === "best_swimmer") {
+              rankTag = "Best_Swimmer";
+            } else if (certType === "winner") {
+              rankTag = cert.rank && cert.rank <= 3 ? `Juara_${cert.rank}` : "Juara";
+            }
+            const fileName = `${String(i + 1).padStart(3, "0")}_${rankTag}_${safeName}_${safeEvent}.png`;
+            zip.file(fileName, blob);
+          }
+        } catch (itemErr: any) {
+          console.error(`Error rendering cert for ${cert.swimmerName}:`, itemErr);
         }
       }
 
@@ -1547,10 +1582,15 @@ export default function CertificateManager({
         return;
       }
 
+      const fileCount = Object.keys(zip.files).length;
+      if (fileCount === 0) {
+        throw new Error("Tidak ada file sertifikat yang berhasil digenerate.");
+      }
+
       setBatchProgress((prev) => ({
         ...prev,
         status: "zipping",
-        swimmerName: "Mengompresi semua sertifikat ke file ZIP...",
+        swimmerName: `Mengompresi ${fileCount} sertifikat ke file ZIP...`,
       }));
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
@@ -1558,7 +1598,7 @@ export default function CertificateManager({
       const a = document.createElement("a");
       a.href = downloadUrl;
       const tourneyName = (currentTournament?.name || "Turnamen").replace(/[/\\?%*:|"<>]/g, "_");
-      a.download = `Sertifikat_${tourneyName}_Total_${total}_Peserta.zip`;
+      a.download = `Sertifikat_${tourneyName}_Total_${fileCount}_Peserta.zip`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1567,17 +1607,21 @@ export default function CertificateManager({
       setBatchProgress((prev) => ({
         ...prev,
         status: "done",
-        swimmerName: "Selesai diunduh!",
+        swimmerName: `Selesai! ${fileCount} sertifikat berhasil diunduh.`,
       }));
-      toast.success(`Berhasil mengunduh ${total} sertifikat peserta dalam file ZIP!`);
+      toast.success(`Berhasil mengunduh ${fileCount} sertifikat peserta dalam file ZIP!`);
       setTimeout(() => {
         setBatchProgress((prev) => ({ ...prev, active: false, status: "idle" }));
         setShowBatchModal(false);
       }, 1500);
     } catch (err: any) {
       console.error("Error generating batch ZIP:", err);
-      toast.error("Gagal mengunduh ZIP: " + err.message);
-      setBatchProgress((prev) => ({ ...prev, status: "error" }));
+      toast.error("Gagal mengunduh ZIP: " + (err.message || String(err)));
+      setBatchProgress((prev) => ({
+        ...prev,
+        status: "error",
+        swimmerName: "Gagal: " + (err.message || "Terjadi kesalahan saat memproses gambar"),
+      }));
     } finally {
       setHiddenCertData(null);
     }
@@ -1648,8 +1692,9 @@ export default function CertificateManager({
   };
 
   return (
-    <div className="space-y-6 font-sans">
-      {/* 1. TOP HEADER & ACTION BAR */}
+    <>
+      <div id="certificate-screen-root" className="space-y-6 font-sans print:hidden">
+        {/* 1. TOP HEADER & ACTION BAR */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm print:hidden">
         <div>
           <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-50 border border-blue-200 text-blue-700 text-[11px] font-black tracking-wider uppercase shadow-2xs">
@@ -2460,22 +2505,24 @@ export default function CertificateManager({
           </div>
         </div>
       )}
+      </div>
 
-      {/* 5. OFFSCREEN HIDDEN RENDER CONTAINER FOR ZIP PNG CAPTURE */}
-      <div
-        style={{
-          position: "fixed",
-          left: "-9999px",
-          top: 0,
-          width: "590px",
-          height: "834px",
-          overflow: "hidden",
-          zIndex: -100,
-          pointerEvents: "none",
-          visibility: "hidden",
-        }}
-      >
-        {hiddenCertData && (
+      {/* 5. OFFSCREEN RENDER TARGET FOR ZIP PNG CAPTURE (PLACED UNDER PROGRESS MODAL Z-INDEX 40) */}
+      {hiddenCertData && (
+        <div
+          id="batch-zip-render-target"
+          style={{
+            position: "fixed",
+            left: 0,
+            top: 0,
+            width: "590px",
+            height: "834px",
+            zIndex: 40,
+            pointerEvents: "none",
+            background: "#f8f5ee",
+            overflow: "hidden",
+          }}
+        >
           <div ref={hiddenRenderRef} style={{ width: "590px", height: "834px", position: "relative" }}>
             <CertificateCanvas
               cert={hiddenCertData.cert}
@@ -2485,54 +2532,33 @@ export default function CertificateManager({
               scale={1}
             />
           </div>
-        )}
-      </div>
-
-      {/* 6. BATCH PRINT CONTAINER (MULTI-PAGE A4) */}
-      {isBatchPrinting && (
-        <div id="batch-certificates-print-area" className="hidden print:block">
-          {filteredCertificates.map((cert, idx) => {
-            const certType = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
-            const theme = THEME_CONFIG[certType];
-            const qrUrl = batchQrMap[cert.id] || qrCodeUrl;
-            return (
-              <div
-                key={`batch-${cert.id}-${idx}`}
-                className="batch-cert-sheet"
-                style={{
-                  width: "210mm",
-                  height: "297mm",
-                  pageBreakAfter: idx === filteredCertificates.length - 1 ? "avoid" : "always",
-                  breakAfter: idx === filteredCertificates.length - 1 ? "avoid" : "page",
-                  position: "relative",
-                  overflow: "hidden",
-                  background: "#ffffff",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    width: "590px",
-                    height: "834.4px",
-                    transform: "scale(1.342)",
-                    transformOrigin: "0 0",
-                  }}
-                >
-                  <CertificateCanvas
-                    cert={cert}
-                    theme={theme}
-                    config={config}
-                    qrCodeUrl={qrUrl}
-                    scale={1}
-                  />
-                </div>
-              </div>
-            );
-          })}
         </div>
       )}
+
+      {/* 6. UNIVERSAL DEDICATED PRINT PORTAL (FOR SINGLE & BATCH MULTI-PAGE PRINTING) */}
+      <div id="certificate-print-portal" className="hidden print:block">
+        {printCertificates.map((cert, idx) => {
+          const certType = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
+          const theme = THEME_CONFIG[certType];
+          const qrUrl = batchQrMap[cert.id] || (cert.id === activeCertificate?.id ? qrCodeUrl : undefined);
+          return (
+            <div
+              key={`print-sheet-${cert.id}-${idx}`}
+              className="cert-print-sheet"
+            >
+              <div className="cert-print-sheet-inner">
+                <CertificateCanvas
+                  cert={cert}
+                  theme={theme}
+                  config={config}
+                  qrCodeUrl={qrUrl}
+                  scale={1}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* 7. BATCH ZIP GENERATION PROGRESS OVERLAY MODAL */}
       {batchProgress.active && (
@@ -2706,18 +2732,19 @@ export default function CertificateManager({
         </div>
       )}
 
-      {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE OR MULTI-PAGE A4 PORTRAIT) */}
+      {/* PRINT CSS STYLING (PERFECT SINGLE-PAGE OR MULTI-PAGE A4 PORTRAIT WITHOUT BLANK PAGES) */}
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Oswald:wght@600;700&display=swap');
 
         @media print {
           @page {
             size: A4 portrait;
-            margin: 0mm !important;
+            margin: 0 !important;
           }
           html,
           body {
             width: 210mm !important;
+            height: 100% !important;
             margin: 0 !important;
             padding: 0 !important;
             overflow: visible !important;
@@ -2725,116 +2752,67 @@ export default function CertificateManager({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Completely hide all elements outside the certificate */
+          /* Completely hide all screen elements, dashboard sidebar, topbars and modals */
+          aside,
           nav,
           header,
-          aside,
           footer,
           .print\:hidden,
-          .no-print {
+          .no-print,
+          #certificate-screen-root {
             display: none !important;
           }
-          /* Neutralize dashboard layout, cards, and wrappers so they have no offset or transform */
-          main,
-          main > div,
-          .certificateViewport,
-          .certificateScaleWrapper {
-            position: static !important;
+          /* Neutralize dashboard layout wrapper */
+          main {
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 210mm !important;
+            max-width: none !important;
+            overflow: visible !important;
+            background: transparent !important;
+          }
+          /* Universal print portal */
+          #certificate-print-portal {
+            display: block !important;
+            width: 210mm !important;
             margin: 0 !important;
             padding: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            transform: none !important;
-            filter: none !important;
-            perspective: none !important;
-            width: 100% !important;
-            max-width: none !important;
+            background: #ffffff !important;
           }
-          body * {
-            visibility: hidden;
+          .cert-print-sheet {
+            display: block !important;
+            width: 210mm !important;
+            height: 297mm !important;
+            min-height: 297mm !important;
+            max-height: 297mm !important;
+            position: relative !important;
+            overflow: hidden !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            background: #ffffff !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            box-sizing: border-box !important;
           }
-
-          /* SINGLE CERTIFICATE PRINT MODE */
-          ${!isBatchPrinting
-            ? `
-            #certificate-print-area,
-            #certificate-print-area * {
-              visibility: visible;
-            }
-            #certificate-print-area {
-              position: fixed !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 590px !important;
-              height: 834.4px !important;
-              max-width: 590px !important;
-              max-height: 834.4px !important;
-              min-width: 590px !important;
-              min-height: 834.4px !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              box-sizing: border-box !important;
-              border: none !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-              overflow: hidden !important;
-              transform-origin: 0 0 !important;
-              -webkit-transform-origin: 0 0 !important;
-              transform: scale(1.342) !important;
-              -webkit-transform: scale(1.342) !important;
-              z-index: 999999 !important;
-              page-break-after: avoid !important;
-              page-break-inside: avoid !important;
-              break-after: avoid !important;
-              break-inside: avoid !important;
-            }
-            #batch-certificates-print-area {
-              display: none !important;
-            }
-          `
-            : `
-            #certificate-print-area {
-              display: none !important;
-            }
-            #batch-certificates-print-area,
-            #batch-certificates-print-area * {
-              visibility: visible;
-            }
-            #batch-certificates-print-area {
-              display: block !important;
-              position: static !important;
-              width: 210mm !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            .batch-cert-sheet {
-              width: 210mm !important;
-              height: 297mm !important;
-              position: relative !important;
-              overflow: hidden !important;
-              box-sizing: border-box !important;
-              page-break-after: always !important;
-              page-break-inside: avoid !important;
-              break-after: page !important;
-              break-inside: avoid !important;
-              background: #ffffff !important;
-            }
-            .batch-cert-sheet:last-child {
-              page-break-after: avoid !important;
-              break-after: avoid !important;
-            }
-            .batch-cert-sheet > div {
-              position: absolute !important;
-              left: 0 !important;
-              top: 0 !important;
-              width: 590px !important;
-              height: 834.4px !important;
-              transform: scale(1.342) !important;
-              transform-origin: 0 0 !important;
-            }
-          `}
+          .cert-print-sheet:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+          }
+          .cert-print-sheet-inner {
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            width: 590px !important;
+            height: 834.4px !important;
+            transform: scale(1.345) !important;
+            -webkit-transform: scale(1.345) !important;
+            transform-origin: 0 0 !important;
+            -webkit-transform-origin: 0 0 !important;
+          }
         }
       `}</style>
-    </div>
+    </>
   );
 }
