@@ -1099,6 +1099,18 @@ export default function CertificateManager({
     } catch (e) {}
   }, []);
 
+  // Preload certificate background SVG assets into browser cache
+  useEffect(() => {
+    [
+      "/certificate/certificate-bg.svg",
+      "/certificate/certificate-bg-gold.svg",
+      "/certificate/certificate-bg-maroon.svg",
+    ].forEach((src) => {
+      const img = new Image();
+      img.src = src;
+    });
+  }, []);
+
   const saveConfig = (newCfg: WatermarkConfig) => {
     setConfig(newCfg);
     try {
@@ -1484,6 +1496,7 @@ export default function CertificateManager({
 
     try {
       const zip = new JSZip();
+      let lastError = "";
 
       for (let i = 0; i < total; i++) {
         if (cancelBatchRef.current) {
@@ -1517,13 +1530,13 @@ export default function CertificateManager({
           setHiddenCertData({ cert, qrUrl, theme });
           
           // Allow DOM to mount and paint
-          await new Promise((resolve) => setTimeout(resolve, 80));
+          await new Promise((resolve) => setTimeout(resolve, 100));
 
           if (!hiddenRenderRef.current) {
             continue;
           }
 
-          // Wait for all images in the canvas to be fully decoded
+          // Wait for all images in the canvas to be fully loaded
           const imgs = Array.from(hiddenRenderRef.current.querySelectorAll("img"));
           await Promise.all(
             imgs.map((img) => {
@@ -1536,11 +1549,10 @@ export default function CertificateManager({
             })
           );
 
-          // 3. Capture with html2canvas
+          // 3. Capture with html2canvas (DO NOT use allowTaint: true, it taints canvas and blocks toDataURL!)
           const canvas = await html2canvas(hiddenRenderRef.current, {
             scale: 2,
             useCORS: true,
-            allowTaint: true,
             backgroundColor: "#f8f5ee",
             logging: false,
             width: 590,
@@ -1553,12 +1565,10 @@ export default function CertificateManager({
             windowHeight: 834,
           });
 
-          // 4. Convert canvas to Blob
-          const blob = await new Promise<Blob | null>((resolve) =>
-            canvas.toBlob((b) => resolve(b), "image/png")
-          );
-
-          if (blob) {
+          // 4. Convert canvas to base64 for JSZip
+          const dataUrl = canvas.toDataURL("image/png");
+          if (dataUrl && dataUrl.startsWith("data:image/png;base64,")) {
+            const base64Data = dataUrl.substring("data:image/png;base64,".length);
             const safeName = cert.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
             const safeEvent = (cert.eventName || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
             let rankTag = "Peserta";
@@ -1568,9 +1578,10 @@ export default function CertificateManager({
               rankTag = cert.rank && cert.rank <= 3 ? `Juara_${cert.rank}` : "Juara";
             }
             const fileName = `${String(i + 1).padStart(3, "0")}_${rankTag}_${safeName}_${safeEvent}.png`;
-            zip.file(fileName, blob);
+            zip.file(fileName, base64Data, { base64: true });
           }
         } catch (itemErr: any) {
+          lastError = itemErr?.message || String(itemErr);
           console.error(`Error rendering cert for ${cert.swimmerName}:`, itemErr);
         }
       }
@@ -1584,7 +1595,7 @@ export default function CertificateManager({
 
       const fileCount = Object.keys(zip.files).length;
       if (fileCount === 0) {
-        throw new Error("Tidak ada file sertifikat yang berhasil digenerate.");
+        throw new Error(lastError || "Tidak ada file sertifikat yang berhasil digenerate.");
       }
 
       setBatchProgress((prev) => ({
@@ -2630,10 +2641,17 @@ export default function CertificateManager({
             {batchProgress.status !== "done" && (
               <div className="flex justify-end">
                 <button
-                  onClick={handleCancelBatchZip}
+                  type="button"
+                  onClick={() => {
+                    if (batchProgress.status === "error") {
+                      setBatchProgress((prev) => ({ ...prev, active: false, status: "idle" }));
+                    } else {
+                      handleCancelBatchZip();
+                    }
+                  }}
                   className="px-4 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer active:scale-95"
                 >
-                  Batalkan Proses
+                  {batchProgress.status === "error" ? "Tutup" : "Batalkan Proses"}
                 </button>
               </div>
             )}
