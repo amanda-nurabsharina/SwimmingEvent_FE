@@ -409,20 +409,21 @@ export interface CertificateCanvasProps {
   qrCodeUrl?: string;
   scale?: number;
   id?: string;
+  idPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
 }
 
 export const CertificateCanvas = React.forwardRef<HTMLDivElement, CertificateCanvasProps>(
   function CertificateCanvas(
-    { cert, theme, config, qrCodeUrl, scale = 1, id, className = "", style = {} },
+    { cert, theme, config, qrCodeUrl, scale = 1, id, idPrefix = "c", className = "", style = {} },
     ref
   ) {
-    const idPrefix = String(cert.id || "c").replace(/[^a-zA-Z0-9]/g, "_");
-    const bannerLogoGradId = `topBannerLogoGrad_${idPrefix}`;
-    const rankGoldNumGradId = `rankGoldNumGrad_${idPrefix}`;
-    const medallionSunburstId = `medallionSunburst_${idPrefix}`;
-    const medallionRimGradId = `medallionRimGrad_${idPrefix}`;
+    const uniqueKey = `${idPrefix}_${String(cert.id || "0").replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const bannerLogoGradId = `topBannerLogoGrad_${uniqueKey}`;
+    const rankGoldNumGradId = `rankGoldNumGrad_${uniqueKey}`;
+    const medallionSunburstId = `medallionSunburst_${uniqueKey}`;
+    const medallionRimGradId = `medallionRimGrad_${uniqueKey}`;
 
     const certCategoryTitle = theme.titleCategory;
 
@@ -1454,26 +1455,72 @@ export default function CertificateManager({
 
   // 6. Download single active certificate as high-resolution PNG
   const handleDownloadCurrentPng = async () => {
-    if (!activeCertificate || !printAreaRef.current) return;
+    if (!activeCertificate) return;
     try {
       toast.info("Sedang mengenerate file PNG sertifikat...");
-      const canvas = await html2canvas(printAreaRef.current, {
+
+      const certType = resolveCertificateType(activeCertificate, certTypeOverrides, bestSwimmerSet);
+      const theme = THEME_CONFIG[certType];
+      const qrUrl = qrCodeUrl || (await generateQrDataUrl(getScreenshotDocNumber(activeCertificate, certType)));
+
+      // Render to clean unscaled canvas target (scale: 1, 590x834)
+      setHiddenCertData({ cert: activeCertificate, qrUrl, theme });
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const targetEl = hiddenRenderRef.current || printAreaRef.current;
+      if (!targetEl) throw new Error("Elemen sertifikat tidak ditemukan");
+
+      // Ensure images are fully decoded
+      const imgs = Array.from(targetEl.querySelectorAll("img"));
+      await Promise.all(
+        imgs.map((img) => {
+          if (img.complete && img.naturalWidth > 0) return Promise.resolve();
+          return new Promise<void>((res) => {
+            img.onload = () => res();
+            img.onerror = () => res();
+            setTimeout(res, 200);
+          });
+        })
+      );
+
+      const canvas = await html2canvas(targetEl, {
         scale: 2,
         useCORS: true,
         backgroundColor: "#f8f5ee",
         logging: false,
+        width: 590,
+        height: 834,
+        x: 0,
+        y: 0,
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: 590,
+        windowHeight: 834,
       });
-      const url = canvas.toDataURL("image/png");
+
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob((b) => resolve(b), "image/png")
+      );
+
+      if (!blob) throw new Error("Gagal mengonversi gambar kanvas");
+
+      const blobUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url;
+      a.href = blobUrl;
       const safeName = activeCertificate.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
-      a.download = `Sertifikat_${safeName}_${activeCertificate.eventCode}.png`;
+      const safeEvent = (activeCertificate.eventName || activeCertificate.eventCode || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
+      a.download = `Sertifikat_${safeName}_${safeEvent}.png`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+
       toast.success("Sertifikat PNG berhasil diunduh!");
     } catch (err: any) {
-      toast.error("Gagal mengunduh PNG: " + err.message);
+      console.error("Error downloading PNG:", err);
+      toast.error("Gagal mengunduh PNG: " + (err.message || String(err)));
+    } finally {
+      setHiddenCertData(null);
     }
   };
 
@@ -2104,6 +2151,7 @@ export default function CertificateManager({
                     <CertificateCanvas
                       ref={printAreaRef}
                       id="certificate-print-area"
+                      idPrefix="screen"
                       cert={activeCertificate}
                       theme={currentTheme}
                       config={config}
@@ -2535,6 +2583,7 @@ export default function CertificateManager({
         >
           <div ref={hiddenRenderRef} style={{ width: "590px", height: "834px", position: "relative" }}>
             <CertificateCanvas
+              idPrefix={`zip_${hiddenCertData.cert.id}`}
               cert={hiddenCertData.cert}
               theme={hiddenCertData.theme}
               config={config}
@@ -2558,6 +2607,7 @@ export default function CertificateManager({
             >
               <div className="cert-print-sheet-inner">
                 <CertificateCanvas
+                  idPrefix={`print_${idx}_${cert.id}`}
                   cert={cert}
                   theme={theme}
                   config={config}
