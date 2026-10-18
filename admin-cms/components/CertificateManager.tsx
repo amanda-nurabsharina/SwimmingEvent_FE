@@ -94,14 +94,19 @@ function formatEventRaceLine(item: CertificateItem): string {
   return main || item.eventName || "50 M Breaststroke PUTRA – KU 2";
 }
 
-function getScreenshotDocNumber(item: CertificateItem): string {
-  if (item.docNumber && item.docNumber.startsWith("NO.")) {
-    return item.docNumber;
+function getScreenshotDocNumber(item: CertificateItem, themeKey?: string): string {
+  let doc = item.docNumber;
+  if (!doc || !doc.startsWith("NO.")) {
+    const regNum = item.registrationId || item.rank || 25;
+    const numPadded = String(regNum).padStart(2, "0");
+    const yearShort = new Date().getFullYear().toString().slice(-2);
+    const typeCode = themeKey === "best_swimmer" ? "BEST" : item.isChampion ? "FSW" : "PART";
+    doc = `NO. ${numPadded} / MASC / ${typeCode} / XII / ${yearShort}`;
   }
-  const regNum = item.registrationId || item.rank || 25;
-  const numPadded = String(regNum).padStart(2, "0");
-  const yearShort = new Date().getFullYear().toString().slice(-2);
-  return `NO. ${numPadded} / MASC / FSW / XII / ${yearShort}`;
+  if (themeKey === "best_swimmer") {
+    doc = doc.replace(/\/CHAMP\//g, "/BEST/").replace(/\/PART\//g, "/BEST/");
+  }
+  return doc;
 }
 
 export function formatCertificateDate(dateStr?: string): string {
@@ -184,6 +189,8 @@ export interface CertificateItem {
   timeSeed: string;
   rank: number;
   isChampion: boolean;
+  isBestSwimmer?: boolean;
+  certificateType?: "winner" | "best_swimmer" | "participant";
   rankBadge: string;
   docNumber: string;
   issueDate: string;
@@ -319,14 +326,63 @@ export const THEME_CONFIG = {
   },
 };
 
+export function resolveCertificateType(
+  cert?: CertificateItem | null,
+  certTypeOverrides?: Record<string | number, "winner" | "best_swimmer" | "participant">,
+  bestSwimmerSet?: Set<string | number>
+): "winner" | "best_swimmer" | "participant" {
+  if (!cert) return "winner";
+
+  // 1. Explicit admin override for this certificate ID or registration ID
+  if (certTypeOverrides && certTypeOverrides[cert.id]) {
+    return certTypeOverrides[cert.id];
+  }
+  if (cert.registrationId && certTypeOverrides && certTypeOverrides[cert.registrationId]) {
+    return certTypeOverrides[cert.registrationId];
+  }
+
+  // 2. Best Swimmer set (manually tagged or auto-detected by top medals)
+  if (bestSwimmerSet) {
+    if (bestSwimmerSet.has(cert.id) || (cert.registrationId && bestSwimmerSet.has(cert.registrationId))) {
+      return "best_swimmer";
+    }
+    const cleanName = (cert.swimmerName || "").trim().toUpperCase();
+    if (bestSwimmerSet.has(cleanName)) {
+      return "best_swimmer";
+    }
+  }
+
+  // 3. Explicit property on certificate
+  if (cert.isBestSwimmer || cert.certificateType === "best_swimmer") {
+    return "best_swimmer";
+  }
+
+  // 4. Text indicators in eventName, rankBadge, or docNumber
+  const txt = `${cert.eventName || ""} ${cert.rankBadge || ""} ${cert.docNumber || ""}`.toLowerCase();
+  if (txt.includes("best swimmer") || txt.includes("perenang terbaik") || txt.includes("best_swimmer")) {
+    return "best_swimmer";
+  }
+
+  // 5. Winner / Champion (Juara 1, 2, 3 or Juara Group) -> Biru
+  if (cert.isChampion) {
+    return "winner";
+  }
+
+  // 6. Regular Participant -> Merah
+  return "participant";
+}
+
 export function getCertificateTheme(
   cert?: CertificateItem | null,
-  overrideMode?: "winner" | "best_swimmer" | "participant" | null
+  overrideMode?: "winner" | "best_swimmer" | "participant" | null,
+  certTypeOverrides?: Record<string | number, "winner" | "best_swimmer" | "participant">,
+  bestSwimmerSet?: Set<string | number>
 ) {
   if (overrideMode) {
     return THEME_CONFIG[overrideMode] || THEME_CONFIG.winner;
   }
-  return cert?.isChampion ? THEME_CONFIG.winner : THEME_CONFIG.participant;
+  const type = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
+  return THEME_CONFIG[type] || THEME_CONFIG.winner;
 }
 
 export async function generateQrDataUrl(docNumberOrId: string): Promise<string> {
@@ -457,7 +513,7 @@ export const CertificateCanvas = React.forwardRef<HTMLDivElement, CertificateCan
             pointerEvents: "none",
           }}
         >
-          {getScreenshotDocNumber(cert)}
+          {getScreenshotDocNumber(cert, theme.key)}
         </div>
 
         {/* 4. ORGANIZATION HEADER (CLEAN DARK NAVY BAND, INTEGRATED, Z-INDEX: 10) */}
@@ -935,10 +991,18 @@ export default function CertificateManager({
 
   // Filter & Search State
   const [searchQuery, setSearchQuery] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState<"all" | "champion" | "participant">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "champion" | "best_swimmer" | "participant">("all");
   const [selectedCertId, setSelectedCertId] = useState<string | number>("");
 
-  // Template Color Mode & QR Code
+  // Per-certificate/swimmer manual type overrides (winner, best_swimmer, participant)
+  const [certTypeOverrides, setCertTypeOverrides] = useState<
+    Record<string | number, "winner" | "best_swimmer" | "participant">
+  >({});
+
+  // Best Swimmers set (automatically detected from top gold medals or marked by admin)
+  const [bestSwimmerSet, setBestSwimmerSet] = useState<Set<string | number>>(new Set());
+
+  // Template Color Mode Preview & QR Code
   const [selectedTemplateMode, setSelectedTemplateMode] = useState<
     "winner" | "best_swimmer" | "participant" | null
   >(null);
@@ -973,6 +1037,7 @@ export default function CertificateManager({
   const [hiddenCertData, setHiddenCertData] = useState<{
     cert: CertificateItem;
     qrUrl: string;
+    theme: (typeof THEME_CONFIG)["winner"];
   } | null>(null);
 
   // Reset batch print mode on afterprint
@@ -1263,12 +1328,60 @@ export default function CertificateManager({
     }
   }, [certificates, selectedCertId]);
 
+  // Auto-detect Best Swimmers across events in this tournament
+  useEffect(() => {
+    if (certificates.length > 0) {
+      const detected = new Set<string | number>();
+
+      // 1. Any cert with explicit "best swimmer" in eventName, rankBadge, or docNumber
+      certificates.forEach((c) => {
+        const text = `${c.eventName || ""} ${c.rankBadge || ""} ${c.docNumber || ""}`.toLowerCase();
+        if (text.includes("best swimmer") || text.includes("perenang terbaik") || text.includes("best_swimmer")) {
+          detected.add(c.id);
+          detected.add((c.swimmerName || "").trim().toUpperCase());
+        }
+      });
+
+      // 2. Identify top gold medalists per (Age Group + Gender)
+      const groups: Record<string, Record<string, { count: number; ids: (string | number)[] }>> = {};
+      certificates.forEach((c) => {
+        if (!c.isChampion || c.rank !== 1) return;
+        const groupKey = `${(c.ageGroup || "KU").toUpperCase()}__${(c.gender || "ALL").toUpperCase()}`;
+        const sName = (c.swimmerName || "").trim().toUpperCase();
+        if (!groups[groupKey]) groups[groupKey] = {};
+        if (!groups[groupKey][sName]) groups[groupKey][sName] = { count: 0, ids: [] };
+        groups[groupKey][sName].count += 1;
+        groups[groupKey][sName].ids.push(c.id);
+      });
+
+      Object.values(groups).forEach((groupSwimmers) => {
+        let bestName = "";
+        let maxGolds = 0;
+        Object.entries(groupSwimmers).forEach(([name, data]) => {
+          if (data.count > maxGolds) {
+            maxGolds = data.count;
+            bestName = name;
+          }
+        });
+        if (bestName && maxGolds >= 2) {
+          detected.add(bestName);
+          groupSwimmers[bestName].ids.forEach((id) => detected.add(id));
+        }
+      });
+
+      setBestSwimmerSet(detected);
+    }
+  }, [certificates]);
+
   // 5. Filtered list based on Search & Category
   const filteredCertificates = useMemo(() => {
     return certificates.filter((c) => {
+      const type = resolveCertificateType(c, certTypeOverrides, bestSwimmerSet);
+
       // Category filter
-      if (categoryFilter === "champion" && !c.isChampion) return false;
-      if (categoryFilter === "participant" && c.isChampion) return false;
+      if (categoryFilter === "champion" && type !== "winner") return false;
+      if (categoryFilter === "best_swimmer" && type !== "best_swimmer") return false;
+      if (categoryFilter === "participant" && type !== "participant") return false;
 
       // Search query
       if (searchQuery.trim()) {
@@ -1282,19 +1395,19 @@ export default function CertificateManager({
 
       return true;
     });
-  }, [certificates, categoryFilter, searchQuery]);
+  }, [certificates, categoryFilter, searchQuery, certTypeOverrides, bestSwimmerSet]);
 
   const activeCertificate = useMemo(() => {
     return certificates.find((c) => c.id === selectedCertId) || certificates[0] || null;
   }, [certificates, selectedCertId]);
 
-  // Compute active template type (winner, best_swimmer, or participant)
+  // Compute active template type (winner -> biru, best_swimmer -> emas, participant -> merah)
   const activeTemplateType = useMemo(() => {
     if (selectedTemplateMode) {
       return selectedTemplateMode;
     }
-    return activeCertificate?.isChampion ? "winner" : "participant";
-  }, [selectedTemplateMode, activeCertificate]);
+    return resolveCertificateType(activeCertificate, certTypeOverrides, bestSwimmerSet);
+  }, [selectedTemplateMode, activeCertificate, certTypeOverrides, bestSwimmerSet]);
 
   const currentTheme = THEME_CONFIG[activeTemplateType] || THEME_CONFIG.winner;
   const certCategoryTitle = currentTheme.titleCategory;
@@ -1373,23 +1486,26 @@ export default function CertificateManager({
         }
 
         const cert = filteredCertificates[i];
+        const certType = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
+        const theme = THEME_CONFIG[certType];
+
         setBatchProgress({
           active: true,
           current: i + 1,
           total,
-          swimmerName: cert.swimmerName,
+          swimmerName: `${cert.swimmerName} (${theme.titleCategory})`,
           status: "rendering",
         });
 
         // 1. Get or generate QR code
         let qrUrl = batchQrMap[cert.id];
         if (!qrUrl) {
-          qrUrl = await generateQrDataUrl(getScreenshotDocNumber(cert));
+          qrUrl = await generateQrDataUrl(getScreenshotDocNumber(cert, certType));
           setBatchQrMap((prev) => ({ ...prev, [cert.id]: qrUrl }));
         }
 
-        // 2. Render to offscreen canvas
-        setHiddenCertData({ cert, qrUrl });
+        // 2. Render to offscreen canvas with specific theme for this participant
+        setHiddenCertData({ cert, qrUrl, theme });
         // Allow browser 60ms to paint DOM and load background
         await new Promise((resolve) => setTimeout(resolve, 60));
 
@@ -1413,7 +1529,12 @@ export default function CertificateManager({
         if (blob) {
           const safeName = cert.swimmerName.replace(/[/\\?%*:|"<>]/g, "_").trim();
           const safeEvent = (cert.eventName || "Lomba").replace(/[/\\?%*:|"<>]/g, "_").trim();
-          const rankTag = cert.isChampion ? `Juara_${cert.rank}` : "Peserta";
+          let rankTag = "Peserta";
+          if (certType === "best_swimmer") {
+            rankTag = "Best_Swimmer";
+          } else if (certType === "winner") {
+            rankTag = cert.rank && cert.rank <= 3 ? `Juara_${cert.rank}` : "Juara";
+          }
           const fileName = `${String(i + 1).padStart(3, "0")}_${rankTag}_${safeName}_${safeEvent}.png`;
           zip.file(fileName, blob);
         }
@@ -1477,7 +1598,8 @@ export default function CertificateManager({
       const qrMap: Record<string | number, string> = {};
       for (const cert of filteredCertificates) {
         if (!batchQrMap[cert.id]) {
-          const docNum = getScreenshotDocNumber(cert);
+          const certType = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
+          const docNum = getScreenshotDocNumber(cert, certType);
           qrMap[cert.id] = await generateQrDataUrl(docNum);
         } else {
           qrMap[cert.id] = batchQrMap[cert.id];
@@ -1651,12 +1773,12 @@ export default function CertificateManager({
             </div>
 
             {/* Filter Pills */}
-            <div className="flex items-center gap-1.5 pt-1">
+            <div className="flex flex-wrap items-center gap-1.5 pt-1">
               <button
                 onClick={() => setCategoryFilter("all")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   categoryFilter === "all"
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-500/20"
+                    ? "bg-slate-900 text-white shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
@@ -1664,24 +1786,36 @@ export default function CertificateManager({
               </button>
               <button
                 onClick={() => setCategoryFilter("champion")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
                   categoryFilter === "champion"
-                    ? "bg-amber-500 text-slate-950 font-black shadow-sm shadow-amber-500/20"
+                    ? "bg-blue-600 text-white font-black shadow-sm shadow-blue-500/20"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
                 <span>🏆</span>
-                <span>Piagam Juara ({certificates.filter((c) => c.isChampion).length})</span>
+                <span>Juara ({certificates.filter((c) => resolveCertificateType(c, certTypeOverrides, bestSwimmerSet) === "winner").length})</span>
+              </button>
+              <button
+                onClick={() => setCategoryFilter("best_swimmer")}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                  categoryFilter === "best_swimmer"
+                    ? "bg-gradient-to-r from-amber-400 to-yellow-300 text-amber-950 font-black shadow-sm ring-1 ring-amber-400"
+                    : "bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200/60"
+                }`}
+              >
+                <span>🌟</span>
+                <span>Best Swimmer ({certificates.filter((c) => resolveCertificateType(c, certTypeOverrides, bestSwimmerSet) === "best_swimmer").length})</span>
               </button>
               <button
                 onClick={() => setCategoryFilter("participant")}
-                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   categoryFilter === "participant"
-                    ? "bg-sky-600 text-white font-black shadow-sm shadow-sky-500/20"
+                    ? "bg-[#580818] text-white font-black shadow-sm"
                     : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                 }`}
               >
-                Peserta ({certificates.filter((c) => !c.isChampion).length})
+                <span>🎖️</span>
+                <span>Peserta ({certificates.filter((c) => resolveCertificateType(c, certTypeOverrides, bestSwimmerSet) === "participant").length})</span>
               </button>
             </div>
           </div>
@@ -1702,9 +1836,7 @@ export default function CertificateManager({
             ) : (
               filteredCertificates.map((item) => {
                 const isSelected = item.id === selectedCertId;
-                const isGold = item.rank === 1;
-                const isSilver = item.rank === 2;
-                const isBronze = item.rank === 3;
+                const itemType = resolveCertificateType(item, certTypeOverrides, bestSwimmerSet);
 
                 return (
                   <div
@@ -1712,35 +1844,62 @@ export default function CertificateManager({
                     onClick={() => setSelectedCertId(item.id)}
                     className={`p-3.5 sm:p-4 rounded-2xl border transition-all cursor-pointer relative ${
                       isSelected
-                        ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-400/30 shadow-sm"
+                        ? itemType === "best_swimmer"
+                          ? "bg-amber-50/70 border-amber-400 ring-2 ring-amber-400/40 shadow-sm"
+                          : itemType === "winner"
+                          ? "bg-blue-50/70 border-blue-500 ring-2 ring-blue-400/30 shadow-sm"
+                          : "bg-rose-50/50 border-[#580818]/60 ring-2 ring-rose-400/30 shadow-sm"
                         : "bg-white hover:bg-slate-50 border-slate-200/90 shadow-2xs"
                     }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      {/* Rank / Category Badge */}
-                      {item.isChampion ? (
-                        <span
-                          className={`px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                            isGold
-                              ? "bg-amber-400 text-amber-950 border border-amber-500/30"
-                              : isSilver
-                              ? "bg-slate-200 text-slate-900 border border-slate-300"
-                              : isBronze
-                              ? "bg-amber-700 text-white border border-amber-800"
-                              : "bg-amber-100 text-amber-900"
-                          }`}
-                        >
-                          {item.rankBadge}
+                      {/* Rank / Category Badge with exact matching certificate color */}
+                      {itemType === "best_swimmer" ? (
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-amber-950 border border-amber-500/40 shadow-2xs flex items-center gap-1">
+                          <span>🌟</span>
+                          <span>BEST SWIMMER (EMAS)</span>
+                        </span>
+                      ) : itemType === "winner" ? (
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#172238] text-[#e5b74b] border border-[#1d2940] shadow-2xs flex items-center gap-1">
+                          <span>🏆</span>
+                          <span>{item.rankBadge} (BIRU)</span>
                         </span>
                       ) : (
-                        <span className="px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-800 text-[10px] font-black uppercase tracking-wider">
-                          PESERTA
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-[#580818] text-[#fae89f] border border-[#420511] shadow-2xs flex items-center gap-1">
+                          <span>🎖️</span>
+                          <span>PESERTA (MERAH)</span>
                         </span>
                       )}
 
-                      <span className="text-[10px] font-bold text-slate-400 font-mono">
-                        {item.issueDate}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const newOverrides = { ...certTypeOverrides };
+                            if (itemType === "best_swimmer") {
+                              newOverrides[item.id] = item.isChampion ? "winner" : "participant";
+                              toast.info(`${item.swimmerName} dikembalikan ke tipe ${item.isChampion ? "Juara (Biru)" : "Peserta (Merah)"}`);
+                            } else {
+                              newOverrides[item.id] = "best_swimmer";
+                              toast.success(`${item.swimmerName} ditandai sebagai Best Swimmer (Emas)!`);
+                            }
+                            setCertTypeOverrides(newOverrides);
+                          }}
+                          className={`p-1 rounded-lg border transition-all cursor-pointer ${
+                            itemType === "best_swimmer"
+                              ? "bg-amber-100 text-amber-900 border-amber-300 ring-1 ring-amber-400"
+                              : "bg-slate-50 text-slate-400 hover:text-amber-600 hover:bg-amber-50 border-slate-200"
+                          }`}
+                          title={itemType === "best_swimmer" ? "Hapus status Best Swimmer" : "Jadikan Best Swimmer (Emas)"}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
+
+                        <span className="text-[10px] font-bold text-slate-400 font-mono">
+                          {item.issueDate}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="mt-2 space-y-0.5">
@@ -1796,7 +1955,13 @@ export default function CertificateManager({
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedTemplateMode("winner")}
+                    onClick={() => {
+                      if (activeCertificate) {
+                        setCertTypeOverrides((prev) => ({ ...prev, [activeCertificate.id]: "winner" }));
+                      }
+                      setSelectedTemplateMode(null);
+                      toast.success("Tema disetel ke Biru (Juara) untuk peserta ini!");
+                    }}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "winner"
                         ? "bg-[#142236] text-white shadow-sm ring-2 ring-[#142236]/40 font-extrabold"
@@ -1809,7 +1974,13 @@ export default function CertificateManager({
 
                   <button
                     type="button"
-                    onClick={() => setSelectedTemplateMode("best_swimmer")}
+                    onClick={() => {
+                      if (activeCertificate) {
+                        setCertTypeOverrides((prev) => ({ ...prev, [activeCertificate.id]: "best_swimmer" }));
+                      }
+                      setSelectedTemplateMode(null);
+                      toast.success("Tema disetel ke Emas (Best Swimmer) untuk peserta ini!");
+                    }}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "best_swimmer"
                         ? "bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-500 text-amber-950 font-black shadow-md ring-2 ring-yellow-400/80"
@@ -1822,7 +1993,13 @@ export default function CertificateManager({
 
                   <button
                     type="button"
-                    onClick={() => setSelectedTemplateMode("participant")}
+                    onClick={() => {
+                      if (activeCertificate) {
+                        setCertTypeOverrides((prev) => ({ ...prev, [activeCertificate.id]: "participant" }));
+                      }
+                      setSelectedTemplateMode(null);
+                      toast.success("Tema disetel ke Merah (Peserta) untuk peserta ini!");
+                    }}
                     className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
                       activeTemplateType === "participant"
                         ? "bg-[#580818] text-white font-black shadow-sm ring-2 ring-[#580818]/60"
@@ -1832,6 +2009,25 @@ export default function CertificateManager({
                     <span>🎖️</span>
                     <span>Merah (Participant)</span>
                   </button>
+
+                  {activeCertificate && certTypeOverrides[activeCertificate.id] && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCertTypeOverrides((prev) => {
+                          const next = { ...prev };
+                          delete next[activeCertificate.id];
+                          return next;
+                        });
+                        setSelectedTemplateMode(null);
+                        toast.info("Warna dikembalikan ke otomatis.");
+                      }}
+                      className="px-2.5 py-1 text-[11px] font-bold text-slate-500 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-lg transition-colors cursor-pointer"
+                      title="Kembalikan ke warna otomatis"
+                    >
+                      ↺ Auto
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -2283,7 +2479,7 @@ export default function CertificateManager({
           <div ref={hiddenRenderRef} style={{ width: "590px", height: "834px", position: "relative" }}>
             <CertificateCanvas
               cert={hiddenCertData.cert}
-              theme={getCertificateTheme(hiddenCertData.cert, selectedTemplateMode)}
+              theme={hiddenCertData.theme}
               config={config}
               qrCodeUrl={hiddenCertData.qrUrl}
               scale={1}
@@ -2296,7 +2492,8 @@ export default function CertificateManager({
       {isBatchPrinting && (
         <div id="batch-certificates-print-area" className="hidden print:block">
           {filteredCertificates.map((cert, idx) => {
-            const theme = getCertificateTheme(cert, selectedTemplateMode);
+            const certType = resolveCertificateType(cert, certTypeOverrides, bestSwimmerSet);
+            const theme = THEME_CONFIG[certType];
             const qrUrl = batchQrMap[cert.id] || qrCodeUrl;
             return (
               <div
