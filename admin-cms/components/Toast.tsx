@@ -157,16 +157,16 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ toasts, showToast, removeToast, confirm }}>
       {children}
 
-      {/* TOAST CONTAINER (FIXED TOP-RIGHT) */}
-      <div className="fixed top-5 right-5 z-[99999] flex flex-col gap-3 max-w-sm sm:max-w-md w-full pointer-events-none p-2 sm:p-0">
+      {/* TOAST CONTAINER (FIXED TOP-RIGHT) - HIDDEN DURING PRINT */}
+      <div className="fixed top-5 right-5 z-[99999] flex flex-col gap-3 max-w-sm sm:max-w-md w-full pointer-events-none p-2 sm:p-0 print:hidden no-print">
         {toasts.map((item) => (
           <ToastCard key={item.id} item={item} onDismiss={() => removeToast(item.id)} />
         ))}
       </div>
 
-      {/* CONFIRMATION DIALOG MODAL */}
+      {/* CONFIRMATION DIALOG MODAL - HIDDEN DURING PRINT */}
       {confirmState && (
-        <div className="fixed inset-0 z-[999999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150">
+        <div className="fixed inset-0 z-[999999] bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-150 print:hidden no-print">
           <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 overflow-hidden space-y-5 animate-in zoom-in-95 duration-150 pointer-events-auto">
             <div className="flex items-start gap-4">
               <div

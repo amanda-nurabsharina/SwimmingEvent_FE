@@ -1648,7 +1648,6 @@ export default function CertificateManager({
   const handleBatchPrint = async () => {
     if (filteredCertificates.length === 0) return;
     setIsPreparingBatchPrint(true);
-    toast.info(`Menyiapkan ${filteredCertificates.length} halaman sertifikat untuk dicetak...`);
     try {
       const qrMap: Record<string | number, string> = {};
       for (const cert of filteredCertificates) {
@@ -1667,7 +1666,7 @@ export default function CertificateManager({
       setTimeout(() => {
         setIsPreparingBatchPrint(false);
         window.print();
-      }, 500);
+      }, 300);
     } catch (err: any) {
       setIsPreparingBatchPrint(false);
       toast.error("Gagal menyiapkan cetak masal: " + err.message);
@@ -2770,14 +2769,18 @@ export default function CertificateManager({
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* Completely hide all screen elements, dashboard sidebar, topbars and modals */
+          /* Completely hide all screen elements, dashboard sidebar, topbars, modals, and toasts */
           aside,
           nav,
           header,
           footer,
           .print\:hidden,
           .no-print,
-          #certificate-screen-root {
+          #certificate-screen-root,
+          [class*="z-[99999]"],
+          [class*="z-[999999]"],
+          [role="alert"],
+          [role="status"] {
             display: none !important;
           }
           /* Neutralize dashboard layout wrapper */
