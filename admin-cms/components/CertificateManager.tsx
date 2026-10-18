@@ -35,7 +35,7 @@ import { toast } from "./Toast";
 import { calculateEventChampions, EventGroupData, RankedSwimmer } from "../lib/champion-utils";
 import QRCode from "qrcode";
 import JSZip from "jszip";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 
 function formatEventTitle(name: string) {
   if (!name) return "";
