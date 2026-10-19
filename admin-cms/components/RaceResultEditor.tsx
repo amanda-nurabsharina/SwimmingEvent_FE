@@ -194,22 +194,130 @@ export const doesHeatItemMatchGender = (
   if (item.is_empty || !item.nama || item.nama === "(KOSONG)") return false;
 
   const target = targetGender.toUpperCase().trim();
-  const raw = (item.gender || item.jenis_kelamin || eventGender || "").toUpperCase().trim();
-  let eff = "PUTRA";
-  if (raw.includes("PUTRI") || raw.includes("FEMALE") || raw === "P" || raw === "W" || raw.includes("WANITA") || raw.includes("PEREMPUAN")) {
+  const isTargetPutra =
+    target === "PUTRA" ||
+    target === "PRIA" ||
+    target === "MALE" ||
+    target === "L" ||
+    target === "M" ||
+    target === "BOY" ||
+    target === "BOYS" ||
+    target === "MEN";
+  const isTargetPutri =
+    target === "PUTRI" ||
+    target === "WANITA" ||
+    target === "PEREMPUAN" ||
+    target === "FEMALE" ||
+    target === "P" ||
+    target === "W" ||
+    target === "F" ||
+    target === "GIRL" ||
+    target === "GIRLS" ||
+    target === "WOMEN";
+
+  // 1. Check item's gender/jenis_kelamin first if explicitly present
+  const itemRaw = (item.gender || item.jenis_kelamin || "").toUpperCase().trim();
+  let eff = "";
+  if (
+    itemRaw.includes("PUTRI") ||
+    itemRaw.includes("FEMALE") ||
+    itemRaw === "P" ||
+    itemRaw === "W" ||
+    itemRaw === "F" ||
+    itemRaw.includes("WANITA") ||
+    itemRaw.includes("PEREMPUAN") ||
+    itemRaw.includes("GIRL") ||
+    itemRaw.includes("WOMEN")
+  ) {
     eff = "PUTRI";
-  } else if (raw.includes("PUTRA") || raw.includes("MALE") || raw === "L" || raw.includes("PRIA")) {
+  } else if (
+    itemRaw.includes("PUTRA") ||
+    itemRaw.includes("MALE") ||
+    itemRaw === "L" ||
+    itemRaw === "M" ||
+    itemRaw.includes("PRIA") ||
+    itemRaw.includes("BOY") ||
+    itemRaw.includes("MEN")
+  ) {
     eff = "PUTRA";
-  } else if (raw.includes("CAMPURAN") || raw.includes("MIXED")) {
+  } else if (
+    itemRaw.includes("CAMPURAN") ||
+    itemRaw.includes("MIXED") ||
+    itemRaw.includes("MIX")
+  ) {
     eff = "CAMPURAN";
-  } else if (eventName) {
-    const n = eventName.toUpperCase();
-    if (n.includes("PUTRI") || n.includes("WANITA") || n.includes("GIRLS") || n.includes("WOMEN")) eff = "PUTRI";
-    else if (n.includes("CAMPURAN") || n.includes("MIXED")) eff = "CAMPURAN";
   }
 
-  if (target === "PUTRA" || target === "MALE" || target === "L") return eff === "PUTRA" || eff === "CAMPURAN";
-  if (target === "PUTRI" || target === "FEMALE" || target === "P" || target === "W") return eff === "PUTRI" || eff === "CAMPURAN";
+  // 2. If item gender not explicitly specified, check event level gender
+  if (!eff && eventGender) {
+    const evRaw = eventGender.toUpperCase().trim();
+    if (
+      evRaw.includes("PUTRI") ||
+      evRaw.includes("FEMALE") ||
+      evRaw === "P" ||
+      evRaw === "W" ||
+      evRaw === "F" ||
+      evRaw.includes("WANITA") ||
+      evRaw.includes("PEREMPUAN") ||
+      evRaw.includes("GIRL") ||
+      evRaw.includes("WOMEN")
+    ) {
+      eff = "PUTRI";
+    } else if (
+      evRaw.includes("PUTRA") ||
+      evRaw.includes("MALE") ||
+      evRaw === "L" ||
+      evRaw === "M" ||
+      evRaw.includes("PRIA") ||
+      evRaw.includes("BOY") ||
+      evRaw.includes("MEN")
+    ) {
+      eff = "PUTRA";
+    } else if (
+      evRaw.includes("CAMPURAN") ||
+      evRaw.includes("MIXED") ||
+      evRaw.includes("MIX")
+    ) {
+      eff = "CAMPURAN";
+    }
+  }
+
+  // 3. If still undetermined, check eventName
+  if (!eff && eventName) {
+    const n = eventName.toUpperCase();
+    if (
+      n.includes("PUTRI") ||
+      n.includes("WANITA") ||
+      n.includes("PEREMPUAN") ||
+      n.includes("GIRLS") ||
+      n.includes("GIRL") ||
+      n.includes("WOMEN") ||
+      n.includes("FEMALE")
+    ) {
+      eff = "PUTRI";
+    } else if (
+      n.includes("PUTRA") ||
+      n.includes("PRIA") ||
+      n.includes("BOYS") ||
+      n.includes("BOY") ||
+      n.includes("MEN") ||
+      n.includes("MALE") ||
+      n.includes("LAKI")
+    ) {
+      eff = "PUTRA";
+    } else if (
+      n.includes("CAMPURAN") ||
+      n.includes("MIXED") ||
+      n.includes("MIX")
+    ) {
+      eff = "CAMPURAN";
+    }
+  }
+
+  if (!eff) eff = "PUTRA";
+
+  if (isTargetPutra) return eff === "PUTRA" || eff === "CAMPURAN";
+  if (isTargetPutri) return eff === "PUTRI" || eff === "CAMPURAN";
   return eff === target;
 };
 
@@ -260,25 +368,59 @@ export const matchKU = (
 // Extract best Gender label for event display and filter matching
 export const getEventGenderLabel = (event: { gender?: string; event_name?: string; heats?: any[] }): string => {
   const g = (event.gender || "").toUpperCase().trim();
-  if (g.includes("PUTRI") || g.includes("FEMALE") || g === "P" || g === "W" || g.includes("WANITA") || g.includes("PEREMPUAN")) {
+  if (
+    g.includes("PUTRI") ||
+    g.includes("FEMALE") ||
+    g === "P" ||
+    g === "W" ||
+    g === "F" ||
+    g.includes("WANITA") ||
+    g.includes("PEREMPUAN") ||
+    g.includes("GIRL") ||
+    g.includes("WOMEN")
+  ) {
     return "PUTRI";
   }
-  if (g.includes("PUTRA") || g.includes("MALE") || g === "L" || g === "PRIA") {
+  if (
+    g.includes("PUTRA") ||
+    g.includes("MALE") ||
+    g === "L" ||
+    g === "M" ||
+    g.includes("PRIA") ||
+    g.includes("BOY") ||
+    g.includes("MEN")
+  ) {
     return "PUTRA";
   }
-  if (g.includes("CAMPURAN") || g.includes("MIXED")) {
+  if (g.includes("CAMPURAN") || g.includes("MIXED") || g.includes("MIX")) {
     return "CAMPURAN";
   }
 
   // Check event name
   const n = (event.event_name || "").toUpperCase().trim();
-  if (n.includes("PUTRI") || n.includes("WANITA") || n.includes("GIRLS") || n.includes("WOMEN")) {
+  if (
+    n.includes("PUTRI") ||
+    n.includes("WANITA") ||
+    n.includes("PEREMPUAN") ||
+    n.includes("GIRLS") ||
+    n.includes("GIRL") ||
+    n.includes("WOMEN") ||
+    n.includes("FEMALE")
+  ) {
     return "PUTRI";
   }
-  if (n.includes("PUTRA") || n.includes("PRIA") || n.includes("BOYS") || n.includes("MEN")) {
+  if (
+    n.includes("PUTRA") ||
+    n.includes("PRIA") ||
+    n.includes("BOYS") ||
+    n.includes("BOY") ||
+    n.includes("MEN") ||
+    n.includes("MALE") ||
+    n.includes("LAKI")
+  ) {
     return "PUTRA";
   }
-  if (n.includes("CAMPURAN") || n.includes("MIXED")) {
+  if (n.includes("CAMPURAN") || n.includes("MIXED") || n.includes("MIX")) {
     return "CAMPURAN";
   }
 
@@ -287,8 +429,24 @@ export const getEventGenderLabel = (event: { gender?: string; event_name?: strin
     for (const h of event.heats) {
       if (!h.is_empty) {
         const hg = (h.gender || h.jenis_kelamin || "").toUpperCase().trim();
-        if (hg.includes("PUTRI") || hg === "P" || hg === "W" || hg.includes("WANITA")) return "PUTRI";
-        if (hg.includes("PUTRA") || hg === "L" || hg.includes("PRIA")) return "PUTRA";
+        if (
+          hg.includes("PUTRI") ||
+          hg === "P" ||
+          hg === "W" ||
+          hg === "F" ||
+          hg.includes("WANITA") ||
+          hg.includes("PEREMPUAN")
+        ) {
+          return "PUTRI";
+        }
+        if (
+          hg.includes("PUTRA") ||
+          hg === "L" ||
+          hg === "M" ||
+          hg.includes("PRIA")
+        ) {
+          return "PUTRA";
+        }
       }
     }
   }
@@ -305,12 +463,27 @@ export const matchGender = (
 ): boolean => {
   if (!targetGender || targetGender === "ALL") return true;
   const target = targetGender.toUpperCase().trim();
+  const isTargetPutra =
+    target === "PUTRA" ||
+    target === "PRIA" ||
+    target === "MALE" ||
+    target === "L" ||
+    target === "M";
+  const isTargetPutri =
+    target === "PUTRI" ||
+    target === "WANITA" ||
+    target === "PEREMPUAN" ||
+    target === "FEMALE" ||
+    target === "P" ||
+    target === "W" ||
+    target === "F";
+
   const effectiveGender = getEventGenderLabel({ gender: eventGender, event_name: eventName, heats });
 
-  if (target === "PUTRA" || target === "MALE" || target === "L") {
+  if (isTargetPutra) {
     return effectiveGender === "PUTRA" || effectiveGender === "CAMPURAN";
   }
-  if (target === "PUTRI" || target === "FEMALE" || target === "P" || target === "W") {
+  if (isTargetPutri) {
     return effectiveGender === "PUTRI" || effectiveGender === "CAMPURAN";
   }
   return effectiveGender === target;
@@ -503,6 +676,26 @@ export function getEventDisplayName(event: any): string {
   }
 
   return `${parts.join(" ")}, SCM`;
+}
+
+export function parseEventCodeNum(code: any): number {
+  if (typeof code === "number") return isNaN(code) ? 0 : code;
+  if (!code) return 0;
+  const num = parseInt(String(code).replace(/[^0-9]/g, ""), 10);
+  return isNaN(num) ? 0 : num;
+}
+
+export function compareEventCode(aCode: any, bCode: any, desc = false): number {
+  const numA = parseEventCodeNum(aCode);
+  const numB = parseEventCodeNum(bCode);
+  if (numA !== numB) {
+    return desc ? numB - numA : numA - numB;
+  }
+  const strA = String(aCode ?? "");
+  const strB = String(bCode ?? "");
+  return desc
+    ? strB.localeCompare(strA, undefined, { numeric: true })
+    : strA.localeCompare(strB, undefined, { numeric: true });
 }
 
 export default function RaceResultEditor({
@@ -741,7 +934,7 @@ export default function RaceResultEditor({
       });
     });
 
-    const eventCodes = Array.from(eventCodesMap.values()).sort((a, b) => a.code - b.code);
+    const eventCodes = Array.from(eventCodesMap.values()).sort((a, b) => compareEventCode(a.code, b.code, false));
 
     const standardKUSort = ["KU 6A", "KU 6B", "KU 5", "KU 4", "KU 3", "KU 2", "KU 1", "SENIOR", "OPEN", "TERBUKA"];
     const sortedAgeGroups = Array.from(ageGroups).filter(Boolean).sort((a, b) => {
@@ -844,7 +1037,7 @@ export default function RaceResultEditor({
 
         return true;
       })
-      .sort((a, b) => (a.event_code || 0) - (b.event_code || 0));
+      .sort((a, b) => compareEventCode(a.event_code, b.event_code, false));
   }, [
     eventGroups,
     selectedCategoryFilter,
@@ -1891,21 +2084,7 @@ export default function RaceResultEditor({
               </label>
               <select
                 value={selectedEventCode}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedEventCode(val);
-                  if (val !== "ALL") {
-                    const targetEv = eventGroups.find((eg) => String(eg.event_code) === val);
-                    if (targetEv) {
-                      if (selectedKU !== "ALL" && !matchKU(targetEv.age_group, targetEv.event_name, targetEv.heats, selectedKU)) {
-                        setSelectedKU("ALL");
-                      }
-                      if (selectedGender !== "ALL" && !matchGender(targetEv.gender, selectedGender, targetEv.event_name, targetEv.heats)) {
-                        setSelectedGender("ALL");
-                      }
-                    }
-                  }
-                }}
+                onChange={(e) => setSelectedEventCode(e.target.value)}
                 className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
               >
                 <option value="ALL">Semua Nomor Lomba ({dynamicFilterOptions.eventCodes.length})</option>
@@ -1925,16 +2104,7 @@ export default function RaceResultEditor({
               </label>
               <select
                 value={selectedKU}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedKU(val);
-                  if (selectedEventCode !== "ALL" && val !== "ALL") {
-                    const currentEv = eventGroups.find((eg) => String(eg.event_code) === selectedEventCode);
-                    if (currentEv && !matchKU(currentEv.age_group, currentEv.event_name, currentEv.heats, val)) {
-                      setSelectedEventCode("ALL");
-                    }
-                  }
-                }}
+                onChange={(e) => setSelectedKU(e.target.value)}
                 className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
               >
                 <option value="ALL">Semua Kelompok Umur</option>
@@ -1954,19 +2124,10 @@ export default function RaceResultEditor({
               </label>
               <select
                 value={selectedGender}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setSelectedGender(val);
-                  if (selectedEventCode !== "ALL" && val !== "ALL") {
-                    const currentEv = eventGroups.find((eg) => String(eg.event_code) === selectedEventCode);
-                    if (currentEv && !matchGender(currentEv.gender, val, currentEv.event_name, currentEv.heats)) {
-                      setSelectedEventCode("ALL");
-                    }
-                  }
-                }}
+                onChange={(e) => setSelectedGender(e.target.value)}
                 className="w-full bg-slate-50 hover:bg-slate-100/80 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-sky-500 focus:outline-none transition cursor-pointer"
               >
-                <option value="ALL">Semua Gender (Putra & Putri)</option>
+                <option value="ALL">Semua Gender</option>
                 <option value="PUTRA">Putra</option>
                 <option value="PUTRI">Putri</option>
               </select>
@@ -2237,7 +2398,7 @@ export default function RaceResultEditor({
       ) : (
         <>
           <div className="space-y-6 print:hidden">
-          {filteredEvents.map((event) => {
+          {filteredEvents.map((event, eventIdx) => {
               const eventGenderLabel = getEventGenderLabel(event);
               const eventKULabel = getEventKULabel(event);
               const displayGender = selectedGender !== "ALL" ? selectedGender : eventGenderLabel;
@@ -2272,7 +2433,7 @@ export default function RaceResultEditor({
 
               return (
                 <div
-                  key={event.event_code}
+                  key={`${event.event_id || ""}-${event.event_code || ""}-${eventIdx}`}
                   className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden"
                 >
                   {/* Event Header Banner */}
@@ -2323,7 +2484,7 @@ export default function RaceResultEditor({
 
                       return (
                         <div
-                          key={group.heatNum}
+                          key={`${event.event_code}-${group.heatNum}`}
                           className={`bg-white rounded-2xl border shadow-sm overflow-hidden ${
                             isPutri ? "border-rose-100" : "border-slate-200/90"
                           }`}
@@ -2461,7 +2622,7 @@ export default function RaceResultEditor({
 
                                   return (
                                     <tr
-                                      key={rIdx}
+                                      key={`${event.event_code}-${group.heatNum}-${item.registration_id || item.line}-${rIdx}`}
                                       className={`transition-colors ${
                                         isEmpty
                                           ? "bg-slate-50/40 text-slate-400"
